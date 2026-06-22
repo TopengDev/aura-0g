@@ -1,0 +1,47 @@
+Detected testnet (chain ID: 16602)
+endpoint: https://compute-network-17.integratenetwork.work/v1/proxy model: qwen/qwen-image-edit-2511
+TEE: TeeML signer: 0x2A94D671f1A5e080f75A8164087Cdd35c8442e69 
+
+=== char gen: 8 entries from images/characters/T1/manifest.json ===
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:44:51.478Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-NOKTURNE-bust] OK 58028ms out=images/characters/T1/NOKTURNE-bust.png bytes=1343421 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:45:53.015Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-MIRAI-bust] OK 41920ms out=images/characters/T1/MIRAI-bust.png bytes=1719043 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:46:38.351Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-RISO-bust] OK 41791ms out=images/characters/T1/RISO-bust.png bytes=2026326 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:47:23.649Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-SCRIPTORIUM-bust] OK 41805ms out=images/characters/T1/SCRIPTORIUM-bust.png bytes=2134497 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:48:08.911Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-NOKTURNE-blank] OK 56926ms out=images/characters/T1/NOKTURNE-blank.png bytes=1320202 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:49:09.311Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-MIRAI-blank] OK 42302ms out=images/characters/T1/MIRAI-blank.png bytes=1676500 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:49:55.092Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-RISO-blank] OK 42015ms out=images/characters/T1/RISO-blank.png bytes=1791767 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:50:40.569Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T1-SCRIPTORIUM-blank] OK 56863ms out=images/characters/T1/SCRIPTORIUM-blank.png bytes=2057646 verified=true
+
+balance after: 3.214161622948293467 0G

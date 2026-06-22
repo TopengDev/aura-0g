@@ -1,0 +1,22 @@
+# SECRETS - never commit
+.env
+.env.*
+!.env.example
+*.key
+wallet.json
+
+# deps
+node_modules/
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# build
+dist/
+*.tsbuildinfo
+
+# os
+.DS_Store
+
+.helpers.json

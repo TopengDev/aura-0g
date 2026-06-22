@@ -1,0 +1,32 @@
+{
+  "name": "zerog-smoke",
+  "version": "0.0.1",
+  "private": true,
+  "description": "0G stack ULTRA-exhaustive smoke-test (Zero Cup de-risk). Testnet only.",
+  "type": "module",
+  "scripts": {
+    "wallet": "tsx src/01-wallet.ts",
+    "balance": "tsx src/02-balance.ts",
+    "compute": "tsx src/03-compute.ts",
+    "storage": "tsx src/04-storage.ts",
+    "e2e": "tsx src/05-e2e.ts",
+    "demo": "tsx demo/run-aura.ts"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@0gfoundation/0g-ts-sdk": "1.2.8",
+    "@0glabs/0g-serving-broker": "^0.7.8",
+    "@0glabs/0g-ts-sdk": "^0.3.3",
+    "circomlibjs": "^0.1.7",
+    "crypto-js": "^4.2.0",
+    "ethers": "6.13.1",
+    "openai": "^6.44.0"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "^26.0.0",
+    "dotenv": "^17.4.2",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3"
+  }
+}

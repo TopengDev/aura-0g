@@ -1,0 +1,25 @@
+[
+  { "label": "T1-NOKTURNE-bust", "base": "images/characters/bases/char-bust.png", "out": "images/characters/T1/NOKTURNE-bust.png",
+    "prompt": "Transform this silhouette into a portrait of a hard-boiled noir detective wearing a fedora and trench coat, cigarette smoke curling, half his face in shadow. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: chiaroscuro noir, deep shadows, single dramatic light source, wet reflections, drifting smoke, oil painting, muted gold highlights, film-noir mood." },
+
+  { "label": "T1-MIRAI-bust", "base": "images/characters/bases/char-bust.png", "out": "images/characters/T1/MIRAI-bust.png",
+    "prompt": "Transform this silhouette into a portrait of a cyberpunk street samurai with glowing neon cybernetic implants, a techwear hood, and a visor over one eye. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: neon cyberpunk, electric magenta and cyan glow, holographic accents, rain-slick reflections, blade-runner atmosphere, high contrast." },
+
+  { "label": "T1-RISO-bust", "base": "images/characters/bases/char-creature.png", "out": "images/characters/T1/RISO-bust.png",
+    "prompt": "Transform this silhouette into a portrait of a quirky anthropomorphic fox character with a mischievous grin, big round eyes, wearing a knit scarf. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: risograph print, fluorescent pink and blue duotone, visible halftone grain, misregistration, flat bold shapes, indie zine aesthetic." },
+
+  { "label": "T1-SCRIPTORIUM-bust", "base": "images/characters/bases/char-bust.png", "out": "images/characters/T1/SCRIPTORIUM-bust.png",
+    "prompt": "Transform this silhouette into a portrait of a noble medieval knight-saint with a golden halo, ornate engraved armor, and a solemn gaze. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: ornate illuminated medieval manuscript, gold leaf, intricate marginalia, jewel tones, decorative gilded border, miniature painting." },
+
+  { "label": "T1-NOKTURNE-blank", "base": "images/characters/bases/char-blank.png", "out": "images/characters/T1/NOKTURNE-blank.png",
+    "prompt": "Create a portrait of a hard-boiled noir detective wearing a fedora and trench coat, cigarette smoke curling, half his face in shadow. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: chiaroscuro noir, deep shadows, single dramatic light source, wet reflections, drifting smoke, oil painting, muted gold highlights, film-noir mood." },
+
+  { "label": "T1-MIRAI-blank", "base": "images/characters/bases/char-blank.png", "out": "images/characters/T1/MIRAI-blank.png",
+    "prompt": "Create a portrait of a cyberpunk street samurai with glowing neon cybernetic implants, a techwear hood, and a visor over one eye. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: neon cyberpunk, electric magenta and cyan glow, holographic accents, rain-slick reflections, blade-runner atmosphere, high contrast." },
+
+  { "label": "T1-RISO-blank", "base": "images/characters/bases/char-blank.png", "out": "images/characters/T1/RISO-blank.png",
+    "prompt": "Create a portrait of a quirky anthropomorphic fox character with a mischievous grin, big round eyes, wearing a knit scarf. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: risograph print, fluorescent pink and blue duotone, visible halftone grain, misregistration, flat bold shapes, indie zine aesthetic." },
+
+  { "label": "T1-SCRIPTORIUM-blank", "base": "images/characters/bases/char-blank.png", "out": "images/characters/T1/SCRIPTORIUM-blank.png",
+    "prompt": "Create a portrait of a noble medieval knight-saint with a golden halo, ornate engraved armor, and a solemn gaze. Head and shoulders character portrait, centered, detailed original character design, collectible PFP avatar art. Style: ornate illuminated medieval manuscript, gold leaf, intricate marginalia, jewel tones, decorative gilded border, miniature painting." }
+]

@@ -1,0 +1,67 @@
+Detected testnet (chain ID: 16602)
+endpoint: https://compute-network-17.integratenetwork.work/v1/proxy model: qwen/qwen-image-edit-2511
+TEE: TeeML signer: 0x2A94D671f1A5e080f75A8164087Cdd35c8442e69 
+
+=== char gen: 12 entries from images/characters/T2-manifest.json ===
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:54:22.885Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2a-MIRAI-01-samurai] OK 42104ms out=images/characters/T2a/MIRAI-01-samurai.png bytes=1548305 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:55:09.329Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2a-MIRAI-02-netrunner] OK 55834ms out=images/characters/T2a/MIRAI-02-netrunner.png bytes=1587663 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:56:08.664Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2a-MIRAI-03-enforcer] OK 42657ms out=images/characters/T2a/MIRAI-03-enforcer.png bytes=1673764 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:56:54.738Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2a-MIRAI-04-medic] OK 42134ms out=images/characters/T2a/MIRAI-04-medic.png bytes=1580517 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:57:40.265Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-img-RISO-v1-wink] OK 42596ms out=images/characters/T2b/img-RISO-v1-wink.png bytes=2090591 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:58:26.397Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-img-RISO-v2-glasses] OK 42471ms out=images/characters/T2b/img-RISO-v2-glasses.png bytes=2043413 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T09:59:12.273Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-img-RISO-v3-angry] OK 56670ms out=images/characters/T2b/img-RISO-v3-angry.png bytes=1976152 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T10:00:12.442Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-img-MIRAI-v1-smirk] OK 42451ms out=images/characters/T2b/img-MIRAI-v1-smirk.png bytes=1669810 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T10:00:58.347Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-img-MIRAI-v2-mask] OK 42580ms out=images/characters/T2b/img-MIRAI-v2-mask.png bytes=1688377 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T10:01:44.389Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-img-MIRAI-v3-green] OK 42336ms out=images/characters/T2b/img-MIRAI-v3-green.png bytes=1683788 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T10:02:30.216Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-prompt-RISO-v1-smile] OK 41811ms out=images/characters/T2b/prompt-RISO-v1-smile.png bytes=1804907 verified=true
+sending tx with gas price 4000000007n
+[WARN] 2026-06-21T10:03:15.477Z - [Auto-funding] Requires 1.0000 0G in your ledger to transfer to the provider sub-account, but your ledger available balance is insufficient. Please deposit more funds:
+  SDK: broker.ledger.depositFund(1)
+  CLI: 0g-compute-cli deposit --amount 1
+  [T2b-prompt-RISO-v2-crown] OK 41885ms out=images/characters/T2b/prompt-RISO-v2-crown.png bytes=1961477 verified=true
+
+balance after: 3.214161622948293467 0G

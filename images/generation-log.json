@@ -1,0 +1,130 @@
+[
+  {
+    "agentId": "NOKTURNE",
+    "ok": false,
+    "status": 400,
+    "error": "{\"error\":\"validate request: insufficient balance: your locked balance is 0.200000 0G, but the required minimum is 1.000000 0G (breakdown: minimum reserve 1.000000 0G + unsettled fees 0.000000 0G + current request fee 0.000000 0G). Please add more funds with: 0g-compute-cli transfer-fund --provider 0",
+    "endpoint": "images/generations",
+    "ts": "2026-06-21T08:43:16.930Z"
+  },
+  {
+    "agentId": "NOKTURNE",
+    "ok": false,
+    "status": 500,
+    "error": "{\"detail\":\"404: Image generation not enabled\"}",
+    "endpoint": "images/generations",
+    "ts": "2026-06-21T09:12:10.199Z"
+  },
+  {
+    "agentId": "NOKTURNE",
+    "ok": true,
+    "ms": 56399,
+    "saved": "images/NOKTURNE.png",
+    "bytes": 1280524,
+    "verified": true,
+    "chatId": "98c84e9c-d750-4fc8-bf41-e2dade72ceb0",
+    "model": "qwen/qwen-image-edit-2511",
+    "verifiability": "TeeML",
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69",
+    "teeResponseHeaders": {
+      "access-control-expose-headers": "x-ratelimit-limit-requests, x-ratelimit-remaining-requests, x-ratelimit-reset-requests, x-ratelimit-limit-tokens, x-ratelimit-remaining-tokens, x-ratelimit-reset-tokens,Provider,content-encoding,ZG-Res-Key",
+      "content-type": "application/json",
+      "date": "Sun, 21 Jun 2026 09:19:41 GMT",
+      "provider": "0x4b2a941929E39Adbea5316dDF2B9Bd8Ff3134389",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no",
+      "x-ratelimit-limit-requests": "30",
+      "x-ratelimit-remaining-requests": "4",
+      "x-ratelimit-reset-requests": "0s",
+      "zg-res-key": "98c84e9c-d750-4fc8-bf41-e2dade72ceb0"
+    },
+    "mode": "images/edits",
+    "ts": "2026-06-21T09:20:38.682Z"
+  },
+  {
+    "agentId": "MIRAI",
+    "ok": true,
+    "ms": 42617,
+    "saved": "images/MIRAI.png",
+    "bytes": 1372269,
+    "verified": true,
+    "chatId": "274be0fb-bdb3-43f9-895f-67d326c089f6",
+    "model": "qwen/qwen-image-edit-2511",
+    "verifiability": "TeeML",
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69",
+    "teeResponseHeaders": {
+      "access-control-expose-headers": "x-ratelimit-limit-requests, x-ratelimit-remaining-requests, x-ratelimit-reset-requests, x-ratelimit-limit-tokens, x-ratelimit-remaining-tokens, x-ratelimit-reset-tokens,Provider,content-encoding,ZG-Res-Key",
+      "content-type": "application/json",
+      "date": "Sun, 21 Jun 2026 09:20:41 GMT",
+      "provider": "0x4b2a941929E39Adbea5316dDF2B9Bd8Ff3134389",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no",
+      "x-ratelimit-limit-requests": "30",
+      "x-ratelimit-remaining-requests": "4",
+      "x-ratelimit-reset-requests": "0s",
+      "zg-res-key": "274be0fb-bdb3-43f9-895f-67d326c089f6"
+    },
+    "mode": "images/edits",
+    "ts": "2026-06-21T09:21:24.821Z"
+  },
+  {
+    "agentId": "RISO",
+    "ok": true,
+    "ms": 41894,
+    "saved": "images/RISO.png",
+    "bytes": 2066099,
+    "verified": true,
+    "chatId": "512dd620-7282-44d1-baa8-7015c231a465",
+    "model": "qwen/qwen-image-edit-2511",
+    "verifiability": "TeeML",
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69",
+    "teeResponseHeaders": {
+      "access-control-expose-headers": "x-ratelimit-limit-requests, x-ratelimit-remaining-requests, x-ratelimit-reset-requests, x-ratelimit-limit-tokens, x-ratelimit-remaining-tokens, x-ratelimit-reset-tokens,Provider,content-encoding,ZG-Res-Key",
+      "content-type": "application/json",
+      "date": "Sun, 21 Jun 2026 09:21:27 GMT",
+      "provider": "0x4b2a941929E39Adbea5316dDF2B9Bd8Ff3134389",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no",
+      "x-ratelimit-limit-requests": "30",
+      "x-ratelimit-remaining-requests": "4",
+      "x-ratelimit-reset-requests": "0s",
+      "zg-res-key": "512dd620-7282-44d1-baa8-7015c231a465"
+    },
+    "mode": "images/edits",
+    "ts": "2026-06-21T09:22:10.339Z"
+  },
+  {
+    "agentId": "SCRIPTORIUM",
+    "ok": true,
+    "ms": 41447,
+    "saved": "images/SCRIPTORIUM.png",
+    "bytes": 2006014,
+    "verified": true,
+    "chatId": "a7562446-ec44-4ed5-8773-32f4a8bb9a3f",
+    "model": "qwen/qwen-image-edit-2511",
+    "verifiability": "TeeML",
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69",
+    "teeResponseHeaders": {
+      "access-control-expose-headers": "x-ratelimit-limit-requests, x-ratelimit-remaining-requests, x-ratelimit-reset-requests, x-ratelimit-limit-tokens, x-ratelimit-remaining-tokens, x-ratelimit-reset-tokens,Provider,content-encoding,ZG-Res-Key",
+      "content-type": "application/json",
+      "date": "Sun, 21 Jun 2026 09:22:13 GMT",
+      "provider": "0x4b2a941929E39Adbea5316dDF2B9Bd8Ff3134389",
+      "transfer-encoding": "chunked",
+      "x-accel-buffering": "no",
+      "x-ratelimit-limit-requests": "30",
+      "x-ratelimit-remaining-requests": "4",
+      "x-ratelimit-reset-requests": "0s",
+      "zg-res-key": "a7562446-ec44-4ed5-8773-32f4a8bb9a3f"
+    },
+    "mode": "images/edits",
+    "ts": "2026-06-21T09:22:55.280Z"
+  },
+  {
+    "agentId": "NOKTURNE",
+    "ok": false,
+    "status": 500,
+    "error": "{\"detail\":\"404: Image generation not enabled\"}",
+    "endpoint": "images/generations",
+    "ts": "2026-06-22T07:46:51.056Z"
+  }
+]

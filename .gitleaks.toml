@@ -1,0 +1,28 @@
+# gitleaks config for AURA.
+#
+# Extends the default gitleaks ruleset (all built-in rules stay ACTIVE) and adds a
+# NARROW allowlist for two confirmed false positives only. These are public,
+# non-credential, on-chain / protocol values, not secrets:
+#
+#   1. "zg-res-key": <uuid>   - 0G Compute TEE response-correlation IDs (chatId),
+#      per-request identifiers used by processResponse() for TEE verification.
+#      Not credentials; the hero's chatId is already public in demo/proof.json.
+#
+#   2. "brainKeyHash": 0x<64hex> - keccak256() of an ephemeral random brain key
+#      (brainKey = randomBytes(32), hashed in run-aura.ts). A one-way hash; the
+#      key itself is never persisted to any tracked file.
+#
+# Verified independently: an exact-value scan for the real wallet private key and
+# all helper private keys returns ZERO hits in any tracked file. The real secrets
+# live only in .env / .helpers.json, both gitignored.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Confirmed false positives: public TEE response IDs + a one-way keccak hash. No private key is committed."
+regexTarget = "line"
+regexes = [
+  '''"zg-res-key":\s*"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"''',
+  '''"brainKeyHash":\s*"0x[a-fA-F0-9]{64}"''',
+]

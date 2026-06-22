@@ -1,0 +1,340 @@
+{
+  "project": "AURA - a verifiable creative-agent marketplace (0G Zero Cup)",
+  "thesis": "Creative agents are iNFTs that generate TEE-verified art on 0G; provable authorship → enforced, transferable royalties on every output sale, forever.",
+  "network": {
+    "name": "0G Galileo testnet",
+    "chainId": 16602,
+    "rpc": "https://evmrpc-testnet.0g.ai",
+    "explorer": "https://chainscan-galileo.0g.ai",
+    "storageScan": "https://storagescan-galileo.0g.ai"
+  },
+  "contracts": {
+    "agentRegistry": "0xEf948192c22957Eaa24a08782163b30037bA34bC",
+    "outputNFT": "0xC55A80DdA3baC1704311B89DfB44A60c19e33ccb",
+    "marketplace": "0x4484071f199f16259d4a4F4b41DBa1359D5f7a8c"
+  },
+  "primitives": {
+    "compute": "0G Compute (qwen/qwen-image-edit-2511, TeeML/dstack)",
+    "storage": "0G Storage (Turbo)",
+    "chain": "0G Chain EVM",
+    "inft": "AgentRegistry ERC-7857-style"
+  },
+  "phases": {
+    "agent": {
+      "agentId": 2,
+      "name": "RISO",
+      "owner": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+      "royaltyBps": 700,
+      "styleFingerprint": "0xa4a7d2673e020300d3e12d1b20aa9271b10ef6b0316e59b7c2c8c5c779183157",
+      "modelAttestation": "0xe97eddfb7a63dbc3261245c8df93d655abeb20bcb9a446f5f5669e133a415091",
+      "encBrainRoot": "0x47b95fdfd27a15fa1c5f2917af8e4e9896e4b744cb4bd00906fa945e8000afcd",
+      "encBrainTxHash": "0x4262c03ba6ef0a8c41a34e2f5a193e0ead56bf6825b07bc8c72ae705c7fc5718",
+      "brainKeyHash": "0xadcb38282490f54fb084f0cd3a30bf9169506d78c94927845e28a7f221883767",
+      "mintTx": "0x61ad27bf062c96cd725c45d1958060e32709c02a2e7b7a921bfad85d7cc1f4fe",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x61ad27bf062c96cd725c45d1958060e32709c02a2e7b7a921bfad85d7cc1f4fe"
+    },
+    "hero": {
+      "generation": {
+        "model": "qwen/qwen-image-edit-2511",
+        "verifiability": "TeeML",
+        "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69",
+        "chatId": "1ad2b2df-e74c-4b3a-97ff-4cbd2578784c",
+        "teeVerified": true,
+        "latencyMs": 42747,
+        "bytes": 1989822,
+        "savedAs": "demo/hero.png"
+      },
+      "storage": {
+        "imageRoot": "0x4b37e41b2508e6d5208c5dd371b0b39d9e3677f8e1dbc86121266542346e76b0",
+        "imageTx": "0x31c61c4141fb286868b8b313dbd17961ec203de1d97b116bb66234f8448bad87",
+        "provenanceRoot": "0x894df9a779aef75e9c667c9d91fd444cd7aefef2239a68218322a6a8d063757e",
+        "provenanceTx": "0x90fdda45be5f9f470900df46daacc6846d266acd2bf50dc8a421f26329e5b7fc",
+        "provenanceHash": "0x5858ec4cb7036fcce758c392b98598c897a5ae5e8414e5f67a58e7cb719fb26f",
+        "provenanceRecord": {
+          "agentId": 2,
+          "agentName": "RISO",
+          "model": "qwen/qwen-image-edit-2511",
+          "prompt": "keep the EXACT same fennec fox character (same fur, cheek and ear markings, eyes, blue knit scarf); clean centered head-and-shoulders PFP portrait; risograph duotone, fluorescent pink and blue, halftone grain; a tiny glowing emblem pin on the scarf; pristine genesis edition",
+          "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69",
+          "teeVerifiability": "TeeML",
+          "teeVerified": true,
+          "chatId": "1ad2b2df-e74c-4b3a-97ff-4cbd2578784c",
+          "imageRoot": "0x4b37e41b2508e6d5208c5dd371b0b39d9e3677f8e1dbc86121266542346e76b0",
+          "ts": "2026-06-22T07:49:42.020Z"
+        }
+      },
+      "mint": {
+        "tokenId": 3,
+        "mintTx": "0x988939e7b932ba2ad3322e608b1513a6d4f24624f790dd8b71a79e13a810ea15",
+        "explorer": "https://chainscan-galileo.0g.ai/tx/0x988939e7b932ba2ad3322e608b1513a6d4f24624f790dd8b71a79e13a810ea15",
+        "teeAttestation": "0x10df19265dcdbe66d0545521b931d25ee1ed1909d247be023543c0a13e3968f8",
+        "owner": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+        "readback": {
+          "creatorAgentId": 2,
+          "imageRootMatches": true,
+          "provenanceHashMatches": true,
+          "royaltyReceiver": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+          "royaltyOn1OG": "0.07"
+        }
+      }
+    },
+    "royalty": {
+      "marketTokenId": 4,
+      "price": "0.02 0G",
+      "royaltyFollowsAgent": {
+        "receiverBeforeTransfer": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+        "receiverAfterTransfer": "0x388bFfAe13bec5f9Fadea0c849BC6eB799E75C9C",
+        "agentTransferTx": "https://chainscan-galileo.0g.ai/tx/0xdb2f56342376cfce1c976658bf0ca4047b6fbd394bfb27b1d98e91f77bb3385b",
+        "backToMainTx": "https://chainscan-galileo.0g.ai/tx/0xf9d7d2909984075fd70f702ae57572b0a11230b924ed58b828c4cdf48d11b194"
+      },
+      "listing": {
+        "listTx": "https://chainscan-galileo.0g.ai/tx/0xc1d16e98637e117e4a0c1df0b3d0376e5936d8e2c6949e55499cb7c9b63e9e11"
+      },
+      "sale": {
+        "buyTx": "0x5fabf5f4ef510a434015995f6e0cd0989564b942e3d10b85c8a7b0b887c12808",
+        "explorer": "https://chainscan-galileo.0g.ai/tx/0x5fabf5f4ef510a434015995f6e0cd0989564b942e3d10b85c8a7b0b887c12808",
+        "split": {
+          "price": "0.02 0G",
+          "royaltyPaid": "0.0014 0G",
+          "royaltyReceiver": "0x388bFfAe13bec5f9Fadea0c849BC6eB799E75C9C",
+          "platformFee": "0.0005 0G",
+          "platform": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+          "sellerProceeds": "0.0181 0G",
+          "seller": "0xF7774B04F8DC7844f6dC092d848eCEf24ccB03a3",
+          "buyer": "0x078EEcf4Ee10b83CD3b89E01d136F6C9CbfD58aa"
+        },
+        "measuredDeltas": {
+          "royaltyReceiver": "0.0014 0G",
+          "seller": "0.0181 0G",
+          "buyer": "-0.02054506 0G",
+          "platform": "0.0005 0G"
+        },
+        "royaltyDeltaEqualsEvent": true
+      }
+    },
+    "collection": {
+      "agentId": 2,
+      "pieces": [
+        {
+          "label": "canonical",
+          "file": "images/characters/T1/RISO-bust.png",
+          "imageRoot": "0x29ad9e1783164ee25167df70852344818f2e6241b401dbd116b0fd119bff8de6",
+          "imageTx": "0xa6beccd17d16e9227d8347da779b1705ce7c13930a699ba86023c5ce0a45082c",
+          "teeVerified": true,
+          "tokenId": 5,
+          "mintTx": "0x59a276f5081c7f8fa26df8cacf8b986d28052fb07721ddd96ed22de7cb961a0f",
+          "explorer": "https://chainscan-galileo.0g.ai/tx/0x59a276f5081c7f8fa26df8cacf8b986d28052fb07721ddd96ed22de7cb961a0f"
+        },
+        {
+          "label": "pirate",
+          "file": "images/characters/T3/fennic-01-pirate.png",
+          "imageRoot": "0x461d21d2e7a32c8ccf3590fbafcf00db8ab2c1c32e1f30acd318d59fd27aba92",
+          "imageTx": "0x276b3174572717677edbc28659362f83a0ead67b87dd28ef1f5ac00d64dc284a",
+          "teeVerified": true,
+          "tokenId": 6,
+          "mintTx": "0xab1636644821e0d53b3c3224944fd1b3b5ac0577025dedd1518f15020225a821",
+          "explorer": "https://chainscan-galileo.0g.ai/tx/0xab1636644821e0d53b3c3224944fd1b3b5ac0577025dedd1518f15020225a821"
+        },
+        {
+          "label": "astronaut",
+          "file": "images/characters/T3/fennic-02-astronaut.png",
+          "imageRoot": "0x77e7a0c1513721c7da92c1254939b3b97d2cf879147a6d7fc8446d93a04961d1",
+          "imageTx": "0x1c9ffd15b0ed347fe0ec72b22c0ea3b803191e0d200e1f0d7ceff27ac1958685",
+          "teeVerified": true,
+          "tokenId": 7,
+          "mintTx": "0x81c40476fa47a59e6f78d11ddc7b0d07c858ebbef2ccb9ff5a1a8b2578c17302",
+          "explorer": "https://chainscan-galileo.0g.ai/tx/0x81c40476fa47a59e6f78d11ddc7b0d07c858ebbef2ccb9ff5a1a8b2578c17302"
+        },
+        {
+          "label": "wizard",
+          "file": "images/characters/T3/fennic-03-wizard.png",
+          "imageRoot": "0x79ed75e71e0307b14d2b760eca369b4d2453c506dcbfd6d0be3b183ee48a2490",
+          "imageTx": "0x29441fbba43ab0bf2763a65ddf49a4c6f7523f646f44a077935b395d92075b76",
+          "teeVerified": true,
+          "tokenId": 8,
+          "mintTx": "0x902ca31500319468e3e371c2391178c8ee1e50566430fcf96d7c18dab0d7646e",
+          "explorer": "https://chainscan-galileo.0g.ai/tx/0x902ca31500319468e3e371c2391178c8ee1e50566430fcf96d7c18dab0d7646e"
+        },
+        {
+          "label": "punk",
+          "file": "images/characters/T3/fennic-04-punk.png",
+          "imageRoot": "0x5fa409436da535f3efaea9b8661a4751546b7e5a0da973fe984c7d6dff01ec76",
+          "imageTx": "0x81fb54d0955439e5afdc7535b88f86cc30ae84fe9bef1c111df5f8db9d6ee39a",
+          "teeVerified": true,
+          "tokenId": 9,
+          "mintTx": "0x14f29e40899de2d3a15afcf704e4b7e6ae2eb1597fac6406da5a4acc9dc7eeb1",
+          "explorer": "https://chainscan-galileo.0g.ai/tx/0x14f29e40899de2d3a15afcf704e4b7e6ae2eb1597fac6406da5a4acc9dc7eeb1"
+        },
+        {
+          "label": "king",
+          "file": "images/characters/T3/fennic-05-king.png",
+          "imageRoot": "0xee3a42aa809029a4d52e106eef38142b679d8047ece8cfe34fc2bb3305453cb5",
+          "imageTx": "0xc62c360ea1e5d67d792024cf25474d7acf20b1229af1ebca4159a05af04f7620",
+          "teeVerified": true,
+          "tokenId": 10,
+          "mintTx": "0x8e4ce1ae6c36d42f712bd6428031661d469d4ecf7ef39e11e3484893c43aaf44",
+          "explorer": "https://chainscan-galileo.0g.ai/tx/0x8e4ce1ae6c36d42f712bd6428031661d469d4ecf7ef39e11e3484893c43aaf44"
+        },
+        {
+          "label": "samurai",
+          "file": "images/characters/T3/fennic-06-samurai.png",
+          "imageRoot": "0x305773ddbff2f590752305d06475c3f8256040f1a736056cf9148a8a1c586bd5",
+          "imageTx": "0xdc1574251659eff52b2f708a526cdf84dd6dccb422062fe681011c92f283ff08",
+          "teeVerified": true,
+          "tokenId": 11,
+          "mintTx": "0x89f710d17bbbd53ed3590303212b65b5ead015cf9f039c5b321165b1ef2d1fd5",
+          "explorer": "https://chainscan-galileo.0g.ai/tx/0x89f710d17bbbd53ed3590303212b65b5ead015cf9f039c5b321165b1ef2d1fd5"
+        }
+      ],
+      "montage": "demo/collection-montage.png"
+    }
+  },
+  "txIndex": [
+    {
+      "label": "store:agent-brain",
+      "hash": "0x4262c03ba6ef0a8c41a34e2f5a193e0ead56bf6825b07bc8c72ae705c7fc5718",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x4262c03ba6ef0a8c41a34e2f5a193e0ead56bf6825b07bc8c72ae705c7fc5718"
+    },
+    {
+      "label": "mintAgent",
+      "hash": "0x61ad27bf062c96cd725c45d1958060e32709c02a2e7b7a921bfad85d7cc1f4fe",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x61ad27bf062c96cd725c45d1958060e32709c02a2e7b7a921bfad85d7cc1f4fe"
+    },
+    {
+      "label": "store:hero-image",
+      "hash": "0x31c61c4141fb286868b8b313dbd17961ec203de1d97b116bb66234f8448bad87",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x31c61c4141fb286868b8b313dbd17961ec203de1d97b116bb66234f8448bad87"
+    },
+    {
+      "label": "store:hero-provenance",
+      "hash": "0x90fdda45be5f9f470900df46daacc6846d266acd2bf50dc8a421f26329e5b7fc",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x90fdda45be5f9f470900df46daacc6846d266acd2bf50dc8a421f26329e5b7fc"
+    },
+    {
+      "label": "mintOutput:hero",
+      "hash": "0x988939e7b932ba2ad3322e608b1513a6d4f24624f790dd8b71a79e13a810ea15",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x988939e7b932ba2ad3322e608b1513a6d4f24624f790dd8b71a79e13a810ea15"
+    },
+    {
+      "label": "fund:seller",
+      "hash": "0xf39f47295a0580c6907d8952e097f03ec1eabcfdc40fb7f79c5b50fda45930f0",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xf39f47295a0580c6907d8952e097f03ec1eabcfdc40fb7f79c5b50fda45930f0"
+    },
+    {
+      "label": "fund:buyer",
+      "hash": "0xa11b0899813c3514808ec1cc0f67e0d40ee8eee4241681a309ff800099092269",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xa11b0899813c3514808ec1cc0f67e0d40ee8eee4241681a309ff800099092269"
+    },
+    {
+      "label": "fund:new-agent-owner",
+      "hash": "0x06cf01d581eec41ca6f6444f0cd6c39392542e08058cd506bb1e5aaca11692bb",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x06cf01d581eec41ca6f6444f0cd6c39392542e08058cd506bb1e5aaca11692bb"
+    },
+    {
+      "label": "mintOutput:market",
+      "hash": "0x40c35fd14c7e426e284c330cb73bb64fba2ed690dec5bb8180164a7a40dd76f1",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x40c35fd14c7e426e284c330cb73bb64fba2ed690dec5bb8180164a7a40dd76f1"
+    },
+    {
+      "label": "agentTransfer:toNewOwner",
+      "hash": "0xdb2f56342376cfce1c976658bf0ca4047b6fbd394bfb27b1d98e91f77bb3385b",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xdb2f56342376cfce1c976658bf0ca4047b6fbd394bfb27b1d98e91f77bb3385b"
+    },
+    {
+      "label": "approveMarketplace",
+      "hash": "0xcde834c31ae3fe427c52160fb8fdc04781ae1685bf61f5694c89591273d81a62",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xcde834c31ae3fe427c52160fb8fdc04781ae1685bf61f5694c89591273d81a62"
+    },
+    {
+      "label": "list",
+      "hash": "0xc1d16e98637e117e4a0c1df0b3d0376e5936d8e2c6949e55499cb7c9b63e9e11",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xc1d16e98637e117e4a0c1df0b3d0376e5936d8e2c6949e55499cb7c9b63e9e11"
+    },
+    {
+      "label": "buy",
+      "hash": "0x5fabf5f4ef510a434015995f6e0cd0989564b942e3d10b85c8a7b0b887c12808",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x5fabf5f4ef510a434015995f6e0cd0989564b942e3d10b85c8a7b0b887c12808"
+    },
+    {
+      "label": "agentTransfer:backToMain",
+      "hash": "0xf9d7d2909984075fd70f702ae57572b0a11230b924ed58b828c4cdf48d11b194",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xf9d7d2909984075fd70f702ae57572b0a11230b924ed58b828c4cdf48d11b194"
+    },
+    {
+      "label": "store:collection-canonical",
+      "hash": "0xa6beccd17d16e9227d8347da779b1705ce7c13930a699ba86023c5ce0a45082c",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xa6beccd17d16e9227d8347da779b1705ce7c13930a699ba86023c5ce0a45082c"
+    },
+    {
+      "label": "mintOutput:collection:canonical",
+      "hash": "0x59a276f5081c7f8fa26df8cacf8b986d28052fb07721ddd96ed22de7cb961a0f",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x59a276f5081c7f8fa26df8cacf8b986d28052fb07721ddd96ed22de7cb961a0f"
+    },
+    {
+      "label": "store:collection-pirate",
+      "hash": "0x276b3174572717677edbc28659362f83a0ead67b87dd28ef1f5ac00d64dc284a",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x276b3174572717677edbc28659362f83a0ead67b87dd28ef1f5ac00d64dc284a"
+    },
+    {
+      "label": "mintOutput:collection:pirate",
+      "hash": "0xab1636644821e0d53b3c3224944fd1b3b5ac0577025dedd1518f15020225a821",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xab1636644821e0d53b3c3224944fd1b3b5ac0577025dedd1518f15020225a821"
+    },
+    {
+      "label": "store:collection-astronaut",
+      "hash": "0x1c9ffd15b0ed347fe0ec72b22c0ea3b803191e0d200e1f0d7ceff27ac1958685",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x1c9ffd15b0ed347fe0ec72b22c0ea3b803191e0d200e1f0d7ceff27ac1958685"
+    },
+    {
+      "label": "mintOutput:collection:astronaut",
+      "hash": "0x81c40476fa47a59e6f78d11ddc7b0d07c858ebbef2ccb9ff5a1a8b2578c17302",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x81c40476fa47a59e6f78d11ddc7b0d07c858ebbef2ccb9ff5a1a8b2578c17302"
+    },
+    {
+      "label": "store:collection-wizard",
+      "hash": "0x29441fbba43ab0bf2763a65ddf49a4c6f7523f646f44a077935b395d92075b76",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x29441fbba43ab0bf2763a65ddf49a4c6f7523f646f44a077935b395d92075b76"
+    },
+    {
+      "label": "mintOutput:collection:wizard",
+      "hash": "0x902ca31500319468e3e371c2391178c8ee1e50566430fcf96d7c18dab0d7646e",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x902ca31500319468e3e371c2391178c8ee1e50566430fcf96d7c18dab0d7646e"
+    },
+    {
+      "label": "store:collection-punk",
+      "hash": "0x81fb54d0955439e5afdc7535b88f86cc30ae84fe9bef1c111df5f8db9d6ee39a",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x81fb54d0955439e5afdc7535b88f86cc30ae84fe9bef1c111df5f8db9d6ee39a"
+    },
+    {
+      "label": "mintOutput:collection:punk",
+      "hash": "0x14f29e40899de2d3a15afcf704e4b7e6ae2eb1597fac6406da5a4acc9dc7eeb1",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x14f29e40899de2d3a15afcf704e4b7e6ae2eb1597fac6406da5a4acc9dc7eeb1"
+    },
+    {
+      "label": "store:collection-king",
+      "hash": "0xc62c360ea1e5d67d792024cf25474d7acf20b1229af1ebca4159a05af04f7620",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xc62c360ea1e5d67d792024cf25474d7acf20b1229af1ebca4159a05af04f7620"
+    },
+    {
+      "label": "mintOutput:collection:king",
+      "hash": "0x8e4ce1ae6c36d42f712bd6428031661d469d4ecf7ef39e11e3484893c43aaf44",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x8e4ce1ae6c36d42f712bd6428031661d469d4ecf7ef39e11e3484893c43aaf44"
+    },
+    {
+      "label": "store:collection-samurai",
+      "hash": "0xdc1574251659eff52b2f708a526cdf84dd6dccb422062fe681011c92f283ff08",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0xdc1574251659eff52b2f708a526cdf84dd6dccb422062fe681011c92f283ff08"
+    },
+    {
+      "label": "mintOutput:collection:samurai",
+      "hash": "0x89f710d17bbbd53ed3590303212b65b5ead015cf9f039c5b321165b1ef2d1fd5",
+      "explorer": "https://chainscan-galileo.0g.ai/tx/0x89f710d17bbbd53ed3590303212b65b5ead015cf9f039c5b321165b1ef2d1fd5"
+    }
+  ],
+  "startedAt": "2026-06-22T07:48:11.659Z",
+  "wallet": {
+    "main": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540"
+  },
+  "finishedAt": "2026-06-22T08:08:45.637Z",
+  "balanceAfter": "1.117573878471133493 0G"
+}
