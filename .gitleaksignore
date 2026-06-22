@@ -1,0 +1,8 @@
+# confirmed-safe demo artifact: one-way provenance hash (brain itself encrypted via encBrainRoot)
+311d65e5ca0aa19e030c27da41047911401b2acd:demo/proof.json:generic-api-key:32
+
+# confirmed-safe demo artifact: 0G Compute ephemeral HTTP response-header UUID (not a credential)
+311d65e5ca0aa19e030c27da41047911401b2acd:images/generation-log.json:generic-api-key:39
+311d65e5ca0aa19e030c27da41047911401b2acd:images/generation-log.json:generic-api-key:65
+311d65e5ca0aa19e030c27da41047911401b2acd:images/generation-log.json:generic-api-key:91
+311d65e5ca0aa19e030c27da41047911401b2acd:images/generation-log.json:generic-api-key:117
