@@ -15,6 +15,7 @@ export const IMAGE_FILES: Record<string, string> = {
   "mirai-samurai": "images/characters/T2a/MIRAI-01-samurai.png",
   "mirai-netrunner": "images/characters/T2a/MIRAI-02-netrunner.png",
   "riso-hero": "demo/hero.png",
+  "riso-style": "images/RISO.png", // the canonical coffee-window scene in RISO style (parallels nokturne/mirai/scriptorium-style)
   "riso-canonical": "images/characters/T1/RISO-bust.png",
   "riso-pirate": "images/characters/T3/fennic-01-pirate.png",
   "riso-astronaut": "images/characters/T3/fennic-02-astronaut.png",
