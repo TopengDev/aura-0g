@@ -1,0 +1,518 @@
+// AURA v2 indexing functions (Ponder 0.16). Replays AgentRegistry + OutputNFT + AuraMarketplace logs
+// from the deploy block into the derived read model (ponder.schema.ts). All handlers are idempotent
+// (insert ... onConflictDoUpdate) so a crash/reorg re-run never double-counts.
+//
+// EVENT ORDERING (verified against the contracts):
+//   - Mint path: _safeMint(...) emits ERC721 `Transfer(0x0 -> to)` BEFORE the rich `AgentMinted` /
+//     `OutputMinted` event (the emit is the last line of the mint fn). So a mint Transfer arrives with
+//     NO row yet. We therefore IGNORE mint Transfers (from == 0x0) and let the rich Mint handler create
+//     the row with the correct initial owner. Non-mint Transfers (real moves / marketplace settlement)
+//     update `owner` on the existing row.
+//   - Sale path: AuraMarketplace.buy() does safeTransferFrom (a `Transfer`) and THEN emits `Sold`. The
+//     Transfer updates ownership; `Sold` credits earnings + clears the listing + logs the sale.
+//
+// 0G timestamps: log.blockTimestamp is 0x0 on this RPC, so we ALWAYS use event.block.timestamp (the
+// block header), which Ponder populates correctly.
+import { ponder } from "ponder:registry";
+import {
+  agents,
+  outputs,
+  listings,
+  agentEarnings,
+  walletEarnings,
+  agentStats,
+  events,
+} from "ponder:schema";
+
+import { createPublicClient, http } from "viem";
+import { AgentRegistryAbi } from "../abis/AgentRegistry";
+
+const ZERO = "0x0000000000000000000000000000000000000000";
+
+// deployed-v2 collection addresses (lowercased) for classifying marketplace events by collection.
+// Read from the same JSON the config uses (one source of truth). Resolved once at module load.
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DEPLOYED = JSON.parse(
+  readFileSync(path.join(__dirname, "..", "..", "contracts", "deployed-v2.json"), "utf8")
+);
+const ADDR_AGENT = String(DEPLOYED.agentRegistry).toLowerCase();
+const ADDR_OUTPUT = String(DEPLOYED.outputNFT).toLowerCase();
+
+// Standalone viem client for reading IMMUTABLE agent state (creatorResaleBps) at "latest". We do NOT
+// use Ponder's context.client here because it pins eth_call to the event's (historical) block, and 0G
+// Galileo's public RPC PRUNES historical STATE -> a past-block eth_call returns InvalidInputRpcError.
+// creatorResaleBps is set once at mint and never changes (no setter in AgentRegistry), so "latest" is
+// both correct and prune-safe. A tiny in-memory cache avoids re-reading the same agent on re-index.
+const RPC = process.env.PONDER_RPC_URL_16602 ?? String(DEPLOYED.rpcUrl);
+const stateClient = createPublicClient({ transport: http(RPC) });
+const creatorResaleCache = new Map<string, number>();
+
+async function readCreatorResaleBps(agentId: bigint): Promise<number> {
+  const key = agentId.toString();
+  const cached = creatorResaleCache.get(key);
+  if (cached !== undefined) return cached;
+  try {
+    const v = (await stateClient.readContract({
+      abi: AgentRegistryAbi,
+      address: DEPLOYED.agentRegistry as `0x${string}`,
+      functionName: "creatorResaleBpsOf",
+      args: [agentId],
+      // default blockTag is "latest" - prune-safe, and the value is immutable post-mint.
+    })) as bigint | number;
+    const n = Number(v);
+    creatorResaleCache.set(key, n);
+    return n;
+  } catch {
+    return 0; // immutable + readable at latest; 0 only on an unexpected RPC failure.
+  }
+}
+
+function collectionKind(collection: string): "agent" | "output" | "unknown" {
+  const c = collection.toLowerCase();
+  if (c === ADDR_AGENT) return "agent";
+  if (c === ADDR_OUTPUT) return "output";
+  return "unknown";
+}
+
+// Global monotonic ordering key for stable keyset pagination + newest sort: block << 16 | logIndex.
+// logIndex < 65536 per block is a safe assumption on this low-traffic testnet.
+function orderKey(blockNumber: bigint, logIndex: number): bigint {
+  return (blockNumber << 16n) | BigInt(logIndex);
+}
+
+function listingId(collection: string, tokenId: bigint): string {
+  return `${collection.toLowerCase()}-${tokenId.toString()}`;
+}
+
+function eventId(blockNumber: bigint, logIndex: number): string {
+  return `${blockNumber.toString()}-${logIndex}`;
+}
+
+// ─────────────────────────── AgentRegistry ───────────────────────────
+
+ponder.on("AgentRegistry:AgentMinted", async ({ event, context }) => {
+  const { agentId, owner, name, styleFingerprint, royaltyBps, modelAttestation } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+
+  // creatorResaleBps is NOT in the AgentMinted event; read it (immutable, at "latest") via the
+  // prune-safe standalone client (see readCreatorResaleBps above for why not context.client).
+  const creatorResaleBps = await readCreatorResaleBps(agentId);
+
+  await context.db
+    .insert(agents)
+    .values({
+      agentId,
+      owner: owner.toLowerCase() as `0x${string}`,
+      creator: owner.toLowerCase() as `0x${string}`, // minter == original creator (resale-royalty target)
+      name,
+      styleFingerprint,
+      modelAttestation,
+      royaltyBps: Number(royaltyBps),
+      creatorResaleBps,
+      styleVersion: 1,
+      encBrainRoot: null,
+      mintedAt: ts,
+      mintBlock: event.block.number,
+      mintLogIndex: event.log.logIndex,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate((row) => ({
+      // re-index idempotency: keep the row authoritative to the mint event.
+      owner: row.owner, // owner may have moved via later Transfers; don't clobber on re-mint replay
+      name,
+      styleFingerprint,
+      modelAttestation,
+      royaltyBps: Number(royaltyBps),
+      creatorResaleBps,
+    }));
+
+  // seed agent_stats + agent_earnings rows so later upserts have a base.
+  await context.db
+    .insert(agentStats)
+    .values({ agentId, name, lastActivityAt: ts })
+    .onConflictDoUpdate({ name });
+  await context.db
+    .insert(agentEarnings)
+    .values({ agentId })
+    .onConflictDoNothing();
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "agent_mint",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: context.contracts.AgentRegistry.address.toLowerCase() as `0x${string}`,
+    collectionKind: "agent",
+    tokenId: agentId,
+    agentId,
+    actor: owner.toLowerCase() as `0x${string}`,
+  });
+});
+
+ponder.on("AgentRegistry:BrainUpdated", async ({ event, context }) => {
+  const { agentId, encBrainRoot, styleVersion } = event.args;
+  const ts = event.block.timestamp;
+  // Update the agent's brain pointer + styleVersion. Defensive upsert in case ordering surprises us.
+  await context.db
+    .update(agents, { agentId })
+    .set({ encBrainRoot, styleVersion: Number(styleVersion) })
+    .catch(() => {});
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "brain_update",
+    orderKey: orderKey(event.block.number, event.log.logIndex),
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: context.contracts.AgentRegistry.address.toLowerCase() as `0x${string}`,
+    collectionKind: "agent",
+    tokenId: agentId,
+    agentId,
+  });
+});
+
+ponder.on("AgentRegistry:Transfer", async ({ event, context }) => {
+  const { from, to, tokenId } = event.args; // tokenId == agentId for this collection
+  if (from === ZERO) return; // mint Transfer: AgentMinted creates the row with the right owner.
+  const ts = event.block.timestamp;
+  await context.db
+    .update(agents, { agentId: tokenId })
+    .set({ owner: to.toLowerCase() as `0x${string}` })
+    .catch(() => {});
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "transfer",
+    orderKey: orderKey(event.block.number, event.log.logIndex),
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: context.contracts.AgentRegistry.address.toLowerCase() as `0x${string}`,
+    collectionKind: "agent",
+    tokenId,
+    agentId: tokenId,
+    actor: from.toLowerCase() as `0x${string}`,
+    counterparty: to.toLowerCase() as `0x${string}`,
+  });
+});
+
+// ──────────────────────────── OutputNFT ────────────────────────────
+
+ponder.on("OutputNFT:OutputMinted", async ({ event, context }) => {
+  const { tokenId, creatorAgentId, owner, imageRoot, provenanceHash, teeAttestation, seed } =
+    event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+
+  await context.db
+    .insert(outputs)
+    .values({
+      tokenId,
+      owner: owner.toLowerCase() as `0x${string}`,
+      creatorAgentId,
+      imageRoot,
+      provenanceHash,
+      teeAttestation,
+      seed,
+      mintedAt: ts,
+      mintBlock: event.block.number,
+      mintLogIndex: event.log.logIndex,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate((row) => ({
+      owner: row.owner, // don't clobber a later transfer on re-mint replay
+      creatorAgentId,
+      imageRoot,
+      provenanceHash,
+      teeAttestation,
+      seed,
+    }));
+
+  // bump the creating agent's output count (+ ensure a stats row exists).
+  await context.db
+    .insert(agentStats)
+    .values({ agentId: creatorAgentId, name: "", outputCount: 1, lastActivityAt: ts })
+    .onConflictDoUpdate((row) => ({
+      outputCount: row.outputCount + 1,
+      lastActivityAt: ts,
+    }));
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "mint",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: context.contracts.OutputNFT.address.toLowerCase() as `0x${string}`,
+    collectionKind: "output",
+    tokenId,
+    agentId: creatorAgentId,
+    actor: owner.toLowerCase() as `0x${string}`,
+  });
+});
+
+ponder.on("OutputNFT:Transfer", async ({ event, context }) => {
+  const { from, to, tokenId } = event.args;
+  if (from === ZERO) return; // mint Transfer: OutputMinted creates the row with the right owner.
+  const ts = event.block.timestamp;
+  await context.db
+    .update(outputs, { tokenId })
+    .set({ owner: to.toLowerCase() as `0x${string}` })
+    .catch(() => {});
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "transfer",
+    orderKey: orderKey(event.block.number, event.log.logIndex),
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: context.contracts.OutputNFT.address.toLowerCase() as `0x${string}`,
+    collectionKind: "output",
+    tokenId,
+    actor: from.toLowerCase() as `0x${string}`,
+    counterparty: to.toLowerCase() as `0x${string}`,
+  });
+});
+
+// ───────────────────────── AuraMarketplace ─────────────────────────
+
+ponder.on("AuraMarketplace:Listed", async ({ event, context }) => {
+  const { collection, tokenId, seller, price } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  const kind = collectionKind(collection);
+
+  await context.db
+    .insert(listings)
+    .values({
+      id: listingId(collection, tokenId),
+      collection: collection.toLowerCase() as `0x${string}`,
+      tokenId,
+      collectionKind: kind,
+      seller: seller.toLowerCase() as `0x${string}`,
+      price,
+      active: true,
+      listedAt: ts,
+      updatedAt: ts,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate({
+      // re-listing the same token (after a prior cancel/sale) reactivates with the new seller+price.
+      seller: seller.toLowerCase() as `0x${string}`,
+      price,
+      active: true,
+      updatedAt: ts,
+      orderKey: ok,
+    });
+
+  // a listing of an OUTPUT counts toward its creating agent's listing activity.
+  if (kind === "output") {
+    const out = await context.db.find(outputs, { tokenId });
+    if (out) {
+      await context.db
+        .insert(agentStats)
+        .values({ agentId: out.creatorAgentId, name: "", listingsCount: 1, lastActivityAt: ts })
+        .onConflictDoUpdate((row) => ({
+          listingsCount: row.listingsCount + 1,
+          lastActivityAt: ts,
+        }));
+    }
+  }
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "listing",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: collection.toLowerCase() as `0x${string}`,
+    collectionKind: kind === "unknown" ? null : kind,
+    tokenId,
+    agentId: kind === "output" ? (await context.db.find(outputs, { tokenId }))?.creatorAgentId ?? null : null,
+    actor: seller.toLowerCase() as `0x${string}`,
+    price,
+  });
+});
+
+ponder.on("AuraMarketplace:PriceUpdated", async ({ event, context }) => {
+  const { collection, tokenId, newPrice } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  await context.db
+    .update(listings, { id: listingId(collection, tokenId) })
+    .set({ price: newPrice, updatedAt: ts, orderKey: ok })
+    .catch(() => {});
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "price_update",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: collection.toLowerCase() as `0x${string}`,
+    collectionKind: collectionKind(collection) === "unknown" ? null : collectionKind(collection),
+    tokenId,
+    price: newPrice,
+  });
+});
+
+ponder.on("AuraMarketplace:ListingCancelled", async ({ event, context }) => {
+  const { collection, tokenId } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  await context.db
+    .update(listings, { id: listingId(collection, tokenId) })
+    .set({ active: false, updatedAt: ts, orderKey: ok })
+    .catch(() => {});
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "listing_cancel",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: collection.toLowerCase() as `0x${string}`,
+    collectionKind: collectionKind(collection) === "unknown" ? null : collectionKind(collection),
+    tokenId,
+  });
+});
+
+ponder.on("AuraMarketplace:Sold", async ({ event, context }) => {
+  const {
+    collection,
+    tokenId,
+    buyer,
+    seller,
+    price,
+    royaltyReceiver,
+    royaltyPaid,
+    platformFee,
+    sellerProceeds,
+  } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  const kind = collectionKind(collection);
+
+  // 1. clear the listing (Sold deactivates it).
+  await context.db
+    .update(listings, { id: listingId(collection, tokenId) })
+    .set({ active: false, updatedAt: ts, orderKey: ok })
+    .catch(() => {});
+
+  // 2. resolve the SELLING agent for earnings routing:
+  //    - output sale  -> the output's creatorAgentId
+  //    - agent sale   -> the agent (tokenId) itself
+  let sellingAgentId: bigint | null = null;
+  if (kind === "output") {
+    const out = await context.db.find(outputs, { tokenId });
+    sellingAgentId = out?.creatorAgentId ?? null;
+  } else if (kind === "agent") {
+    sellingAgentId = tokenId;
+  }
+
+  // 3. credit wallet_earnings for the royalty receiver (point-in-time; survives later resale).
+  if (royaltyPaid > 0n && royaltyReceiver.toLowerCase() !== ZERO) {
+    await context.db
+      .insert(walletEarnings)
+      .values({
+        wallet: royaltyReceiver.toLowerCase() as `0x${string}`,
+        royaltiesEarned: royaltyPaid,
+        salesCount: 1,
+        lastSaleAt: ts,
+      })
+      .onConflictDoUpdate((row) => ({
+        royaltiesEarned: row.royaltiesEarned + royaltyPaid,
+        salesCount: row.salesCount + 1,
+        lastSaleAt: ts,
+      }));
+  }
+
+  // 4. credit agent_earnings + agent_stats for the selling agent.
+  if (sellingAgentId !== null) {
+    await context.db
+      .insert(agentEarnings)
+      .values({
+        agentId: sellingAgentId,
+        royaltiesEarned: royaltyPaid,
+        salesCount: 1,
+        lastSaleAt: ts,
+      })
+      .onConflictDoUpdate((row) => ({
+        royaltiesEarned: row.royaltiesEarned + royaltyPaid,
+        salesCount: row.salesCount + 1,
+        lastSaleAt: ts,
+      }));
+    await context.db
+      .insert(agentStats)
+      .values({
+        agentId: sellingAgentId,
+        name: "",
+        salesCount: 1,
+        royaltiesEarned: royaltyPaid,
+        lastActivityAt: ts,
+      })
+      .onConflictDoUpdate((row) => ({
+        salesCount: row.salesCount + 1,
+        royaltiesEarned: row.royaltiesEarned + royaltyPaid,
+        lastActivityAt: ts,
+      }));
+  }
+
+  // 5. log the sale activity (rich, for the feed + top-earners + trending).
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "sale",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: collection.toLowerCase() as `0x${string}`,
+    collectionKind: kind === "unknown" ? null : kind,
+    tokenId,
+    agentId: sellingAgentId,
+    actor: buyer.toLowerCase() as `0x${string}`,
+    counterparty: seller.toLowerCase() as `0x${string}`,
+    price,
+    royaltyReceiver: royaltyReceiver.toLowerCase() as `0x${string}`,
+    royaltyPaid,
+    platformFee,
+    sellerProceeds,
+  });
+});
+
+ponder.on("AuraMarketplace:Withdrawal", async ({ event, context }) => {
+  const { who, amount } = event.args;
+  const ts = event.block.timestamp;
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "withdrawal",
+    orderKey: orderKey(event.block.number, event.log.logIndex),
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    actor: who.toLowerCase() as `0x${string}`,
+    price: amount,
+  });
+});

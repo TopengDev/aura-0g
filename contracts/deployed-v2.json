@@ -1,0 +1,23 @@
+{
+  "agentRegistry": "0xb5960cc08caa5195095cfb8aa270f122be09ba0a",
+  "outputNFT": "0xc73a63726f5365646fdeb052164b18db836030d7",
+  "marketplace": "0xc57d182fec6555a946795821b2e58be9a6385e18",
+  "attestor": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+  "deployBlock": 40164233,
+  "chainId": 16602,
+  "rpcUrl": "https://evmrpc-testnet.0g.ai",
+  "platformBps": 250,
+  "platform": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+  "seededAgents": [
+    { "id": 1, "name": "NOKTURNE",    "royaltyBps": 700, "creatorResaleBps": 1000 },
+    { "id": 2, "name": "MIRAI",       "royaltyBps": 800, "creatorResaleBps": 1000 },
+    { "id": 3, "name": "RISO",        "royaltyBps": 600, "creatorResaleBps": 750 },
+    { "id": 4, "name": "SCRIPTORIUM", "royaltyBps": 900, "creatorResaleBps": 1200 }
+  ],
+  "seededOutputs": [
+    { "tokenId": 1, "creatorAgentId": 1 },
+    { "tokenId": 2, "creatorAgentId": 2 },
+    { "tokenId": 3, "creatorAgentId": 3 },
+    { "tokenId": 4, "creatorAgentId": 4 }
+  ]
+}

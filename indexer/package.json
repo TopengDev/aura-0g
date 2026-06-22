@@ -1,0 +1,24 @@
+{
+  "name": "aura-indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "AURA v2 on-chain event indexer (Ponder 0.16). Indexes AgentRegistry + OutputNFT + AuraMarketplace on 0G Galileo from the deploy block, derives the dashboard/discovery/feed read models, and serves them from the Ponder process via Hono API routes (PGlite-backed). Replaces the Phase-2 brute-force chain loops.",
+  "license": "MIT",
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "db": "ponder db",
+    "codegen": "ponder codegen",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "hono": "^4.6.14",
+    "ponder": "0.16.6",
+    "viem": "2.53.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}

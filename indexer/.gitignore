@@ -1,0 +1,14 @@
+# env (the indexer needs no key, but keep local overrides out of git)
+.env.local
+.env.*.local
+
+# ponder runtime
+.ponder/
+generated/
+
+# deps + build
+node_modules/
+*.tsbuildinfo
+
+# os
+.DS_Store
