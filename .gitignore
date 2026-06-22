@@ -16,6 +16,14 @@ contracts/broadcast/
 dist/
 *.tsbuildinfo
 
+# next.js
+.next/
+next-env.d.ts
+out/
+
+# aura runtime data (mint index, generated images, sentinels) — not source
+data/
+
 # os
 .DS_Store
 
