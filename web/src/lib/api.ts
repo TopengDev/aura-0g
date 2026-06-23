@@ -590,14 +590,13 @@ export function findListing(
 
 // ── Shown-agent filter ──
 // Every REAL agent is first-class: the 4 curated catalog agents AND user-created agents (which are
-// style "custom" with 0 outputs until they generate). The ONLY thing hidden is the metadata-less test
-// stub (TESTAGENT_*, e.g. agentId 5), which still counts in raw totals. The previous rule
-// (CATALOG_NAMES.has(name) || (style !== "custom" && outputCount > 0)) wrongly hid user agents exactly
-// like the test stub, so they never appeared on the discovery surfaces or in the /generate picker.
+// style "custom" with 0 outputs until they generate). Hidden ONLY: the metadata-less test stubs
+// (TESTAGENT_* and BRAINTEST_* e2e-proof agents) -- they still count in raw on-chain totals. Real
+// same-named agents are NOT deduped (e.g. two distinct CHILLDAWG agents both show -- intended).
 export const CATALOG_NAMES = new Set(["NOKTURNE", "MIRAI", "RISO", "SCRIPTORIUM"]);
 
 export function isFeatured(a: Agent): boolean {
-  return !/^TESTAGENT/i.test(a.name);
+  return !/^(TESTAGENT|BRAINTEST)/i.test(a.name);
 }
 
 export function featuredAgents(agents: Agent[]): Agent[] {

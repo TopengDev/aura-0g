@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { PageHeader, ProvLine, Chip } from "@/components/product/primitives";
+import { Pager, paginate, AGENTS_PAGE_SIZE } from "@/components/product/Pager";
 import { agentPortraitUrl } from "@/lib/api";
 import type { Agent, MarketListing } from "@/lib/api";
 
@@ -69,6 +70,14 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
     }
     return list;
   }, [rows, query, style, sort]);
+
+  // Pagination over the filtered/sorted list. Reset to page 1 whenever the result set changes
+  // (search / style / sort), so the user never lands on an out-of-range page.
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [query, style, sort]);
+  const { items: pageRows, pageCount, page: curPage } = paginate(visible, page, AGENTS_PAGE_SIZE);
 
   const forSaleCount = rows.filter((r) => r.listing).length;
 
@@ -147,7 +156,7 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
           </div>
         ) : (
           <div className="mt-8 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {visible.map((row, i) => (
+            {pageRows.map((row, i) => (
               <Reveal key={row.agent.agentId} delay={Math.min(0.04 * i, 0.3)}>
                 <AgentCard row={row} />
               </Reveal>
@@ -155,8 +164,11 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
           </div>
         )}
 
-        <p className="mt-12 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-          Showing {visible.length} of {rows.length} catalog agents. {totalCount} agents minted on-chain (chain 16602).
+        <Pager page={curPage} pageCount={pageCount} onPage={setPage} className="mt-12" />
+
+        <p className="mt-8 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+          Showing {pageRows.length} of {visible.length} catalog agents
+          {visible.length !== rows.length ? ` (filtered from ${rows.length})` : ""}. {totalCount} agents minted on-chain (chain 16602).
         </p>
       </div>
     </section>

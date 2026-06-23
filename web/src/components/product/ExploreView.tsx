@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { ActivityTicker } from "@/components/home/ActivityTicker";
 import { PageHeader, Panel, ProvLine, Chip } from "@/components/product/primitives";
+import { Pager, paginate, OUTPUTS_PAGE_SIZE } from "@/components/product/Pager";
 import { ZeroG } from "@/components/atoms/ZeroG";
 import { EXPLORER } from "@/lib/chains";
 import {
@@ -34,6 +36,11 @@ export interface ExploreData {
 
 export function ExploreView({ data }: { data: ExploreData }) {
   const { trending, outputs, creators, activity } = data;
+
+  // Paginate the recent-outputs gallery (it grows with every mint). The two curated showpieces only get
+  // the 2x emphasis on page 1 (where they lead); deeper pages tile evenly.
+  const [outPage, setOutPage] = useState(1);
+  const { items: pageOutputs, pageCount: outPageCount, page: curOutPage } = paginate(outputs, outPage, OUTPUTS_PAGE_SIZE);
 
   return (
     <>
@@ -107,19 +114,23 @@ export function ExploreView({ data }: { data: ExploreData }) {
           {outputs.length === 0 ? (
             <EmptyRow label="No outputs minted yet. Generate the first one." />
           ) : (
-            <div className="mt-10 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-              {outputs.map((o, i) => {
-                // The two curated showpieces lead the gallery at 2x size (an editorial featured emphasis);
-                // the rest tile evenly. featured order is set upstream so index 0/1 are the showpieces.
-                const featured = FEATURED_OUTPUT_IDS.indexOf(o.tokenId);
-                const big = featured === 0 || featured === 1;
-                return (
-                  <Reveal key={o.tokenId} delay={Math.min(0.04 * i, 0.3)} className={big ? "col-span-2 row-span-2" : ""}>
-                    <OutputCard output={o} big={big} />
-                  </Reveal>
-                );
-              })}
-            </div>
+            <>
+              <div className="mt-10 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+                {pageOutputs.map((o, i) => {
+                  // The two curated showpieces lead the gallery at 2x size (an editorial featured emphasis),
+                  // but ONLY on page 1 where they actually lead; deeper pages tile evenly. featured order is
+                  // set upstream so index 0/1 are the showpieces.
+                  const featured = FEATURED_OUTPUT_IDS.indexOf(o.tokenId);
+                  const big = curOutPage === 1 && (featured === 0 || featured === 1);
+                  return (
+                    <Reveal key={o.tokenId} delay={Math.min(0.04 * i, 0.3)} className={big ? "col-span-2 row-span-2" : ""}>
+                      <OutputCard output={o} big={big} />
+                    </Reveal>
+                  );
+                })}
+              </div>
+              <Pager page={curOutPage} pageCount={outPageCount} onPage={setOutPage} className="mt-12" />
+            </>
           )}
         </div>
       </section>
