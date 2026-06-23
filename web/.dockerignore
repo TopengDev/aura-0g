@@ -1,0 +1,11 @@
+# Keep the web build context lean + reproducible (install happens in the image).
+node_modules
+.next
+.git
+.env*
+*.tsbuildinfo
+.design
+QA.md
+UI-QA.md
+npm-debug.log*
+.DS_Store

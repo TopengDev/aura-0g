@@ -1,0 +1,106 @@
+# AURA full stack (web + server + indexer + nginx). LOCAL deploy-prep test topology.
+#
+# Run from this dir:   docker compose -f docker-compose.yml up --build
+# Published ports (alt, to avoid the still-running dev servers on 3000/8787/42069):
+#   - http://localhost:8080  -> the SITE (nginx -> web)
+#   - http://localhost:8788  -> the dedicated BACKEND origin (nginx :81 -> server). This is what the
+#                               browser's NEXT_PUBLIC_AURA_API points at (no page/path collisions).
+#
+# SECRETS: the funded keys live in the repo-root .env (../.env), BIND-MOUNTED read-only into the server
+# at /app/.env. They are NEVER baked into any image. The server reads PRIVATE_KEY / SPONSOR_PRIVATE_KEY
+# from there (see server/src/index.ts dotenv load + aura/config.ts sponsorPrivateKey()).
+
+name: aura
+
+services:
+  # ── Fastify backend: SIWE, sponsored generate, mint-args, attestation, chain reads. Holds the keys.
+  server:
+    build:
+      context: ..
+      dockerfile: deploy/server.Dockerfile
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "8787"
+      # SIWE domain MUST match the host the browser signs from (the site origin). Local: localhost:8080.
+      SIWE_DOMAIN: localhost:8080
+      SIWE_URI: http://localhost:8080
+      # CORS: allow the site origin (cross-origin browser -> dedicated API origin, like dev :3000->:8787).
+      CORS_ORIGIN: http://localhost:8080
+      # The indexer is reached over the compose network by service name.
+      INDEXER_URL: http://indexer:42069
+      JWT_SECRET: local-stack-test-secret-not-prod
+      JWT_TTL: 1h
+      # Runtime data dir (SQLite + generated cache) -> the named volume below.
+      SQLITE_PATH: /app/server/data/aura.db
+      GEN_DIR: /app/server/data/generated
+    volumes:
+      # Funded keys: read-only, never in an image layer. (repo-root .env -> /app/.env)
+      - ../.env:/app/.env:ro
+      # Persist SQLite + generated images across restarts.
+      - server-data:/app/server/data
+    expose:
+      - "8787"
+    restart: unless-stopped
+
+  # ── Ponder indexer (+ embedded PGlite). Read-only chain access; needs NO key. Syncs from deploy block.
+  indexer:
+    build:
+      context: ..
+      dockerfile: deploy/indexer.Dockerfile
+    environment:
+      NODE_ENV: production
+      # RPC override (Ponder convention). Falls back to deployed-v2.json rpcUrl if unset.
+      PONDER_RPC_URL_16602: https://evmrpc-testnet.0g.ai
+      # `ponder start` (production mode) REQUIRES an explicit DB schema (unlike `ponder dev`). With the
+      # embedded PGlite (single self-hosted instance) "public" is the natural schema. Persisted in the
+      # named volume below, so a restart reuses the synced tables.
+      DATABASE_SCHEMA: public
+    volumes:
+      # Persist the indexed PGlite state so a restart does not re-sync from block 40164233.
+      - indexer-ponder:/app/indexer/.ponder
+    expose:
+      - "42069"
+    restart: unless-stopped
+
+  # ── Next.js web (standalone). SSR + /images route + static. Reaches the backend two ways:
+  #     - SSR (in-container)  -> AURA_API_INTERNAL=http://server:8787 (runtime env, below)
+  #     - browser             -> NEXT_PUBLIC_AURA_API (baked build arg, the dedicated API origin)
+  web:
+    build:
+      context: ../web
+      dockerfile: ../deploy/web.Dockerfile
+      args:
+        # Browser-facing public backend base (the dedicated API origin, published on :8788).
+        NEXT_PUBLIC_AURA_API: http://localhost:8788
+        # SIWE domain baked for the browser (agrees with the server's SIWE_DOMAIN above).
+        NEXT_PUBLIC_SIWE_DOMAIN: localhost:8080
+        NEXT_PUBLIC_AURA_CHAIN_ID: "16602"
+        NEXT_PUBLIC_DISPLAY_FONT: ethereal
+        NEXT_PUBLIC_WC_PROJECT_ID: 8587a9582464416581ee66bc24063ac9
+    environment:
+      NODE_ENV: production
+      # In-cluster backend address for SSR fetches + the Next /health,/api rewrites (NOT baked).
+      AURA_API_INTERNAL: http://server:8787
+    expose:
+      - "3000"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+  # ── nginx front door: :8080 -> site (web), :8788 -> dedicated backend origin.
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"   # the SITE
+      - "8788:81"   # the dedicated BACKEND origin (NEXT_PUBLIC_AURA_API target)
+    depends_on:
+      - web
+      - server
+    restart: unless-stopped
+
+volumes:
+  server-data:
+  indexer-ponder:

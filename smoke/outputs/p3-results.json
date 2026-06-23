@@ -1,0 +1,18 @@
+{
+  "encBrainRoot": "0xbd3d3bfe65d9e0bfccacf24da1a3c77bb9bcad85f739ece508f44b883064422c",
+  "storeTxHash": "0x4416d6b8c92e621f96e5be3be1442609ee049807e5a29352a67b6ced970b1072",
+  "envelopeBytes": 449,
+  "byteIdenticalDownload": true,
+  "byteIdenticalDecrypt": true,
+  "recoveredBrain": {
+    "agent": "SMOKE-BRAIN",
+    "model": "qwen/qwen-image-edit-2511",
+    "styleDescriptor": "Style: bold risograph duotone, fluorescent pink and blue, halftone grain, flat indie-zine shapes.",
+    "identityLock": "Keep the EXACT same person (same face shape, features, expression, hair).",
+    "canonicalBaseSha256": "da4b25ababb21734d96bb36ec35bf2ae013d87aba0ec850dd9cc9fd80d65fbe7",
+    "createdAt": "2026-06-22T16:18:51.318Z"
+  },
+  "genVerified": true,
+  "genBytes": 1962820,
+  "genChatId": "6c4171f4-c0c5-4963-8ed6-1c0455494ce2"
+}

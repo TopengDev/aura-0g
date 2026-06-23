@@ -10,6 +10,7 @@ import { imageDimensions } from "./image-dims.js";
 import { sponsorSigner } from "./wallet.js";
 import { getBroker, imageService } from "./compute.js";
 import { store } from "./storage.js";
+import { cacheImageByRoot, cachedImageByRoot } from "./image-cache.js";
 import { encryptBrain, type BrainPlain } from "./brain.js";
 import { stageBrain } from "./store.js";
 import { CONTRACTS, GALILEO } from "./config.js";
@@ -79,6 +80,11 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
   // 1. store the reference image -> canonicalBaseRoot (the brain's base-image pointer).
   const baseStore = await store(signer, input.imageBytes, `agent-base-${name}`);
   const canonicalBaseRoot = baseStore.rootHash;
+  // ALSO persist the reference image in the local content-addressed cache, keyed by its root. 0G Storage
+  // testnet evicts image-sized blobs within ~minutes-to-an-hour, so the gen-time download() of this base
+  // would later fail (the verified root cause of usedBrain:false). The local copy is the durable source
+  // for BOTH the agent-portrait image endpoint and the gen base reconstruction. (see image-cache.ts)
+  cacheImageByRoot(canonicalBaseRoot, input.imageBytes, { contentType: input.imageMime ?? "image/png", source: "reference" });
 
   // 2. PUBLIC style - the keccak(JCS(publicStyle)) is the on-chain styleFingerprint (provable identity).
   //    Bind refImageRoot = canonicalBaseRoot so the fingerprint commits to the exact base image.
@@ -109,6 +115,9 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
   const { envelope, keyHex } = encryptBrain(brain);
   const brainStore = await store(signer, envelope, `agent-brain-${name}`);
   const encBrainRoot = brainStore.rootHash;
+  // Persist the brain envelope in the durable local cache too (same reason as the reference image: 0G
+  // testnet can evict it). Gen reads it cache-first.
+  cacheImageByRoot(encBrainRoot, envelope, { contentType: "application/octet-stream", source: "brain" });
 
   // 4. modelAttestation = keccak(model | teeSigner | verifiability) from the LIVE TEE image service.
   const broker = await getBroker(signer);
@@ -127,6 +136,19 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
     styleFingerprint,
     modelAttestation,
   });
+
+  // 5b. VERIFY PERSISTENCE before returning. A create must NEVER hand back a root the gen flow can't
+  // later load -- that was the silent failure (0G "succeeds" returning a local merkle root, but the bytes
+  // get evicted, and a brain-backed agent then silently degrades). We assert BOTH blobs are readable from
+  // the DURABLE local cache now; if not, fail the create so the user never mints an unretrievable agent.
+  const baseCheck = cachedImageByRoot(canonicalBaseRoot);
+  if (!baseCheck || baseCheck.bytes.length !== input.imageBytes.length) {
+    throw new Error("create-agent: reference image failed local-cache persistence verification (refusing to mint an unretrievable agent)");
+  }
+  const brainCheck = cachedImageByRoot(encBrainRoot);
+  if (!brainCheck || brainCheck.bytes.length !== envelope.length) {
+    throw new Error("create-agent: brain envelope failed local-cache persistence verification (refusing to mint an unretrievable agent)");
+  }
 
   // 6. return the computed mintAgent args for the USER to submit (permissionless, user-signed).
   return {

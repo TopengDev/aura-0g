@@ -1,0 +1,51 @@
+# Root build context (used by deploy/server.Dockerfile + deploy/indexer.Dockerfile). Keep it lean and
+# NEVER ship secrets. Each service installs its own deps inside the image, so all node_modules are
+# excluded. The server needs contracts/deployed-v2.json + images/ ; the indexer needs its sources +
+# contracts/deployed-v2.json . Everything else here is excluded.
+
+# secrets - never in the build context (the keys .env is bind-mounted at runtime instead)
+.env
+.env.*
+!.env.example
+*.key
+wallet.json
+secrets.env
+
+# all deps (installed in-image)
+**/node_modules
+
+# build outputs
+**/.next
+**/dist
+**/*.tsbuildinfo
+out/
+
+# the web app builds from its OWN context (../web), not the root context
+web/
+
+# Foundry heavyweights under contracts/ (we only need contracts/deployed-v2.json, kept implicitly)
+contracts/lib/
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# runtime data + dev-only trees not needed by the server/indexer images
+data/
+smoke/
+demo/
+app/
+src/
+images/characters/T2/
+images/characters/T3/
+
+# ponder local runtime (the image starts a fresh PGlite; volume persists it)
+indexer/.ponder/
+indexer/generated/
+
+# docs / reports / misc
+*.md
+.git
+.github
+.claude
+.DS_Store
+storage-out/

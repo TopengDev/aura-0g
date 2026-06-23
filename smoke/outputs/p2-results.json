@@ -1,0 +1,52 @@
+[
+  {
+    "input": "face.png",
+    "trait": "add round eyeglasses",
+    "out": "smoke/outputs/p2-face.png",
+    "bytes": 1935405,
+    "verified": true,
+    "chatId": "a34d8f9d-eb61-4a4b-9f76-eaec922f7b57",
+    "latencyMs": 43063,
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69"
+  },
+  {
+    "input": "logo.png",
+    "trait": "change the background to deep navy",
+    "out": "smoke/outputs/p2-logo.png",
+    "bytes": 1032209,
+    "verified": true,
+    "chatId": "c4fd6914-bc7d-406b-8cc8-8228269f6fd8",
+    "latencyMs": 42857,
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69"
+  },
+  {
+    "input": "sketch.png",
+    "trait": "give it a small hat",
+    "out": "smoke/outputs/p2-sketch.png",
+    "bytes": 2288437,
+    "verified": true,
+    "chatId": "fa1e948a-9e7b-4067-9992-54db8d11b20a",
+    "latencyMs": 47010,
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69"
+  },
+  {
+    "input": "busy.png",
+    "trait": "shift it to a nighttime mood",
+    "out": "smoke/outputs/p2-busy.png",
+    "bytes": 2256800,
+    "verified": true,
+    "chatId": "181b7b56-a760-4ac5-abc0-b45bed0d6731",
+    "latencyMs": 42995,
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69"
+  },
+  {
+    "input": "abstract.png",
+    "trait": "add a thin gold outline accent",
+    "out": "smoke/outputs/p2-abstract.png",
+    "bytes": 1978609,
+    "verified": true,
+    "chatId": "a1c4dba5-e293-4a85-a41c-345b11c12bd2",
+    "latencyMs": 42028,
+    "teeSigner": "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69"
+  }
+]

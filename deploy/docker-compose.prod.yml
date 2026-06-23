@@ -1,0 +1,90 @@
+# AURA PRODUCTION stack for the VPS (aura.topengdev.com + api-aura.topengdev.com).
+#
+# Differs from docker-compose.yml (the LOCAL test topology) in three ways:
+#   1. NO in-stack nginx — the VPS has a host-level nginx (systemd) that fronts every *.topengdev.com
+#      app. It proxies aura.topengdev.com -> web (127.0.0.1:3330) and api-aura.topengdev.com ->
+#      server (127.0.0.1:3331). TLS is terminated by host nginx (certbot). So here we just publish
+#      web + server on loopback; the host nginx is the only ingress.
+#   2. Uses the PRE-BUILT images transferred via `docker save | docker load` (no build on the VPS):
+#      aura-web:prod (prod NEXT_PUBLIC_* baked), aura-server:latest, aura-indexer:latest.
+#   3. PROD env: SIWE/CORS pinned to the real https origins; a strong random JWT_SECRET.
+#
+# Run from ~/apps/aura/deploy on the VPS:
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# SECRETS: the funded keys live in ~/apps/aura/.env (chmod 600), bind-mounted READ-ONLY into the
+# server at /app/.env. NEVER baked into any image. Server reads PRIVATE_KEY from there.
+
+name: aura
+
+services:
+  # ── Fastify backend: SIWE, sponsored generate, mint-args, attestation, chain reads. Holds the keys.
+  server:
+    image: aura-server:latest
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "8787"
+      # SIWE domain MUST match the host the browser signs from (the SITE origin).
+      SIWE_DOMAIN: aura.topengdev.com
+      SIWE_URI: https://aura.topengdev.com
+      # CORS: allow the site origin (browser -> dedicated api-* origin is cross-origin).
+      CORS_ORIGIN: https://aura.topengdev.com
+      # The indexer is reached over the compose network by service name.
+      INDEXER_URL: http://indexer:42069
+      # JWT signing secret. NEVER hardcoded here (this file is committed to a PUBLIC repo). It is
+      # interpolated from a gitignored deploy/.env (the compose project dir) at `docker compose up` time.
+      # Set it once: `echo "JWT_SECRET=$(openssl rand -hex 32)" >> deploy/.env` (already set on the VPS).
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env (gitignored)}
+      JWT_TTL: 1h
+      # Runtime data dir (SQLite + generated cache) -> the named volume below.
+      SQLITE_PATH: /app/server/data/aura.db
+      GEN_DIR: /app/server/data/generated
+    volumes:
+      # Funded keys: read-only, never in an image layer. (~/apps/aura/.env -> /app/.env)
+      - ../.env:/app/.env:ro
+      # Persist SQLite + generated images across restarts.
+      - server-data:/app/server/data
+    expose:
+      - "8787"
+    # Publish to LOOPBACK only; host nginx (api-aura.topengdev.com) is the sole ingress.
+    ports:
+      - "127.0.0.1:3331:8787"
+    restart: unless-stopped
+
+  # ── Ponder indexer (+ embedded PGlite). Read-only chain access; needs NO key. Syncs from deploy block.
+  indexer:
+    image: aura-indexer:latest
+    environment:
+      NODE_ENV: production
+      PONDER_RPC_URL_16602: https://evmrpc-testnet.0g.ai
+      # `ponder start` REQUIRES an explicit DB schema. With embedded PGlite, "public" is natural.
+      DATABASE_SCHEMA: public
+    volumes:
+      # Persist the indexed PGlite state so a restart does not re-sync from block 40164233.
+      - indexer-ponder:/app/indexer/.ponder
+    expose:
+      - "42069"
+    restart: unless-stopped
+
+  # ── Next.js web (standalone). SSR + /images route + static. Reaches the backend two ways:
+  #     - SSR (in-container)  -> AURA_API_INTERNAL=http://server:8787 (runtime env)
+  #     - browser             -> NEXT_PUBLIC_AURA_API (baked: https://api-aura.topengdev.com)
+  web:
+    image: aura-web:prod
+    environment:
+      NODE_ENV: production
+      # In-cluster backend address for SSR fetches + the Next /health,/api rewrites (NOT baked).
+      AURA_API_INTERNAL: http://server:8787
+    expose:
+      - "3000"
+    # Publish to LOOPBACK only; host nginx (aura.topengdev.com) is the sole ingress.
+    ports:
+      - "127.0.0.1:3330:3000"
+    depends_on:
+      - server
+    restart: unless-stopped
+
+volumes:
+  server-data:
+  indexer-ponder:

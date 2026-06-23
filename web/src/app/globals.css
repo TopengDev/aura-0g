@@ -1,0 +1,304 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Self-hosted faces ────────────────────────────────────────────────────
+   Body = Switzer (Fontshare variable woff2). Display option A = Ethereal
+   Glamour (single weight). Geist Mono + Playfair Display come from next/font. */
+@font-face {
+  font-family: "Switzer";
+  src: url("/fonts/switzer/Switzer-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Ethereal Glamour";
+  src: url("/fonts/EtherealGlamour-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* ── Design tokens (warm editorial, ported from arca, re-branded AURA) ─────
+   @theme tokens generate Tailwind utilities (bg-cream, text-ink…) and are the
+   single source the palette swaps from. Overriding them in .dark themes the
+   whole app at once. Warm palette kept EXACTLY. */
+@theme {
+  --color-cream: #f9f8f6;        /* page bg                          */
+  --color-cream-deep: #f0eee9;   /* sunken surface                   */
+  --color-paper: #fcfbf9;        /* raised card                      */
+  --color-cream-warm: #f3efe6;   /* warm accent bg                   */
+  --color-ink: #0e0d0a;          /* primary text                     */
+  --color-ink-2: #46443d;        /* secondary text                   */
+  --color-ink-3: #8c887e;        /* tertiary / muted                 */
+  --color-border: rgba(14, 13, 10, 0.14);
+  --color-border-strong: rgba(14, 13, 10, 0.28);
+  --color-accent: #2a3858;       /* ink-navy (AURA site accent, light) */
+  --color-ok: #2f6b4f;
+  --color-warn: #9a3b2e;
+
+  /* Raw RGB triplets so framer-motion / dynamic styles compose theme-aware
+     rgba() without re-reading the swapped tokens. */
+  --rgb-cream: 249 248 246;
+  --rgb-ink: 14 13 10;
+  --rgb-accent: 42 56 88;
+
+  /* Type system: Switzer body x Geist Mono labels. The display faces live as PLAIN custom
+     properties in :root below (NOT @theme) so Tailwind does not auto-generate a conflicting
+     `.font-display` utility from a --font-* token. Only my @utility font-display controls display. */
+  --font-body: "Switzer", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --container-narrow: 720px;
+  --container-wrap: 1140px;
+
+  --shadow-doc: 0 30px 80px -40px rgba(70, 50, 30, 0.35);
+  --shadow-card: 0 20px 50px -30px rgba(50, 35, 22, 0.28);
+  --shadow-pill: 0 8px 18px -10px rgba(14, 13, 10, 0.45);
+}
+
+/* Runtime display-face switch. Default = Ethereal Glamour. html.font-playfair (stamped from the
+   ?font=playfair query) swaps to Playfair Display. These are PLAIN custom properties (not @theme
+   tokens) so nothing auto-generates a competing utility. */
+:root {
+  --font-display: "Ethereal Glamour", "Playfair Display", Georgia, serif;
+  --font-display-alt: var(--font-playfair), "Playfair Display", Georgia, serif;
+  --font-display-active: var(--font-display);
+}
+html.font-playfair {
+  --font-display-active: var(--font-display-alt);
+}
+
+/* Dark token swap - two paths so dark systems never flash a light frame:
+   1. @media (prefers-color-scheme: dark) html:not(.light) - before any JS.
+   2. html.dark - explicit user/inline-script override. */
+@media (prefers-color-scheme: dark) {
+  html:not(.light) {
+    --color-cream: #0e0d0a;
+    --color-cream-deep: #161410;
+    --color-paper: #14120e;
+    --color-cream-warm: #1f1c14;
+    --color-ink: #efece3;
+    --color-ink-2: #a8a59e;
+    --color-ink-3: #928d82;
+    --color-border: rgba(239, 236, 227, 0.1);
+    --color-border-strong: rgba(239, 236, 227, 0.22);
+    --color-accent: #93a7d6;
+    --color-ok: #5dd5b6;
+    --color-warn: #e08a78;
+    --rgb-cream: 14 13 10;
+    --rgb-ink: 239 236 227;
+    --rgb-accent: 147 167 214;
+    --shadow-doc: 0 30px 80px -40px rgba(0, 0, 0, 0.75);
+    --shadow-card: 0 20px 50px -30px rgba(0, 0, 0, 0.7);
+    --shadow-pill: 0 8px 18px -10px rgba(0, 0, 0, 0.6);
+    color-scheme: dark;
+  }
+}
+html.dark {
+  --color-cream: #0e0d0a;
+  --color-cream-deep: #161410;
+  --color-paper: #14120e;
+  --color-cream-warm: #1f1c14;
+  --color-ink: #efece3;
+  --color-ink-2: #a8a59e;
+  --color-ink-3: #928d82;
+  --color-border: rgba(239, 236, 227, 0.1);
+  --color-border-strong: rgba(239, 236, 227, 0.22);
+  --color-accent: #93a7d6;
+  --color-ok: #5dd5b6;
+  --color-warn: #e08a78;
+  --rgb-cream: 14 13 10;
+  --rgb-ink: 239 236 227;
+  --rgb-accent: 147 167 214;
+  --shadow-doc: 0 30px 80px -40px rgba(0, 0, 0, 0.75);
+  --shadow-card: 0 20px 50px -30px rgba(0, 0, 0, 0.7);
+  --shadow-pill: 0 8px 18px -10px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  html {
+    color-scheme: light;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: var(--color-cream);
+    color: var(--color-ink);
+  }
+  body {
+    margin: 0;
+    /* oklab ambient page wash: soft brand glows in the corners over the base,
+       fixed so they sit still as you scroll. Theme-aware via the tokens.
+       This is the archetype's signature ground, NOT a hero decor orb. */
+    background:
+      radial-gradient(62rem 62rem at 2% -14%, color-mix(in oklab, #7d9fe6 30%, transparent), transparent 60%),
+      radial-gradient(54rem 54rem at 110% 16%, color-mix(in oklab, #e89a6b 28%, transparent), transparent 60%),
+      radial-gradient(50rem 50rem at 16% 116%, color-mix(in oklab, #5fc294 24%, transparent), transparent 58%),
+      radial-gradient(38rem 38rem at 86% 104%, color-mix(in oklab, #b58ad6 20%, transparent), transparent 62%),
+      var(--color-cream);
+    background-attachment: fixed;
+    color: var(--color-ink);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    overflow-x: hidden;
+  }
+  html[data-theme-ready="1"] body {
+    transition: background-color 280ms ease, color 280ms ease;
+  }
+  ::selection {
+    background: var(--color-ink);
+    color: var(--color-cream);
+  }
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  button {
+    font-family: var(--font-body);
+    cursor: pointer;
+  }
+  /* Accessible keyboard focus (WCAG 2.4.7). A box-shadow ring is used instead of a border-color swap so
+     it can never be overridden by an inline borderColor, and is paired with the accent. :focus-visible
+     keeps it keyboard-only (no ring on mouse click). Applied to every natively-focusable control. */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible,
+  [tabindex]:focus-visible {
+    outline: none;
+    border-color: var(--color-accent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 38%, transparent);
+    border-radius: 12px;
+  }
+}
+
+/* Same oklab ambient wash, reusable on any surface that needs the ground 1:1. */
+.ambient-wash {
+  background:
+    radial-gradient(62rem 62rem at 2% -14%, color-mix(in oklab, #7d9fe6 30%, transparent), transparent 60%),
+    radial-gradient(54rem 54rem at 110% 16%, color-mix(in oklab, #e89a6b 28%, transparent), transparent 60%),
+    radial-gradient(50rem 50rem at 16% 116%, color-mix(in oklab, #5fc294 24%, transparent), transparent 58%),
+    radial-gradient(38rem 38rem at 86% 104%, color-mix(in oklab, #b58ad6 20%, transparent), transparent 62%),
+    var(--color-cream);
+}
+
+/* ── Font utilities ───────────────────────────────────────────────────────
+   .font-display follows the runtime-active face so ?font=playfair switches the
+   whole site. .font-mono-x is the mono label face. */
+@utility font-display {
+  font-family: var(--font-display-active);
+  font-optical-sizing: auto;
+}
+@utility font-mono-x {
+  font-family: var(--font-mono);
+  letter-spacing: 0.005em;
+}
+
+/* ── The provenance line (motif) ─────────────────────────────────────────
+   A 1px ink-navy/periwinkle hairline that draws on enter. Used in the hero
+   menubar, the thesis underline, the ledger baselines, the activity line, and
+   the how-it-works spine. Driven by scaleX so it animates cheaply. */
+.prov-rule {
+  height: 1px;
+  background: var(--color-accent);
+  transform-origin: left center;
+}
+.prov-rule-draw {
+  transform: scaleX(0);
+  transition: transform 1.1s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.prov-rule-draw.is-in {
+  transform: scaleX(1);
+}
+
+/* Underline that draws under a keyword (thesis). */
+.prov-underline {
+  position: relative;
+  white-space: nowrap;
+}
+.prov-underline::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -0.08em;
+  height: 2px;
+  background: var(--color-accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 1s cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+}
+.prov-underline.is-in::after {
+  transform: scaleX(1);
+}
+
+/* ── Continuous marquee (activity ticker) ─────────────────────────────────
+   Pure transform animation, NOT scroll-scrubbed. Pausable on hover. */
+@keyframes aura-marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+.aura-marquee-track {
+  display: inline-flex;
+  white-space: nowrap;
+  will-change: transform;
+  animation: aura-marquee var(--marquee-dur, 42s) linear infinite;
+}
+.aura-marquee:hover .aura-marquee-track {
+  animation-play-state: paused;
+}
+
+/* ── Skeleton shimmer (loading) ───────────────────────────────────────────*/
+@keyframes aura-shimmer {
+  100% { transform: translateX(100%); }
+}
+.aura-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: color-mix(in oklab, var(--color-ink) 6%, transparent);
+}
+.aura-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--color-cream) 60%, transparent),
+    transparent
+  );
+  animation: aura-shimmer 1.6s ease-in-out infinite;
+}
+
+/* ── Lenis smooth scroll + reduced motion ─────────────────────────────────*/
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001s !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001s !important;
+    scroll-behavior: auto !important;
+  }
+  .aura-marquee-track {
+    animation: none !important;
+    transform: none !important;
+  }
+}

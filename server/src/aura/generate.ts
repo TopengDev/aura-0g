@@ -13,6 +13,7 @@ import { ethers } from "ethers";
 import { sponsorSigner } from "./wallet.js";
 import { getBroker, imageService, generate } from "./compute.js";
 import { store, download } from "./storage.js";
+import { cacheImageByRoot, cachedImageByRoot } from "./image-cache.js";
 import { baseForSeededAgent, fallbackPrompt } from "./catalog.js";
 import { rawAgent } from "./agents.js";
 import { brainByRoot, brainByAgentId } from "./store.js";
@@ -30,29 +31,80 @@ export interface ResolvedGenConfig {
 
 const ZERO32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
-/** Reconstruct { baseBytes, prompt } for an agent + user prompt. Brain first, catalog fallback. */
+/** Thrown when an agent that HAS a brain cannot generate via that brain (enforced, no silent fallback). */
+export class BrainUnavailableError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "BrainUnavailableError";
+  }
+}
+
+/**
+ * Load bytes for a 0G content root, durable-source FIRST. 0G Storage testnet evicts image-sized blobs
+ * (verified), so we read the local content-addressed cache first, then fall back to a 0G download (and
+ * backfill the cache on a successful 0G hit). Returns null if neither source has the bytes.
+ */
+async function loadBytesByRoot(root: string, source: string): Promise<Buffer | null> {
+  const cached = cachedImageByRoot(root);
+  if (cached) return cached.bytes;
+  try {
+    const bytes = await download(root);
+    if (bytes && bytes.length > 0) {
+      cacheImageByRoot(root, bytes, { source }); // backfill so the next read is local + durable
+      return bytes;
+    }
+  } catch {
+    /* 0G miss (likely evicted on testnet) */
+  }
+  return null;
+}
+
+/**
+ * Reconstruct { baseBytes, prompt } for an agent + user prompt.
+ *   - Agent WITH a brain (encBrainRoot + server-custody key): MUST generate via the brain. The base
+ *     image is loaded from the durable local cache first, 0G second. If the brain genuinely cannot be
+ *     loaded, we THROW (BrainUnavailableError) rather than silently degrade to a generic style -- Toper's
+ *     explicit requirement ("harus di enforce"). Silent fallback is what hid the real bug.
+ *   - Brain-less SEEDED agent (the 4 on-chain catalog seeds, no stored key): catalog base + prompt
+ *     (intended, zero-regression path).
+ */
 export async function resolveGenConfig(agentId: number, agentName: string, encBrainRoot: string, userPrompt: string): Promise<ResolvedGenConfig> {
   const clean = userPrompt.trim();
 
-  // 1. brain path - only if we have a server-custody AES key for this agent's encBrainRoot.
-  const hasBrainRoot = encBrainRoot && encBrainRoot.length > 0 && encBrainRoot !== ZERO32;
-  if (hasBrainRoot) {
-    const rec = brainByAgentId(agentId) ?? brainByRoot(encBrainRoot);
-    if (rec) {
-      try {
-        const envelope = await download(rec.encBrainRoot);
-        const brain = decryptBrain(envelope, rec.brainKeyHex);
-        const baseBytes = await download(brain.canonicalBaseRoot);
-        // generalized prompt: identity lock + "change only X" + style + negative
-        const prompt = `${brain.identityLock} Change only this: ${clean}. ${brain.styleDescriptor}. Avoid: ${brain.negative}.`;
-        return { baseBytes, prompt, usedBrain: true, agentName };
-      } catch (e: any) {
-        // brain decryption / download failed -> fall through to catalog (logged by caller via status)
-      }
+  // does this agent have a brain we are expected to use? (on-chain root + a server-custody AES key)
+  const hasBrainRoot = !!encBrainRoot && encBrainRoot.length > 0 && encBrainRoot !== ZERO32;
+  const rec = hasBrainRoot ? (brainByAgentId(agentId) ?? brainByRoot(encBrainRoot)) : null;
+
+  if (hasBrainRoot && rec) {
+    // ENFORCED brain path. Any failure here throws (no silent catalog fallback for a brain-backed agent).
+    const envelopeBytes = await loadBytesByRoot(rec.encBrainRoot, "brain");
+    if (!envelopeBytes) {
+      throw new BrainUnavailableError(
+        `agent #${agentId} (${agentName}) brain envelope unavailable (root ${rec.encBrainRoot.slice(0, 14)}... not in local cache or 0G)`,
+      );
     }
+    let brain;
+    try {
+      brain = decryptBrain(Buffer.from(envelopeBytes), rec.brainKeyHex);
+    } catch (e: any) {
+      throw new BrainUnavailableError(`agent #${agentId} (${agentName}) brain decrypt failed: ${String(e?.message).slice(0, 100)}`);
+    }
+    const baseBytes = await loadBytesByRoot(brain.canonicalBaseRoot, "reference");
+    if (!baseBytes) {
+      throw new BrainUnavailableError(
+        `agent #${agentId} (${agentName}) reference image unavailable (root ${brain.canonicalBaseRoot.slice(0, 14)}... not in local cache or 0G). Re-create the agent to re-persist its reference image.`,
+      );
+    }
+    const prompt = `${brain.identityLock} Change only this: ${clean}. ${brain.styleDescriptor}. Avoid: ${brain.negative}.`;
+    return { baseBytes, prompt, usedBrain: true, agentName };
   }
 
-  // 2. catalog fallback (the 4 brain-less seeded agents, or any failure above).
+  // brain-less SEEDED agent (the 4 catalog seeds, no stored key): intended catalog base + prompt.
+  if (hasBrainRoot && !rec) {
+    // On-chain root present but NO server-custody key (e.g. a seed, or a key lost/created elsewhere). This
+    // is the only "has a rootish value but cannot use a brain" case we allow to fall back, because there
+    // is no key to decrypt with. Catalog path keeps the seeded agents working (zero regression).
+  }
   const baseRel = baseForSeededAgent(agentName);
   const basePath = path.join(REPO_ROOT, baseRel);
   const baseBytes = readFileSync(basePath);
@@ -90,6 +142,9 @@ export async function runGeneration(input: GenerateInput): Promise<void> {
 
     setStatus(jobId, "storing", "uploading the image to 0G Storage");
     const img = await store(signer, g.bytes, `gen-${jobId}`);
+    // Persist the output bytes in the durable local cache keyed by its 0G root, so the image-by-root
+    // endpoint can serve REAL art even after 0G Storage testnet evicts the blob (verified to happen).
+    cacheImageByRoot(img.rootHash, g.bytes, { source: "output" });
 
     const seed = Math.floor(Math.random() * 1_000_000_000);
     // the exact provenance record (its keccak is committed on-chain at mint).
