@@ -9,6 +9,7 @@ import {
   featuredOutputs,
   nonFeaturedOutputs,
   isFeatured,
+  isTestAgentName,
   type Agent,
 } from "@/lib/api";
 import { ExploreView, type ExploreData } from "@/components/product/ExploreView";
@@ -48,11 +49,15 @@ export default async function ExplorePage() {
     .map((item) => ({ item, agent: agentById.get(item.agentId) }))
     .filter((t): t is { item: (typeof trending)[number]; agent: Agent } => !!t.agent && isFeatured(t.agent));
 
+  // Exclude internal test-agent events (Created BRAINTEST/TESTAGENT ...) from the activity feed + ticker,
+  // so the public "pulse" surface never shows the e2e-proof agents.
+  const cleanActivity = activity.filter((e) => !isTestAgentName(e.agentName));
+
   const data: ExploreData = {
     trending: trendingJoined,
     outputs,
     creators: creatorsLeaderboard(agents),
-    activity,
+    activity: cleanActivity,
     // True on-chain totals from the indexer counts (the outputs[] array is capped at the fetch limit).
     totalAgents: counts?.counts.agents ?? agents.length,
     totalOutputs: counts?.counts.outputs ?? outputs.length,

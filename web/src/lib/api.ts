@@ -595,8 +595,15 @@ export function findListing(
 // same-named agents are NOT deduped (e.g. two distinct CHILLDAWG agents both show -- intended).
 export const CATALOG_NAMES = new Set(["NOKTURNE", "MIRAI", "RISO", "SCRIPTORIUM"]);
 
+// Single source of truth for "this is an internal test/e2e-proof agent" (hidden from all public
+// surfaces: catalog, trending, creators, AND the activity feed). Real agents (including same-named
+// ones like the two CHILLDAWGs) are NOT matched.
+export function isTestAgentName(name: string | null | undefined): boolean {
+  return /^(TESTAGENT|BRAINTEST)/i.test(name ?? "");
+}
+
 export function isFeatured(a: Agent): boolean {
-  return !/^(TESTAGENT|BRAINTEST)/i.test(a.name);
+  return !isTestAgentName(a.name);
 }
 
 export function featuredAgents(agents: Agent[]): Agent[] {

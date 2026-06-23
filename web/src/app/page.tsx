@@ -7,6 +7,7 @@ import {
   featuredAgents,
   featuredOutputs,
   nonFeaturedOutputs,
+  isTestAgentName,
 } from "@/lib/api";
 import { Hero } from "@/components/home/Hero";
 import { CharacterGallery } from "@/components/home/CharacterGallery";
@@ -47,6 +48,9 @@ export default async function HomePage() {
   const heroFeature = featuredOutputs(outputs);
   const galleryOutputs = [...heroFeature, ...nonFeaturedOutputs(outputs)].slice(0, 8);
 
+  // Keep internal test-agent events (Created BRAINTEST/TESTAGENT ...) out of the home activity ticker.
+  const cleanActivity = activity.filter((e) => !isTestAgentName(e.agentName));
+
   const agentCount = counts?.counts.agents ?? agents.length;
   const outputCount = counts?.counts.outputs ?? outputs.length;
 
@@ -67,7 +71,7 @@ export default async function HomePage() {
       <StatsLedger data={ledger} />
       {featured.length > 0 && <FeaturedAgents agents={featured} />}
       <OutputsRail outputs={outputs} />
-      <ActivityTicker activity={activity} />
+      <ActivityTicker activity={cleanActivity} />
       <HowItWorks />
       <CtaClose />
       <Footer />
