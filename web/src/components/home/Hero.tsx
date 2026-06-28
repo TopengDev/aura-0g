@@ -51,7 +51,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
             initial={{ opacity: 0, y: 18, filter: "blur(8px)" }}
             animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
             transition={{ duration: 0.8, ease: EASE, delay: 0.08 }}
-            className="font-display mt-7 max-w-[15ch]"
+            className="aura-deblur font-display mt-7 max-w-[15ch]"
             style={{ fontSize: "clamp(44px, 6.4vw, 104px)", lineHeight: 0.96, letterSpacing: "-0.02em" }}
           >
             Art you can{" "}
@@ -63,7 +63,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                   exit={{ opacity: 0, y: -14, filter: "blur(6px)" }}
                   transition={{ duration: 0.5, ease: EASE }}
-                  className="inline-block"
+                  className="aura-deblur inline-block"
                 >
                   {SWAP_WORDS[i]}
                 </motion.span>
@@ -128,7 +128,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
         <div className="relative order-1 lg:order-2">
           {lead ? (
             <div className="relative">
-              <ShowpieceCard output={lead} priority tilt className="relative z-10" aspect="aspect-[4/5]" />
+              <ShowpieceCard output={lead} priority tilt width={960} className="relative z-10" aspect="aspect-[4/5]" />
 
               {/* the second showpiece, overlapping at the lower-left for an editorial, gallery-wall feel */}
               {second ? (
@@ -138,7 +138,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
                   transition={{ duration: 0.9, ease: EASE, delay: 0.5 }}
                   className="absolute -bottom-10 -left-6 z-20 hidden w-[46%] sm:block lg:-left-10"
                 >
-                  <ShowpieceCard output={second} aspect="aspect-square" compact />
+                  <ShowpieceCard output={second} aspect="aspect-square" compact width={600} />
                 </motion.div>
               ) : null}
 
@@ -150,7 +150,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
                   transition={{ duration: 0.9, ease: EASE, delay: 0.66 }}
                   className="absolute -right-5 -top-6 z-0 hidden w-[34%] lg:block"
                 >
-                  <ShowpieceCard output={third} aspect="aspect-square" compact muted />
+                  <ShowpieceCard output={third} aspect="aspect-square" compact muted width={600} />
                 </motion.div>
               ) : null}
             </div>
@@ -171,6 +171,7 @@ function ShowpieceCard({
   compact = false,
   muted = false,
   aspect = "aspect-[4/5]",
+  width = 720,
   className = "",
 }: {
   output: Output;
@@ -179,10 +180,11 @@ function ShowpieceCard({
   compact?: boolean;
   muted?: boolean;
   aspect?: string;
+  width?: number;
   className?: string;
 }) {
   const ref = useRef<HTMLAnchorElement>(null);
-  const src = imageUrl(o.imageRoot, o.style);
+  const src = imageUrl(o.imageRoot, o.style, width);
 
   const onMove = (e: React.MouseEvent) => {
     const el = ref.current;
@@ -217,6 +219,9 @@ function ShowpieceCard({
             src={src}
             alt={`${o.agentName} character #${o.tokenId}`}
             loading={priority ? "eager" : "lazy"}
+            // LCP element: fetch the lead showpiece at high priority; decode async so it never blocks.
+            fetchPriority={priority ? "high" : undefined}
+            decoding="async"
             className={`h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03] ${muted ? "opacity-90" : ""}`}
           />
           {/* style chip top-left */}

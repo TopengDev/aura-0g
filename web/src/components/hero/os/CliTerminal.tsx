@@ -168,14 +168,16 @@ function ArtResolve() {
       initial={{ opacity: 0, filter: "blur(10px)", y: 4 }}
       animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
       transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
-      className="mt-2 inline-flex items-center gap-2.5 rounded-md p-1.5"
+      className="aura-deblur mt-2 inline-flex items-center gap-2.5 rounded-md p-1.5"
       style={{ border: `1px solid ${C.hair}`, background: "#11161d" }}
     >
       <img
-        src={`/images/${encodeURIComponent("0xe3cd354dfadbb8104b503f775cc341677f98df953fe327e6fd5ebc104523b6f3")}?style=noir`}
+        src={`/images/${encodeURIComponent("0xe3cd354dfadbb8104b503f775cc341677f98df953fe327e6fd5ebc104523b6f3")}?style=noir&w=120`}
         alt="NOKTURNE generated output"
         width={44}
         height={44}
+        loading="lazy"
+        decoding="async"
         style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 4, display: "block" }}
       />
       <div>

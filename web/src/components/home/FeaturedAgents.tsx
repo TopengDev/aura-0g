@@ -49,7 +49,8 @@ export function FeaturedAgents({ agents }: { agents: Agent[] }) {
 function AgentCard({ agent, hero = false }: { agent: Agent; hero?: boolean }) {
   const ref = useRef<HTMLAnchorElement>(null);
   const accent = agent.meta.accent;
-  const portrait = agentPortraitUrl(agent);
+  // Hero bento cell is large (~560 CSS); the 3 small cells are ~280. Downscale the 1024^2 source to suit.
+  const portrait = agentPortraitUrl(agent, hero ? 900 : 600);
 
   // Tilt-to-cursor (transform only). Disabled on coarse pointers.
   const onMove = (e: React.MouseEvent) => {
@@ -81,6 +82,8 @@ function AgentCard({ agent, hero = false }: { agent: Agent; hero?: boolean }) {
         <img
           src={portrait}
           alt={`${agent.name} portrait`}
+          loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
         />
         <span

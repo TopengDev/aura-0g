@@ -47,7 +47,8 @@ export function CharacterGallery({ outputs }: { outputs: Output[] }) {
 
 function CharacterCard({ output: o }: { output: Output }) {
   const ref = useRef<HTMLAnchorElement>(null);
-  const src = imageUrl(o.imageRoot, o.style);
+  // Card is <=320 CSS px; 820 keeps it crisp to ~DPR 2.5 while downscaling the 1024^2 source (cheaper decode).
+  const src = imageUrl(o.imageRoot, o.style, 820);
 
   const onMove = (e: React.MouseEvent) => {
     const el = ref.current;
@@ -76,6 +77,7 @@ function CharacterCard({ output: o }: { output: Output }) {
           src={src}
           alt={`${o.agentName} character #${o.tokenId}`}
           loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
         />
         <span

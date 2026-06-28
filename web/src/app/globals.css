@@ -132,20 +132,36 @@ html.dark {
   }
   body {
     margin: 0;
-    /* oklab ambient page wash: soft brand glows in the corners over the base,
-       fixed so they sit still as you scroll. Theme-aware via the tokens.
-       This is the archetype's signature ground, NOT a hero decor orb. */
-    background:
-      radial-gradient(62rem 62rem at 2% -14%, color-mix(in oklab, #7d9fe6 30%, transparent), transparent 60%),
-      radial-gradient(54rem 54rem at 110% 16%, color-mix(in oklab, #e89a6b 28%, transparent), transparent 60%),
-      radial-gradient(50rem 50rem at 16% 116%, color-mix(in oklab, #5fc294 24%, transparent), transparent 58%),
-      radial-gradient(38rem 38rem at 86% 104%, color-mix(in oklab, #b58ad6 20%, transparent), transparent 62%),
-      var(--color-cream);
-    background-attachment: fixed;
+    /* Solid base only. The oklab ambient wash moved to a fixed, GPU-composited body::before layer (below):
+       it used to live here with `background-attachment: fixed`, which repaints the 4 large radial glows on
+       EVERY scroll frame on mobile (a confirmed scroll-jank source). The ::before keeps the exact same
+       fixed-to-viewport glows behind content, but painted once and composited on scroll. */
+    background: var(--color-cream);
     color: var(--color-ink);
     font-family: var(--font-body);
     line-height: 1.5;
     overflow-x: hidden;
+    /* Form a stacking context so the fixed body::before wash (z-index:-1) layers ABOVE body's own opaque
+       background and BELOW content. Without this, the fixed pseudo escapes to the root stacking context and
+       body's background paints over (hides) the glows. */
+    isolation: isolate;
+  }
+  /* Ambient page wash: soft brand glows in the corners, fixed to the viewport so they sit still as you
+     scroll. A separate position:fixed layer (not background-attachment:fixed) so mobile composites it on
+     scroll instead of repainting the gradients every frame. Behind all content (z-index:-1), inert. Same
+     pixels as before. translateZ(0) forces its own compositor layer. */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    transform: translateZ(0);
+    background:
+      radial-gradient(62rem 62rem at 2% -14%, color-mix(in oklab, #7d9fe6 30%, transparent), transparent 60%),
+      radial-gradient(54rem 54rem at 110% 16%, color-mix(in oklab, #e89a6b 28%, transparent), transparent 60%),
+      radial-gradient(50rem 50rem at 16% 116%, color-mix(in oklab, #5fc294 24%, transparent), transparent 58%),
+      radial-gradient(38rem 38rem at 86% 104%, color-mix(in oklab, #b58ad6 20%, transparent), transparent 62%);
   }
   html[data-theme-ready="1"] body {
     transition: background-color 280ms ease, color 280ms ease;
@@ -286,6 +302,17 @@ html.dark {
 }
 .lenis.lenis-stopped {
   overflow: hidden;
+}
+
+/* ── Device-adaptive motion tier ──────────────────────────────────────────
+   html.low-motion is stamped pre-hydration (MotionTierScript) on touch / low-end / reduced-motion devices.
+   The reveal primitives animate `filter: blur(Npx) -> blur(0)`, which is NOT compositor-only: it re-rasters
+   the element every frame of the entrance -- expensive on weak mobile GPUs (Helio G99). Here we neutralize
+   ONLY the blur on the lighter tier: the opacity + translate of the reveal still play (compositor-only,
+   cheap), and the END state is blur(0) regardless, so the page looks identical at rest. Elements that
+   animate blur carry .aura-deblur. */
+html.low-motion .aura-deblur {
+  filter: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

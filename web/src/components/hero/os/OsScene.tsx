@@ -20,6 +20,7 @@ export function OsScene() {
   const [phase, setPhase] = useState<"cli" | "browser">("cli");
   const [reduced, setReduced] = useState(false);
   const lineRef = useRef<HTMLSpanElement>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -27,18 +28,43 @@ export function OsScene() {
     if (mq.matches) return; // reduced-motion: hold the completed state (browser/verify done)
 
     let mounted = true;
+    let visible = true;
     let tMin: ReturnType<typeof setTimeout>;
     let tLoop: ReturnType<typeof setTimeout>;
+    const clear = () => {
+      clearTimeout(tMin);
+      clearTimeout(tLoop);
+    };
     const run = () => {
       setPhase("cli");
       tMin = setTimeout(() => mounted && setPhase("browser"), MINIMIZE_AT);
-      tLoop = setTimeout(() => mounted && run(), LOOP_MS);
+      // Only re-arm the loop while the scene is on-screen -- no point re-typing + re-running the pipeline
+      // animation when the faux-OS is scrolled out of view (wasted main-thread + raster work on mobile).
+      tLoop = setTimeout(() => mounted && visible && run(), LOOP_MS);
     };
+
+    // Visibility gate: freeze the loop while off-screen, resume it on re-entry. No visual change when in
+    // view; it just stops animating an invisible element.
+    const el = rootRef.current;
+    let io: IntersectionObserver | undefined;
+    if (el && typeof IntersectionObserver !== "undefined") {
+      io = new IntersectionObserver(
+        ([entry]) => {
+          const nowVisible = entry.isIntersecting;
+          if (nowVisible === visible) return;
+          visible = nowVisible;
+          if (visible) run();
+          else clear();
+        },
+        { threshold: 0.05 },
+      );
+      io.observe(el);
+    }
     run();
     return () => {
       mounted = false;
-      clearTimeout(tMin);
-      clearTimeout(tLoop);
+      clear();
+      io?.disconnect();
     };
   }, []);
 
@@ -49,6 +75,7 @@ export function OsScene() {
 
   return (
     <div
+      ref={rootRef}
       id="aura-os-hero"
       className="relative mx-auto aspect-[16/10] w-full max-w-[1240px] overflow-hidden rounded-[18px] border border-[var(--color-border)] shadow-[var(--shadow-doc)]"
     >

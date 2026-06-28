@@ -11,7 +11,8 @@ import { AuraMark } from "./logos";
 // third-party app clone.
 export function BrowserGallery({ play, startDelay = 0 }: { play: boolean; startDelay?: number }) {
   const o = RECALL_OUTPUT;
-  const imgSrc = `/images/${encodeURIComponent(o.imageRoot.replace(/^0g:\/\//, ""))}?style=${o.style}`;
+  // Faux-OS browser card is <=300 CSS px; 620 keeps it crisp while downscaling the 1024^2 source.
+  const imgSrc = `/images/${encodeURIComponent(o.imageRoot.replace(/^0g:\/\//, ""))}?style=${o.style}&w=620`;
 
   return (
     <div className="flex h-full flex-col" style={{ background: "var(--color-cream)", color: "var(--color-ink)", fontFamily: "var(--font-body)" }}>
@@ -33,11 +34,11 @@ export function BrowserGallery({ play, startDelay = 0 }: { play: boolean; startD
           initial={{ opacity: 0, y: 16, filter: "blur(8px)" }}
           animate={play ? { opacity: 1, y: 0, filter: "blur(0px)" } : { opacity: 0, y: 16 }}
           transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1], delay: startDelay / 1000 }}
-          className="w-full max-w-[300px] overflow-hidden rounded-[18px] border shadow-[var(--shadow-card)]"
+          className="aura-deblur w-full max-w-[300px] overflow-hidden rounded-[18px] border shadow-[var(--shadow-card)]"
           style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
         >
           <div className="relative aspect-square w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
-            <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} className="h-full w-full object-cover" />
+            <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover" />
             <span
               className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]"
               style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)" }}

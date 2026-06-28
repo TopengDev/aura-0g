@@ -123,7 +123,8 @@ function RailHeader() {
 }
 
 function OutputCard({ output: o }: { output: Output }) {
-  const imgSrc = imageUrl(o.imageRoot, o.style);
+  // Rail card is <=360 CSS px; 820 stays crisp on high-DPR while downscaling the 1024^2 source.
+  const imgSrc = imageUrl(o.imageRoot, o.style, 820);
   return (
     <Link
       href="/explore"
@@ -131,7 +132,7 @@ function OutputCard({ output: o }: { output: Output }) {
       style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
     >
       <div className="relative aspect-square w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
-        <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+        <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
         <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)" }}>
           {o.style}
         </span>

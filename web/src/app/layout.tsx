@@ -3,6 +3,7 @@ import { Geist_Mono, Playfair_Display } from "next/font/google";
 import { MotionProvider } from "@/components/MotionProvider";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ThemeScript } from "@/components/theme/ThemeScript";
+import { MotionTierScript } from "@/components/theme/MotionTierScript";
 import { FontClass } from "@/components/theme/FontClass";
 import { Web3Provider } from "@/components/web3/Web3Provider";
 import { Nav } from "@/components/chrome/Nav";
@@ -33,6 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className={`${playfair.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <head>
         <ThemeScript />
+        <MotionTierScript />
       </head>
       <body>
         <ThemeProvider>

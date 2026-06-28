@@ -18,7 +18,12 @@ declare global {
 export function MotionProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduced) return;
+    // Lenis smooth-scroll is a per-frame main-thread cost. On touch devices the native scroller is already
+    // GPU-driven + buttery, and hijacking it makes a weak mobile CPU (Helio G99) stutter -- the worst place
+    // to run it. Skip Lenis on coarse pointers + reduced-motion. ScrollTrigger then listens to native
+    // scroll directly (its default), so scroll-driven reveals still fire; we just stop driving the scroll.
+    const coarse = window.matchMedia("(pointer: coarse)").matches;
+    if (reduced || coarse) return;
 
     const lenis = new Lenis({ lerp: 0.08, smoothWheel: true, wheelMultiplier: 1, touchMultiplier: 1.4 });
     window.__lenis = lenis;

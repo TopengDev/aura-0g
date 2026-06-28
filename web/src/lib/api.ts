@@ -652,9 +652,16 @@ export function imageRootSlug(imageRoot: string): string {
   return imageRoot.startsWith("0g://") ? imageRoot.slice("0g://".length) : imageRoot;
 }
 
-export function imageUrl(imageRoot: string, style?: AgentStyle): string {
-  const q = style ? `?style=${encodeURIComponent(style)}` : "";
-  return `/images/${encodeURIComponent(imageRootSlug(imageRoot))}${q}`;
+// `width` is an OPTIONAL display-width hint (CSS px x DPR). When passed, the /images route downscales the
+// source to it (never upscales) so a 130-370px card stops decoding a full 1024^2 bitmap -- this is what
+// cuts the scroll-time raster cost. Omit it and the route still transcodes to AVIF/WebP (format win) but
+// keeps full resolution (safe for full-bleed detail views). Either way the pixels are unchanged.
+export function imageUrl(imageRoot: string, style?: AgentStyle, width?: number): string {
+  const params = new URLSearchParams();
+  if (style) params.set("style", style);
+  if (width && width > 0) params.set("w", String(Math.round(width)));
+  const q = params.toString();
+  return `/images/${encodeURIComponent(imageRootSlug(imageRoot))}${q ? `?${q}` : ""}`;
 }
 
 // The agent's portrait URL. Built one way everywhere (slash-free so it survives nginx + Next-standalone).
@@ -663,13 +670,13 @@ export function imageUrl(imageRoot: string, style?: AgentStyle): string {
 //   - USER agent (everything else): "agent-<agentId>", which the /images route proxies to the backend
 //     GET /agent-portrait/<id> (the agent's reference image from the durable local cache) -> real art,
 //     not the placeholder. Falls back to the placeholder only if the backend has no bytes.
-export function agentPortraitUrl(agent: Pick<Agent, "name" | "style" | "agentId">): string {
+export function agentPortraitUrl(agent: Pick<Agent, "name" | "style" | "agentId">, width?: number): string {
   const isCatalog = CATALOG_NAMES.has(agent.name.toUpperCase());
-  if (isCatalog) return imageUrl(`showcase-${agent.name.toLowerCase()}`, agent.style);
+  if (isCatalog) return imageUrl(`showcase-${agent.name.toLowerCase()}`, agent.style, width);
   const id = (agent as { agentId?: number }).agentId;
-  if (typeof id === "number" && id > 0) return imageUrl(`agent-${id}`, agent.style);
+  if (typeof id === "number" && id > 0) return imageUrl(`agent-${id}`, agent.style, width);
   // no agentId (unminted/catalog-only placeholder rows) -> the showcase slug (placeholder if not baked).
-  return imageUrl(`showcase-${agent.name.toLowerCase()}`, agent.style);
+  return imageUrl(`showcase-${agent.name.toLowerCase()}`, agent.style, width);
 }
 
 // A creator (agent owner) aggregated across all the agents they own: total royalties earned, output +
