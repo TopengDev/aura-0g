@@ -109,6 +109,14 @@ export function SummonPanel({
     return () => clearInterval(t);
   }, [requestId, terminal]);
 
+  // Resume tracking a summon from the URL (?summon=<requestId>) — survives a refresh, and lets a shared
+  // status link (or the just-paid redirect) land straight on the live progress / delivered card.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const s = new URLSearchParams(window.location.search).get("summon");
+    if (s && /^\d+$/.test(s)) setRequestId(Number(s));
+  }, []);
+
   const [priceInput, setPriceInput] = useState("");
   const validPrice = (v: string) => /^\d*\.?\d+$/.test(v) && Number(v) > 0;
 
