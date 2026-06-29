@@ -5,18 +5,21 @@ import {Script, console} from "forge-std/Script.sol";
 import {AgentRegistry} from "../src/AgentRegistry.sol";
 import {OutputNFT} from "../src/OutputNFT.sol";
 import {AuraMarketplace} from "../src/AuraMarketplace.sol";
+import {SummonEscrow} from "../src/SummonEscrow.sol";
 
 /// @title Deploy - AURA v2 (0G Galileo, chainId 16602)
-/// @notice Deploy order: AgentRegistry -> OutputNFT(registry, ATTESTOR) -> AuraMarketplace(platform, bps),
-///         then allowlist BOTH collections, seed the 4 proven agents (NOKTURNE/MIRAI/RISO/SCRIPTORIUM)
-///         with output + creator-resale royalties, and mint 1 showcase output per agent via the
-///         EIP-712 attestation path (signed in-script by the attestor key).
+/// @notice Deploy order: AgentRegistry -> OutputNFT(registry, ATTESTOR) -> AuraMarketplace(platform, bps)
+///         -> SummonEscrow(registry, outputNFT, platform, bps), then allowlist BOTH collections, seed the
+///         4 proven agents (NOKTURNE/MIRAI/RISO/SCRIPTORIUM) with output + creator-resale royalties, mint
+///         1 showcase output per agent via the EIP-712 attestation path (signed in-script by the attestor
+///         key), and price the agents for Summon so the demo has summonable agents out of the box.
 ///
 /// Env:
 ///   PRIVATE_KEY   - funded deployer key (hex, 0x...). Also the default attestor + platform.
 ///   ATTESTOR_ADDR - (optional) the OutputNFT attestor; defaults to the deployer address.
 ///   PLATFORM_ADDR - (optional) the marketplace fee beneficiary; defaults to the deployer address.
 ///   PLATFORM_BPS  - (optional) platform fee in bps; defaults to 250 (2.5%).
+///   SUMMON_PRICE  - (optional) per-agent commission price in wei; defaults to 0.01 ETH. 0 = leave unpriced.
 ///
 /// Usage (Galileo):
 ///   forge script script/Deploy.s.sol --legacy --gas-price 5000000000 \
@@ -36,6 +39,9 @@ contract Deploy is Script {
         AgentRegistry reg = new AgentRegistry();
         OutputNFT outNft = new OutputNFT(address(reg), attestor);
         AuraMarketplace mkt = new AuraMarketplace(platform, platformBps);
+        // SummonEscrow: demand-pull commissioning. attestor == the OutputNFT attestor (the runner settles
+        // mints), platform + bps mirror the marketplace's split.
+        SummonEscrow escrow = new SummonEscrow(address(reg), address(outNft), platform, platformBps);
 
         // Allowlist BOTH AURA collections so they trade through the one marketplace.
         mkt.setAllowedCollection(address(reg), true);
@@ -65,12 +71,22 @@ contract Deploy is Script {
         _seedOutput(outNft, pk, me, a3, "0g://showcase-riso", 103);
         _seedOutput(outNft, pk, me, a4, "0g://showcase-scriptorium", 104);
 
+        // Price the seeded agents for Summon (deployer owns them, so it can set prices). 0 = skip.
+        uint256 summonPrice = vm.envOr("SUMMON_PRICE", uint256(0.01 ether));
+        if (summonPrice > 0) {
+            escrow.setSummonPrice(a1, summonPrice);
+            escrow.setSummonPrice(a2, summonPrice);
+            escrow.setSummonPrice(a3, summonPrice);
+            escrow.setSummonPrice(a4, summonPrice);
+        }
+
         vm.stopBroadcast();
 
         console.log("=== AURA v2 deployed (chainId 16602) ===");
         console.log("AgentRegistry :", address(reg));
         console.log("OutputNFT     :", address(outNft));
         console.log("AuraMarketplace:", address(mkt));
+        console.log("SummonEscrow  :", address(escrow));
         console.log("attestor      :", attestor);
         console.log("platform      :", platform);
         console.log("platformBps   :", platformBps);
