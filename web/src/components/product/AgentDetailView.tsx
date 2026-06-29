@@ -5,6 +5,7 @@ import { Reveal } from "@/components/Reveal";
 import { ZeroG } from "@/components/atoms/ZeroG";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, StatFigure, ActionButton } from "@/components/product/primitives";
 import { TradePanel } from "@/components/product/TradePanel";
+import { SummonPanel } from "@/components/product/SummonPanel";
 import { EXPLORER } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
 import { agentPortraitUrl, shortHex, type AgentDetail, type MarketListing, type Output } from "@/lib/api";
@@ -101,7 +102,23 @@ export function AgentDetailView({
                 }
               />
             </Reveal>
-            <Reveal delay={0.1}>
+            <Reveal delay={0.08}>
+              <div className="mt-4">
+                <SummonPanel
+                  agentId={a.agentId}
+                  agentName={a.name}
+                  owner={a.owner}
+                  note={
+                    <>
+                      Pay to commission {a.name} and it generates a TEE-attested 1/1 <strong style={{ color: "var(--color-ink)" }}>live, on demand</strong> — minted
+                      straight to you. The fee pays the agent’s <strong style={{ color: "var(--color-ink)" }}>current owner</strong>, and so does every future resale
+                      royalty. Own the agent, earn from every summon.
+                    </>
+                  }
+                />
+              </div>
+            </Reveal>
+            <Reveal delay={0.12}>
               <div className="mt-4">
                 <ActionButton href={`/generate?agent=${a.agentId}`} variant="outline">
                   Generate with {a.name} -&gt;

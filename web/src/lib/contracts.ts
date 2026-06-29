@@ -11,7 +11,13 @@ export const CONTRACTS = {
     "0xc73a63726f5365646fdeb052164b18db836030d7") as `0x${string}`,
   marketplace: (process.env.NEXT_PUBLIC_MARKETPLACE ??
     "0xc57d182fec6555a946795821b2e58be9a6385e18") as `0x${string}`,
+  // SummonEscrow (the net-new demand-pull contract). No live default yet -> set NEXT_PUBLIC_SUMMON_ESCROW
+  // when deployed. Empty => the Summon UI shows a disabled "not available" state (graceful).
+  summonEscrow: (process.env.NEXT_PUBLIC_SUMMON_ESCROW ?? "") as `0x${string}` | "",
 } as const;
+
+/** Is the Summon feature wired (the escrow address is configured)? */
+export const SUMMON_ENABLED = CONTRACTS.summonEscrow !== "";
 
 // The collection address for a given listing kind.
 export function collectionAddress(kind: "agent" | "output"): `0x${string}` {
@@ -166,6 +172,92 @@ export const outputMintedEvent = {
     { name: "provenanceHash", type: "bytes32", indexed: false },
     { name: "teeAttestation", type: "bytes32", indexed: false },
     { name: "seed", type: "uint256", indexed: false },
+  ],
+} as const;
+
+// ── SummonEscrow (demand-pull commissioning) ──────────────────────────────
+// summon(agentId, maxPrice) is PAYABLE with value = the commission price (maxPrice caps slippage vs an
+// owner front-running a price hike). setSummonPrice / withdraw are the owner actions. summonPrice +
+// requests + pendingWithdrawals are reads. Signature mirrors contracts/src/SummonEscrow.sol exactly.
+export const summonEscrowAbi = [
+  {
+    type: "function",
+    name: "summon",
+    stateMutability: "payable",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "maxPrice", type: "uint256" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "setSummonPrice",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "agentId", type: "uint256" },
+      { name: "price", type: "uint256" },
+    ],
+    outputs: [],
+  },
+  {
+    type: "function",
+    name: "refund",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "requestId", type: "uint256" }],
+    outputs: [],
+  },
+  { type: "function", name: "withdraw", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  {
+    type: "function",
+    name: "summonPrice",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "pendingWithdrawals",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "address" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "requests",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "uint256" }],
+    outputs: [
+      { name: "buyer", type: "address" },
+      { name: "agentId", type: "uint256" },
+      { name: "fee", type: "uint256" },
+      { name: "deadline", type: "uint64" },
+      { name: "settled", type: "bool" },
+    ],
+  },
+  {
+    type: "event",
+    name: "Summoned",
+    inputs: [
+      { name: "requestId", type: "uint256", indexed: true },
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "buyer", type: "address", indexed: true },
+      { name: "fee", type: "uint256", indexed: false },
+      { name: "deadline", type: "uint64", indexed: false },
+    ],
+  },
+] as const;
+
+// The Summoned event, parsed from the summon() receipt to learn the new requestId (drives the status poll).
+export const summonedEvent = {
+  type: "event",
+  name: "Summoned",
+  inputs: [
+    { name: "requestId", type: "uint256", indexed: true },
+    { name: "agentId", type: "uint256", indexed: true },
+    { name: "buyer", type: "address", indexed: true },
+    { name: "fee", type: "uint256", indexed: false },
+    { name: "deadline", type: "uint64", indexed: false },
   ],
 } as const;
 

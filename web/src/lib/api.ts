@@ -740,6 +740,57 @@ export function creatorsLeaderboard(agents: Agent[]): CreatorRollup[] {
   );
 }
 
+// ── Summon (demand-pull commissioning) ─────────────────────────────────────
+// GET /summon/agent/:id -> is this agent summonable + the on-chain commission price (also readable
+// live via wagmi, but the server read is handy for SSR + a non-connected visitor).
+export interface SummonAgentInfo {
+  agentId: number;
+  enabled: boolean; // the escrow is wired on the server
+  summonable: boolean; // price > 0
+  priceWei: string;
+  price: string; // ether string
+  escrow: string | null;
+}
+
+export async function fetchSummonAgent(agentId: number | string): Promise<SummonAgentInfo | null> {
+  return getJson<SummonAgentInfo>(`/summon/agent/${agentId}`);
+}
+
+// GET /summon/:requestId/status -> the watcher's staged journal merged with the on-chain settled state.
+// This is what the ~42s progress UX polls. status: pending|generating|fulfilling|fulfilled|settled|
+// refunded|expired|failed (the watcher's journal; falls back to on-chain pending/settled when the
+// watcher is off). tokenId + imageRoot appear once minted.
+export type SummonStatusKind =
+  | "pending"
+  | "generating"
+  | "fulfilling"
+  | "fulfilled"
+  | "settled"
+  | "refunded"
+  | "expired"
+  | "failed";
+
+export interface SummonStatus {
+  requestId: number;
+  status: SummonStatusKind | string;
+  agentId: number | null;
+  agentName: string | null;
+  buyer: string | null;
+  feeWei: string | null;
+  fee: string | null;
+  deadline: number;
+  imageRoot: string | null;
+  tokenId: number | null;
+  fulfillTx: string | null;
+  settled: boolean;
+  expired: boolean;
+  error: string | null;
+}
+
+export async function fetchSummonStatus(requestId: number | string): Promise<SummonStatus | null> {
+  return getJson<SummonStatus>(`/summon/${requestId}/status`);
+}
+
 // ── Formatting helpers ─────────────────────────────────────────────────────
 export function shortHex(hex: string | null | undefined, head = 6, tail = 4): string {
   if (!hex) return "";

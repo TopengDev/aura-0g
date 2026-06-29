@@ -18,6 +18,7 @@ import { agentsCreateRoutes } from "./routes/agents-create.js";
 import { imageRoutes } from "./routes/image.js";
 import { readsRoutes } from "./routes/reads.js";
 import { indexerRoutes } from "./routes/indexer.js";
+import { summonRoutes } from "./routes/summon.js";
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -61,6 +62,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // (indexer owns the lists + /api/*, reads owns the per-id /agents/:id, /outputs/:id, etc.).
   await app.register(indexerRoutes);
   await app.register(readsRoutes);
+  await app.register(summonRoutes); // public Summon reads (agent price + request status)
 
   // boot housekeeping: any job left mid-flight by a previous process can never finish -> mark failed.
   const reaped = reapOrphanJobs();
