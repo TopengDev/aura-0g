@@ -84,7 +84,29 @@ function migrate(d: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_brains_agent ON agent_brains(agent_id);
     CREATE INDEX IF NOT EXISTS idx_brains_root ON agent_brains(enc_brain_root);
+
+    -- ERC-7857 de-mock: each owner's recovered secp256k1 PUBKEY (recovered from their SIWE login sig).
+    -- ECIES sealing (sealing.ts) seals the data-key to this pubkey; the re-encryption oracle needs the
+    -- BUYER's pubkey to seal a transferred key to them.
+    CREATE TABLE IF NOT EXISTS wallet_pubkeys (
+      address     TEXT PRIMARY KEY,               -- lowercased
+      pubkey      TEXT NOT NULL,                  -- uncompressed secp256k1 pubkey (0x04..)
+      updated_at  TEXT NOT NULL
+    );
   `);
+
+  // ERC-7857 de-mock: per-owner sealed key + the envelope data-hash on agent_brains. Added via guarded
+  // ALTER so existing DBs upgrade in place (CREATE TABLE IF NOT EXISTS won't add columns).
+  addColumnIfMissing(d, "agent_brains", "sealed_key", "TEXT");  // ECIES seal of the AES key to the owner
+  addColumnIfMissing(d, "agent_brains", "data_hash", "TEXT");   // sha256 of the envelope (contract dataHash)
+}
+
+/** Idempotently add a column (better-sqlite3 ALTER throws if it already exists). */
+function addColumnIfMissing(d: Database.Database, table: string, column: string, type: string): void {
+  const cols = d.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === column)) {
+    d.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
 }
 
 /** On boot: any job that was mid-flight when the process died can never complete -> mark it failed. */

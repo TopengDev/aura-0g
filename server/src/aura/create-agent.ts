@@ -11,8 +11,11 @@ import { sponsorSigner } from "./wallet.js";
 import { getBroker, imageService } from "./compute.js";
 import { store } from "./storage.js";
 import { cacheImageByRoot, cachedImageByRoot } from "./image-cache.js";
+import { createHash } from "node:crypto";
 import { encryptBrain, type BrainPlain } from "./brain.js";
 import { stageBrain } from "./store.js";
+import { sealKeyToPubkey, sealedToHex } from "./sealing.js";
+import { pubkeyOf } from "./pubkey.js";
 import { CONTRACTS, GALILEO } from "./config.js";
 import type { CreateAgentResponse } from "./types.js";
 
@@ -126,7 +129,22 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
     ethers.toUtf8Bytes(`${svc.meta.model}|${svc.teeSigner}|${svc.verifiability}`),
   );
 
-  // 5. stage the AES key server-side, keyed to this brain (promoted to agentId after the user mints).
+  // 5. ERC-7857 PER-OWNER SEALING (de-mock part 1): ECIES-seal the AES data-key to the OWNER's
+  //    secp256k1 pubkey (recovered from their SIWE login). This is the on-chain sealedKey - it proves
+  //    the key is bound to THIS owner, not just held in server custody. If the owner has never signed in
+  //    (no recovered pubkey), we fall back to server-custody-only sealing (legacy) and flag it; the agent
+  //    still mints, it just isn't owner-sealed until the owner logs in + re-seals.
+  const aesKey = Buffer.from(keyHex.replace(/^0x/, ""), "hex");
+  const dataHash = "0x" + createHash("sha256").update(envelope).digest("hex");
+  const ownerPubkey = pubkeyOf(input.owner);
+  let sealedKeyHex: string | null = null;
+  if (ownerPubkey) {
+    sealedKeyHex = sealedToHex(sealKeyToPubkey(ownerPubkey, aesKey));
+  } else {
+    console.warn(`[create-agent] owner ${input.owner} has no recovered pubkey yet - minting without per-owner seal (server custody only). Owner should sign in to enable sealing.`);
+  }
+
+  // 6. stage the AES key + the per-owner sealed key server-side (promoted to agentId after mint).
   stageBrain({
     owner: input.owner,
     name,
@@ -135,9 +153,11 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
     canonicalBaseRoot,
     styleFingerprint,
     modelAttestation,
+    sealedKey: sealedKeyHex,
+    dataHash,
   });
 
-  // 5b. VERIFY PERSISTENCE before returning. A create must NEVER hand back a root the gen flow can't
+  // 6b. VERIFY PERSISTENCE before returning. A create must NEVER hand back a root the gen flow can't
   // later load -- that was the silent failure (0G "succeeds" returning a local merkle root, but the bytes
   // get evicted, and a brain-backed agent then silently degrades). We assert BOTH blobs are readable from
   // the DURABLE local cache now; if not, fail the create so the user never mints an unretrievable agent.
@@ -150,7 +170,7 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
     throw new Error("create-agent: brain envelope failed local-cache persistence verification (refusing to mint an unretrievable agent)");
   }
 
-  // 6. return the computed mintAgent args for the USER to submit (permissionless, user-signed).
+  // 7. return the computed mintAgent args for the USER to submit (permissionless, user-signed).
   return {
     contract: CONTRACTS.agentRegistry,
     chainId: GALILEO.chainId,
