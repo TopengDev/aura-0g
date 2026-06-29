@@ -50,6 +50,28 @@ export const MKT_ABI = [
   "event Sold(address indexed collection,uint256 indexed tokenId,address indexed buyer,address seller,uint256 price,address royaltyReceiver,uint256 royaltyPaid,uint256 platformFee,uint256 sellerProceeds)",
 ] as const;
 
+// SummonEscrow (net-new): demand-pull commissioning. The runner (sponsor=attestor) watches Summoned,
+// generates the TEE-attested output, then calls fulfill() to mint to the buyer + split the fee.
+export const SUMMON_ABI = [
+  "function summonPrice(uint256) view returns (uint256)",
+  "function requests(uint256) view returns (address buyer,uint256 agentId,uint256 fee,uint64 deadline,bool settled)",
+  "function nextRequestId() view returns (uint256)",
+  "function pendingWithdrawals(address) view returns (uint256)",
+  "function platform() view returns (address)",
+  "function platformBps() view returns (uint16)",
+  "function FULFILL_WINDOW() view returns (uint256)",
+  "function paused() view returns (bool)",
+  "function setSummonPrice(uint256 agentId,uint256 price)",
+  "function summon(uint256 agentId,uint256 maxPrice) payable returns (uint256)",
+  "function fulfill(uint256 requestId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,bytes32 nonce,bytes attestationSig) returns (uint256)",
+  "function refund(uint256 requestId)",
+  "function withdraw()",
+  "event SummonPriceSet(uint256 indexed agentId,address indexed owner,uint256 price)",
+  "event Summoned(uint256 indexed requestId,uint256 indexed agentId,address indexed buyer,uint256 fee,uint64 deadline)",
+  "event Fulfilled(uint256 indexed requestId,uint256 indexed agentId,address indexed buyer,uint256 tokenId,address agentOwner,uint256 ownerCut,uint256 platformFee)",
+  "event Refunded(uint256 indexed requestId,address indexed buyer,uint256 fee)",
+] as const;
+
 let _provider: ethers.JsonRpcProvider | null = null;
 /** Shared read-only provider (no signer, no key). */
 export function readProvider(): ethers.JsonRpcProvider {
@@ -65,6 +87,13 @@ export function outputRead() {
 }
 export function marketRead() {
   return new ethers.Contract(CONTRACTS.marketplace, MKT_ABI as unknown as string[], readProvider());
+}
+export function summonRead() {
+  return new ethers.Contract(CONTRACTS.summonEscrow, SUMMON_ABI as unknown as string[], readProvider());
+}
+/** SummonEscrow bound to a SIGNER (the sponsor/runner) for fulfill() writes. */
+export function summonWrite(signer: ethers.Signer) {
+  return new ethers.Contract(CONTRACTS.summonEscrow, SUMMON_ABI as unknown as string[], signer);
 }
 
 export function txUrl(hash: string): string {

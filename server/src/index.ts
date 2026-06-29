@@ -21,6 +21,14 @@ const app = await buildApp({ logger: true });
 try {
   await app.listen({ port: PORT, host: HOST });
   app.log.info(`AURA v2 backend up on http://${HOST}:${PORT} - sponsor/attestor ${sponsorAddress()}`);
+
+  // Summon fulfillment watcher (CP2) - OFF unless SUMMON_WATCHER=1 (so it only runs on the real server,
+  // never in app.inject() verification scripts). Self-signs as the sponsor/attestor to fulfill summons.
+  const { SUMMON_WATCHER_ENABLED } = await import("./aura/config.js");
+  if (SUMMON_WATCHER_ENABLED) {
+    const { getSummonWatcher } = await import("./aura/summon-watcher.js");
+    getSummonWatcher({ log: (m) => app.log.info(`[summon-watcher] ${m}`) }).start();
+  }
 } catch (err) {
   app.log.error(err);
   process.exit(1);

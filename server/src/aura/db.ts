@@ -84,6 +84,37 @@ function migrate(d: Database.Database): void {
     );
     CREATE INDEX IF NOT EXISTS idx_brains_agent ON agent_brains(agent_id);
     CREATE INDEX IF NOT EXISTS idx_brains_root ON agent_brains(enc_brain_root);
+
+    -- Summon fulfillment watcher (CP2). One row per on-chain Summoned request; the on-chain
+    -- requests(id).settled flag is the source of truth, this table is the off-chain work journal
+    -- (idempotent + retry-safe). status: pending|generating|fulfilling|fulfilled|refunded|expired|failed.
+    CREATE TABLE IF NOT EXISTS summon_requests (
+      request_id      INTEGER PRIMARY KEY,
+      agent_id        INTEGER NOT NULL,
+      agent_name      TEXT,
+      buyer           TEXT NOT NULL,
+      fee             TEXT NOT NULL,            -- wei, as a decimal string
+      deadline        INTEGER NOT NULL,         -- unix seconds
+      status          TEXT NOT NULL DEFAULT 'pending',
+      image_root      TEXT,
+      provenance_hash TEXT,
+      tee_attestation TEXT,
+      seed            TEXT,
+      nonce           TEXT,                     -- the bytes32 used for the fulfill mint (replay guard)
+      token_id        INTEGER,                  -- minted output tokenId once fulfilled
+      fulfill_tx      TEXT,
+      attempts        INTEGER NOT NULL DEFAULT 0,
+      error           TEXT,
+      created_at      TEXT NOT NULL,
+      updated_at      TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_summon_status ON summon_requests(status);
+
+    -- single-row scan cursor (last fully-scanned block) so a restart resumes, never re-scans from 0.
+    CREATE TABLE IF NOT EXISTS summon_watcher_state (
+      id            INTEGER PRIMARY KEY CHECK (id = 1),
+      cursor_block  INTEGER NOT NULL
+    );
   `);
 }
 

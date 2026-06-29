@@ -10,8 +10,10 @@ export const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 
 export const GALILEO = {
   // live RPC eth_chainId returns 0x40da = 16602 (NOT 16601 as some docs say). RPC is authoritative.
-  chainId: 16602,
-  rpc: "https://evmrpc-testnet.0g.ai",
+  // chainId + rpc are env-overridable so the SAME backend runs against a local anvil for the Summon
+  // watcher e2e (CHAIN_ID=31337, RPC_URL=http://127.0.0.1:8545), defaulting to 0G Galileo otherwise.
+  chainId: Number(process.env.CHAIN_ID ?? 16602),
+  rpc: process.env.RPC_URL ?? "https://evmrpc-testnet.0g.ai",
   explorer: "https://chainscan-galileo.0g.ai",
   faucet: "https://faucet.0g.ai",
   storageIndexerTurbo: "https://indexer-storage-testnet-turbo.0g.ai",
@@ -47,18 +49,23 @@ function loadDeployed(): DeployedV2 {
 
 export const DEPLOYED = loadDeployed();
 
+// addresses are env-overridable (same reason as GALILEO above: local anvil e2e vs live Galileo).
 export const CONTRACTS = {
-  agentRegistry: DEPLOYED.agentRegistry,
-  outputNFT: DEPLOYED.outputNFT,
-  marketplace: DEPLOYED.marketplace,
+  agentRegistry: process.env.AGENT_REGISTRY_ADDR ?? DEPLOYED.agentRegistry,
+  outputNFT: process.env.OUTPUT_NFT_ADDR ?? DEPLOYED.outputNFT,
+  marketplace: process.env.MARKETPLACE_ADDR ?? DEPLOYED.marketplace,
+  // net-new Summon escrow. NOT in the live deployed-v2.json yet -> set via SUMMON_ESCROW_ADDR (or a
+  // future deployed-v2.json `summonEscrow` field). Empty string => the Summon watcher stays OFF.
+  summonEscrow: process.env.SUMMON_ESCROW_ADDR ?? (DEPLOYED as { summonEscrow?: string }).summonEscrow ?? "",
 } as const;
 
 // EIP-712 domain the deployed OutputNFT verifies: EIP712("AuraOutputNFT","1") + chainId + verifyingContract.
+// verifyingContract follows CONTRACTS.outputNFT so a local-anvil OutputNFT signs/verifies correctly.
 export const EIP712_DOMAIN = {
   name: "AuraOutputNFT",
   version: "1",
   chainId: GALILEO.chainId,
-  verifyingContract: DEPLOYED.outputNFT as `0x${string}`,
+  verifyingContract: CONTRACTS.outputNFT as `0x${string}`,
 } as const;
 
 // Galileo min tip is 2 gwei -> use 5 gwei for all writes the SPONSOR signs (gen funding etc).
@@ -87,6 +94,15 @@ export const SIWE_URI = process.env.SIWE_URI ?? "http://localhost:3000";
 // cost guards (protect the funded sponsor wallet)
 export const GLOBAL_GEN_CAP = Number(process.env.AURA_MAX_GENERATIONS ?? 40);
 export const MAX_CONCURRENT_GEN = Number(process.env.AURA_MAX_CONCURRENT_GEN ?? 2);
+
+// ── Summon fulfillment watcher (CP2) ── OFF by default; the real entrypoint opts in via SUMMON_WATCHER=1.
+// (buildApp() never starts it, so app.inject() verification scripts don't spawn a poller.)
+export const SUMMON_WATCHER_ENABLED = (process.env.SUMMON_WATCHER ?? "0") === "1";
+export const SUMMON_POLL_MS = Number(process.env.SUMMON_POLL_MS ?? 5000);
+// where to begin scanning Summoned events when there is no persisted cursor (defaults to the deploy block).
+export const SUMMON_START_BLOCK = process.env.SUMMON_START_BLOCK ? Number(process.env.SUMMON_START_BLOCK) : undefined;
+// the prompt the runner generates with for a summon (the buyer commissions the agent's signature style).
+export const SUMMON_PROMPT = process.env.SUMMON_PROMPT ?? "a signature original piece in your iconic style";
 
 // ── Phase-3 indexer (Ponder) ──
 // The data-heavy read/discovery/feed APIs are served from the Ponder process (PGlite-backed, in-process

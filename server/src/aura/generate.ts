@@ -21,6 +21,7 @@ import { decryptBrain } from "./brain.js";
 import { setStatus, setResult, setError, saveGeneratedImage } from "./jobs.js";
 import { genGuardRelease } from "./ratelimit.js";
 import { REPO_ROOT } from "./config.js";
+import type { JobStatus } from "./types.js";
 
 export interface ResolvedGenConfig {
   baseBytes: Buffer;
@@ -112,6 +113,106 @@ export async function resolveGenConfig(agentId: number, agentName: string, encBr
   return { baseBytes, prompt, usedBrain: false, agentName };
 }
 
+// ── shared generation core (used by BOTH the HTTP /generate job AND the Summon watcher) ──
+// The provenance construction (provenanceHash + teeAttestation) is committed on-chain at mint, so it
+// MUST live in exactly ONE place: the watcher's fulfill mint and the route's user mint hash IDENTICALLY.
+
+/** The full proof of one TEE generation: the image + the on-chain-committed provenance fields. */
+export interface GenProof {
+  imageRoot: string;
+  provenanceHash: string; // keccak of the provenance record (committed on-chain)
+  teeAttestation: string; // keccak of the TeeML|... attestation string (committed on-chain)
+  seed: number;
+  model: string;
+  teeSigner: string;
+  verified: boolean | string;
+  verifiability: string;
+  chatId: string | null;
+  latencyMs: number;
+  bytes: Buffer;
+  prompt: string;
+  usedBrain: boolean;
+  provenanceRecord: unknown;
+}
+
+export interface GenerateCoreInput {
+  agentId: number;
+  agentName: string;
+  encBrainRoot: string;
+  userPrompt: string;
+  label?: string; // 0G-storage object name (default `gen-<seed>`)
+}
+
+export interface GenerateHooks {
+  onStage?: (status: JobStatus, detail: string) => void;
+  onImageReady?: (bytes: Buffer) => void; // fired after generate(), BEFORE the 0G store (preview-early)
+}
+
+/**
+ * Resolve config -> TEE generate on 0G Compute (SPONSOR pays) -> store on 0G -> assemble the EXACT
+ * provenance record + hashes. No job-store / no gen-guard coupling (the caller owns those). Throws on
+ * any failure (BrainUnavailableError, compute, storage).
+ */
+export async function generateAndProve(input: GenerateCoreInput, hooks: GenerateHooks = {}): Promise<GenProof> {
+  const { agentId, agentName, encBrainRoot, userPrompt } = input;
+  hooks.onStage?.("generating", "resolving gen config + connecting to 0G Compute");
+  const cfg = await resolveGenConfig(agentId, agentName, encBrainRoot, userPrompt);
+
+  hooks.onStage?.("generating", `generating inside the TEE (~45s) [${cfg.usedBrain ? "brain" : "catalog"}]`);
+  const signer = sponsorSigner();
+  const broker = await getBroker(signer);
+  const svc = await imageService(broker);
+
+  const g = await generate(broker, svc, cfg.baseBytes, cfg.prompt);
+
+  hooks.onStage?.("verifying", "TEE attestation processed");
+  hooks.onImageReady?.(g.bytes);
+
+  hooks.onStage?.("storing", "uploading the image to 0G Storage");
+  const seed = Math.floor(Math.random() * 1_000_000_000);
+  const img = await store(signer, g.bytes, input.label ?? `gen-${seed}`);
+  // Persist the output bytes in the durable local cache keyed by its 0G root, so the image-by-root
+  // endpoint can serve REAL art even after 0G Storage testnet evicts the blob (verified to happen).
+  cacheImageByRoot(img.rootHash, g.bytes, { source: "output" });
+
+  // the exact provenance record (its keccak is committed on-chain at mint).
+  const provenanceRecord = {
+    agentId,
+    agentName,
+    model: g.model,
+    prompt: cfg.prompt,
+    seed,
+    teeSigner: g.teeSigner,
+    teeVerifiability: g.verifiability,
+    teeVerified: g.verified,
+    chatId: g.chatId,
+    imageRoot: img.rootHash,
+    usedBrain: cfg.usedBrain,
+  };
+  const provBytes = Buffer.from(JSON.stringify(provenanceRecord, null, 2), "utf8");
+  const provenanceHash = ethers.keccak256(provBytes);
+  const teeAttestation = ethers.keccak256(
+    ethers.toUtf8Bytes(`TeeML|dstack|${g.model}|${g.teeSigner}|${g.chatId}|${img.rootHash}`),
+  );
+
+  return {
+    imageRoot: img.rootHash,
+    provenanceHash,
+    teeAttestation,
+    seed,
+    model: g.model,
+    teeSigner: g.teeSigner,
+    verified: g.verified,
+    verifiability: g.verifiability,
+    chatId: g.chatId,
+    latencyMs: g.latencyMs,
+    bytes: g.bytes,
+    prompt: cfg.prompt,
+    usedBrain: cfg.usedBrain,
+    provenanceRecord,
+  };
+}
+
 export interface GenerateInput {
   jobId: string;
   agentId: number;
@@ -122,69 +223,37 @@ export interface GenerateInput {
 
 /**
  * Runs in the background (the route does NOT await this). Drives the job to done|error.
- * Cost-bounded by the caller's gen guard (released here in finally).
+ * Cost-bounded by the caller's gen guard (released here in finally). Thin wrapper over generateAndProve.
  */
 export async function runGeneration(input: GenerateInput): Promise<void> {
   const { jobId, agentId, agentName, encBrainRoot, userPrompt } = input;
   try {
-    setStatus(jobId, "generating", "resolving gen config + connecting to 0G Compute");
-    const cfg = await resolveGenConfig(agentId, agentName, encBrainRoot, userPrompt);
-
-    setStatus(jobId, "generating", `generating inside the TEE (~45s) [${cfg.usedBrain ? "brain" : "catalog"}]`);
-    const signer = sponsorSigner();
-    const broker = await getBroker(signer);
-    const svc = await imageService(broker);
-
-    const g = await generate(broker, svc, cfg.baseBytes, cfg.prompt);
-
-    setStatus(jobId, "verifying", "TEE attestation processed");
-    saveGeneratedImage(jobId, g.bytes);
-
-    setStatus(jobId, "storing", "uploading the image to 0G Storage");
-    const img = await store(signer, g.bytes, `gen-${jobId}`);
-    // Persist the output bytes in the durable local cache keyed by its 0G root, so the image-by-root
-    // endpoint can serve REAL art even after 0G Storage testnet evicts the blob (verified to happen).
-    cacheImageByRoot(img.rootHash, g.bytes, { source: "output" });
-
-    const seed = Math.floor(Math.random() * 1_000_000_000);
-    // the exact provenance record (its keccak is committed on-chain at mint).
-    const provenanceRecord = {
-      agentId,
-      agentName,
-      model: g.model,
-      prompt: cfg.prompt,
-      seed,
-      teeSigner: g.teeSigner,
-      teeVerifiability: g.verifiability,
-      teeVerified: g.verified,
-      chatId: g.chatId,
-      imageRoot: img.rootHash,
-      usedBrain: cfg.usedBrain,
-    };
-    const provBytes = Buffer.from(JSON.stringify(provenanceRecord, null, 2), "utf8");
-    const provenanceHash = ethers.keccak256(provBytes);
-    const teeAttestation = ethers.keccak256(
-      ethers.toUtf8Bytes(`TeeML|dstack|${g.model}|${g.teeSigner}|${g.chatId}|${img.rootHash}`),
+    const proof = await generateAndProve(
+      { agentId, agentName, encBrainRoot, userPrompt, label: `gen-${jobId}` },
+      {
+        onStage: (status, detail) => setStatus(jobId, status, detail),
+        onImageReady: (bytes) => saveGeneratedImage(jobId, bytes),
+      },
     );
 
     setResult(
       jobId,
       {
-        imageRoot: img.rootHash,
+        imageRoot: proof.imageRoot,
         imageUrl: `/generate/${jobId}/image`,
-        provenanceHash,
-        teeAttestation,
-        teeVerified: g.verified,
-        teeSigner: g.teeSigner,
-        model: g.model,
-        verifiability: g.verifiability,
-        chatId: g.chatId,
-        latencyMs: g.latencyMs,
-        seed,
+        provenanceHash: proof.provenanceHash,
+        teeAttestation: proof.teeAttestation,
+        teeVerified: proof.verified,
+        teeSigner: proof.teeSigner,
+        model: proof.model,
+        verifiability: proof.verifiability,
+        chatId: proof.chatId,
+        latencyMs: proof.latencyMs,
+        seed: proof.seed,
         mintable: true,
-        usedBrain: cfg.usedBrain,
+        usedBrain: proof.usedBrain,
       },
-      provenanceRecord,
+      proof.provenanceRecord,
     );
   } catch (e: any) {
     setError(jobId, String(e?.message ?? e).slice(0, 300));
