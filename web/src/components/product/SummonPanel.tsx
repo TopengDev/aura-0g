@@ -277,8 +277,8 @@ function DeliveredCard({ status }: { status: SummonStatus }) {
         </Link>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
-        <Link href={`/outputs/${status.tokenId}`} className="underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
-          View provenance
+        <Link href={`/verify?id=${status.tokenId}`} className="underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
+          Verify provenance + the paid split
         </Link>
         {status.fulfillTx ? (
           <a href={`${EXPLORER}/tx/${status.fulfillTx}`} target="_blank" rel="noreferrer" className="font-mono-x underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>

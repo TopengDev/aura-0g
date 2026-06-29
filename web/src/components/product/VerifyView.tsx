@@ -262,6 +262,32 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
             <MetaRow k="Agent owner" v={shortHex(p.agent.owner)} href={`${EXPLORER}/address/${p.agent.owner}`} />
           </dl>
 
+          {/* SUMMON economic proof: this piece was a PAID commission, and the fee split settled on-chain. */}
+          {result.summon ? (
+            <>
+              <ProvLine className="my-6" />
+              <div className="flex items-center justify-between gap-3">
+                <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  Paid commission · the moat
+                </div>
+                <Chip tone="ok">Summoned</Chip>
+              </div>
+              <p className="mt-3 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                This wasn’t a free mint. A collector paid <strong style={{ color: "var(--color-ink)" }}>{result.summon.fee} <ZeroG /></strong> to
+                summon the agent, and the fee settled <strong style={{ color: "var(--color-ink)" }}>on-chain</strong> — straight to the agent’s
+                owner. Supply can never exceed paid demand.
+              </p>
+              <dl className="mt-4">
+                <MetaRow k="Commission fee" v={`${result.summon.fee} 0G`} mono={false} />
+                <MetaRow k="→ Agent owner" v={`${result.summon.ownerCut} 0G`} href={`${EXPLORER}/address/${result.summon.agentOwner}`} ok mono={false} />
+                <MetaRow k="→ Platform" v={`${result.summon.platformFee} 0G`} mono={false} />
+                <MetaRow k="Commissioned by" v={shortHex(result.summon.buyer)} href={`${EXPLORER}/address/${result.summon.buyer}`} />
+                <MetaRow k="Settlement tx" v={shortHex(result.summon.fulfillTx)} href={result.summon.fulfillTx ? `${EXPLORER}/tx/${result.summon.fulfillTx}` : undefined} ok />
+                <MetaRow k="Summon request" v={`#${result.summon.requestId}`} />
+              </dl>
+            </>
+          ) : null}
+
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
             <ActionButton href={`/outputs/${id}`}>View the output -&gt;</ActionButton>
             <a

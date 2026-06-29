@@ -791,6 +791,31 @@ export async function fetchSummonStatus(requestId: number | string): Promise<Sum
   return getJson<SummonStatus>(`/summon/${requestId}/status`);
 }
 
+// GET /summon/output/:tokenId/proof -> the jury-verifiable ECONOMIC proof, read from the on-chain
+// Fulfilled event: was this output minted by a paid summon, and how did the fee split to the agent owner
+// + platform. isSummon=false for a normally-minted (non-summoned) output.
+export interface SummonProof {
+  tokenId: number;
+  isSummon: boolean;
+  enabled: boolean;
+  requestId?: number;
+  agentId?: number;
+  buyer?: string;
+  agentOwner?: string;
+  ownerCut?: string; // ether
+  ownerCutWei?: string;
+  platformFee?: string;
+  platformFeeWei?: string;
+  fee?: string; // total commission, ether
+  feeWei?: string;
+  fulfillTx?: string;
+  escrow?: string;
+}
+
+export async function fetchSummonProof(tokenId: number | string): Promise<SummonProof | null> {
+  return getJson<SummonProof>(`/summon/output/${tokenId}/proof`);
+}
+
 // ── Formatting helpers ─────────────────────────────────────────────────────
 export function shortHex(hex: string | null | undefined, head = 6, tail = 4): string {
   if (!hex) return "";

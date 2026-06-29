@@ -6,8 +6,8 @@
 import type { FastifyInstance } from "fastify";
 import { ethers } from "ethers";
 import { db } from "../aura/db.js";
-import { summonRead } from "../aura/contracts.js";
-import { CONTRACTS } from "../aura/config.js";
+import { summonRead, readProvider } from "../aura/contracts.js";
+import { CONTRACTS, SUMMON_START_BLOCK, DEPLOYED } from "../aura/config.js";
 
 interface SummonRow {
   request_id: number;
@@ -89,5 +89,54 @@ export async function summonRoutes(app: FastifyInstance): Promise<void> {
       expired,
       error: row?.error ?? null,
     };
+  });
+
+  // GET /summon/output/:tokenId/proof -> the JURY-VERIFIABLE economic proof: was this output minted by a
+  // paid summon, and how did the fee split? Read PURELY from the on-chain Fulfilled event (not our DB), so
+  // a juror trusts the chain, not us. tokenId is a DATA field on Fulfilled (not indexed), so we scan the
+  // event range in bounded chunks and match in JS. { isSummon:false } when no summon minted this token.
+  app.get<{ Params: { tokenId: string } }>("/summon/output/:tokenId/proof", async (req, reply) => {
+    const tokenId = Number(req.params.tokenId);
+    if (!Number.isInteger(tokenId) || tokenId < 1) return reply.code(400).send({ error: "bad tokenId" });
+    if (!CONTRACTS.summonEscrow) return { tokenId, isSummon: false, enabled: false };
+    try {
+      const esc = summonRead();
+      const latest = await readProvider().getBlockNumber();
+      // lower bound: the escrow's deploy block (set SUMMON_START_BLOCK at deploy). Falls back to the v2
+      // deploy block, then a bounded recent window, so a juror's read stays cheap.
+      const start = SUMMON_START_BLOCK ?? DEPLOYED.deployBlock ?? Math.max(0, latest - 200_000);
+      const CHUNK = 5000;
+      let match: ethers.EventLog | null = null;
+      for (let from = start; from <= latest && !match; from += CHUNK) {
+        const to = Math.min(from + CHUNK - 1, latest);
+        const evs = await esc.queryFilter(esc.filters.Fulfilled(), from, to);
+        match = (evs as ethers.EventLog[]).find((e) => Number(e.args.tokenId) === tokenId) ?? null;
+      }
+      if (!match) return { tokenId, isSummon: false, enabled: true };
+
+      const a = match.args;
+      const ownerCut = a.ownerCut as bigint;
+      const platformFee = a.platformFee as bigint;
+      const fee = ownerCut + platformFee;
+      return {
+        tokenId,
+        isSummon: true,
+        enabled: true,
+        requestId: Number(a.requestId),
+        agentId: Number(a.agentId),
+        buyer: a.buyer as string,
+        agentOwner: a.agentOwner as string,
+        ownerCutWei: ownerCut.toString(),
+        ownerCut: ethers.formatEther(ownerCut),
+        platformFeeWei: platformFee.toString(),
+        platformFee: ethers.formatEther(platformFee),
+        feeWei: fee.toString(),
+        fee: ethers.formatEther(fee),
+        fulfillTx: match.transactionHash,
+        escrow: CONTRACTS.summonEscrow,
+      };
+    } catch (e: unknown) {
+      return reply.code(502).send({ error: `chain read failed: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}` });
+    }
   });
 }

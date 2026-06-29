@@ -5,22 +5,30 @@
 // present, the provenance hash matches its expected value, and the royalty still resolves to the
 // current agent owner. Fail-soft: a missing provenance read returns a not-found result, never throws.
 
-import { fetchProvenance, fetchRoyalty, type Provenance, type Royalty } from "@/lib/api";
+import {
+  fetchProvenance,
+  fetchRoyalty,
+  fetchSummonProof,
+  type Provenance,
+  type Royalty,
+  type SummonProof,
+} from "@/lib/api";
 
 export interface VerifyCheck {
   label: string;
   ok: boolean;
 }
 
-// The full result of a verification: the five checks, whether every one passed, the on-chain summary
-// line, and the raw provenance + royalty payloads so a caller can surface the real values (style DNA,
-// storage root, attestation, seed, owner) without re-fetching.
+// The full result of a verification: the checks, whether every one passed, the on-chain summary line, the
+// raw provenance + royalty payloads, and (for a SUMMONED output) the economic proof — the on-chain fee
+// split from the Fulfilled event, so a juror can confirm it was a real paid commission, not a free mint.
 export interface VerifyResult {
   ok: boolean;
   checks: VerifyCheck[];
   summary: string;
   provenance: Provenance;
   royalty: Royalty | null;
+  summon: SummonProof | null; // present (isSummon=true) only when a paid summon minted this output
 }
 
 // Build the five checks from a provenance (+ optional royalty) payload. `expectedProvenanceHash` is
@@ -57,14 +65,28 @@ export async function runVerification(
   tokenId: number | string,
   expectedProvenanceHash?: string,
 ): Promise<VerifyResult | null> {
-  const [p, r] = await Promise.all([fetchProvenance(tokenId), fetchRoyalty(tokenId)]);
+  const [p, r, summonRaw] = await Promise.all([
+    fetchProvenance(tokenId),
+    fetchRoyalty(tokenId),
+    fetchSummonProof(tokenId),
+  ]);
   if (!p) return null;
+  const summon = summonRaw && summonRaw.isSummon ? summonRaw : null;
   const checks = buildVerifyChecks(p, r, expectedProvenanceHash);
+  // For a SUMMONED output, add the economic proof as a sixth check: the on-chain fee split settled, so
+  // the agent's owner provably got paid for the commission.
+  if (summon) {
+    checks.push({
+      label: "Paid commission settled on-chain (fee split to the agent owner)",
+      ok: !!summon.fulfillTx && !!summon.ownerCutWei && summon.ownerCutWei !== "0",
+    });
+  }
   return {
     ok: checks.every((c) => c.ok),
     checks,
     summary: p.verification.summary,
     provenance: p,
     royalty: r,
+    summon,
   };
 }
