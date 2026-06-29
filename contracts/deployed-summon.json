@@ -1,0 +1,23 @@
+{
+  "note": "ISOLATED Summon stack on 0G Galileo (chainId 16602). SEPARATE from the live app's deployed-v2 contracts (do NOT conflate). attestor=platform=sponsor=deployer=0x253727ac (self-consistent so the watcher's signMintAuth is accepted by THIS OutputNFT). TESTNET-only, for the Live Summon demo.",
+  "chainId": 16602,
+  "rpcUrl": "https://evmrpc-testnet.0g.ai",
+  "agentRegistry": "0xF1F654EB1207b44B5733FAdF03DC8F173480525B",
+  "outputNFT": "0x60C93F032130E1306F236B32402c15A763dDDB8C",
+  "marketplace": "0xcd8B7a8964b36AD0d1AEb02Ba0AcEE402B842e89",
+  "summonEscrow": "0xC074FC186Ff6d91943177dF6b57B547E903A93bc",
+  "attestor": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+  "platform": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+  "platformBps": 250,
+  "summonStartBlock": 41381313,
+  "summonEscrowDeployBlock": 41381315,
+  "summonPriceWei": "10000000000000000",
+  "summonPrice": "0.01",
+  "seededAgents": [
+    { "id": 1, "name": "NOKTURNE", "royaltyBps": 700 },
+    { "id": 2, "name": "MIRAI", "royaltyBps": 800 },
+    { "id": 3, "name": "RISO", "royaltyBps": 600 },
+    { "id": 4, "name": "SCRIPTORIUM", "royaltyBps": 900 }
+  ],
+  "deployedAt": "2026-06-29"
+}
