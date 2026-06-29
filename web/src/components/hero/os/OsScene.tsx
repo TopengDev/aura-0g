@@ -77,7 +77,7 @@ export function OsScene() {
     <div
       ref={rootRef}
       id="aura-os-hero"
-      className="relative mx-auto aspect-[16/10] w-full max-w-[1240px] overflow-hidden rounded-[18px] border border-[var(--color-border)] shadow-[var(--shadow-doc)]"
+      className="relative mx-auto aspect-[4/3] sm:aspect-[16/10] w-full max-w-[1240px] overflow-hidden rounded-[18px] border border-[var(--color-border)] shadow-[var(--shadow-doc)]"
     >
       <Wallpaper />
 
@@ -99,9 +99,9 @@ export function OsScene() {
       />
 
       {/* generate view: terminal beside the generate pipeline */}
-      <div className="absolute inset-0 z-10 flex items-center justify-center gap-4 px-6 pt-10 pb-14 sm:px-8">
+      <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 px-4 pt-8 pb-8 sm:gap-4 sm:px-8 sm:pt-10 sm:pb-14">
         <motion.div
-          className="h-[78%] w-[52%] overflow-hidden rounded-xl border bg-[#0d1117] shadow-[var(--shadow-card)]"
+          className="h-[72%] w-full overflow-hidden rounded-xl border bg-[#0d1117] shadow-[var(--shadow-card)] sm:h-[78%] sm:w-[52%]"
           animate={onCli ? { opacity: 1, scale: 1, y: 0 } : hidden}
           transition={{ duration: 0.55, ease: EASE }}
           style={{ borderColor: "rgba(0,0,0,0.4)" }}
@@ -113,7 +113,7 @@ export function OsScene() {
         </motion.div>
 
         <motion.div
-          className="h-[78%] w-[34%]"
+          className="hidden h-[78%] w-[34%] sm:block"
           animate={onCli ? { opacity: 1, scale: 1, y: 0 } : hidden}
           transition={{ duration: 0.55, ease: EASE, delay: onCli ? 0.08 : 0 }}
         >
@@ -122,9 +122,9 @@ export function OsScene() {
       </div>
 
       {/* recall view: Explore gallery beside the verify pipeline */}
-      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-4 px-6 pt-10 pb-14 sm:px-8">
+      <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center gap-2 px-4 pt-8 pb-8 sm:gap-4 sm:px-8 sm:pt-10 sm:pb-14">
         <motion.div
-          className="h-[80%] w-[56%] overflow-hidden rounded-xl border shadow-[var(--shadow-doc)]"
+          className="h-[74%] w-full overflow-hidden rounded-xl border shadow-[var(--shadow-doc)] sm:h-[80%] sm:w-[56%]"
           initial={false}
           animate={!onCli ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.96, y: 24 }}
           transition={{ duration: 0.55, ease: EASE, delay: !onCli ? 0.2 : 0 }}
@@ -136,7 +136,7 @@ export function OsScene() {
           </div>
         </motion.div>
         <motion.div
-          className="h-[80%] w-[32%]"
+          className="hidden h-[80%] w-[32%] sm:block"
           initial={false}
           animate={!onCli ? { opacity: 1, scale: 1, y: 0 } : { opacity: 0, scale: 0.96, y: 24 }}
           transition={{ duration: 0.55, ease: EASE, delay: !onCli ? 0.32 : 0 }}

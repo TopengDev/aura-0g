@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Reveal } from "@/components/Reveal";
@@ -82,6 +82,11 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
 
   const [prompt, setPrompt] = useState("");
   const [flow, setFlow] = useState<Flow>("compose");
+
+  const TOP_BADGES = 5;
+  const [agentSearch, setAgentSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchBoxRef = useRef<HTMLDivElement>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<GenerateJob | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -96,6 +101,30 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
       if (previewRef.current) URL.revokeObjectURL(previewRef.current);
     };
   }, [previewUrl]);
+
+  // Close the agent search dropdown on outside click.
+  useEffect(() => {
+    if (!searchOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (searchBoxRef.current && !searchBoxRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [searchOpen]);
+
+  const handlePickAgent = useCallback((id: number) => {
+    setAgentId(id);
+    setAgentSearch("");
+    setSearchOpen(false);
+  }, []);
+
+  const topBadges = agents.slice(0, TOP_BADGES);
+  const filteredForDropdown = agentSearch.trim()
+    ? agents.filter((a) => a.name.toLowerCase().includes(agentSearch.toLowerCase().trim()))
+    : agents;
+  const showDropdown = searchOpen && filteredForDropdown.length > 0;
 
   const accent = agent?.meta.accent ?? "#2a3858";
   const portrait = agent ? agentPortraitUrl(agent) : null;
@@ -244,15 +273,17 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                 <div className="mb-3 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   The agent
                 </div>
+
+                {/* Top-5 quick-select badges */}
                 <div className="flex flex-wrap gap-2">
-                  {agents.map((a) => {
+                  {topBadges.map((a) => {
                     const active = a.agentId === agentId;
                     return (
                       <button
                         key={a.agentId}
                         type="button"
                         disabled={flow === "generating" || flow === "minting"}
-                        onClick={() => setAgentId(a.agentId)}
+                        onClick={() => handlePickAgent(a.agentId)}
                         className="flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
                         style={
                           active
@@ -260,16 +291,81 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                             : { border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }
                         }
                       >
-                        <img
-                          src={agentPortraitUrl(a)}
-                          alt={a.name}
-                          className="h-6 w-6 rounded-full object-cover"
-                        />
+                        <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-full object-cover" />
                         <span className="font-mono-x text-[12px]">{a.name}</span>
                       </button>
                     );
                   })}
                 </div>
+
+                {/* Search + dropdown (all agents) */}
+                <div ref={searchBoxRef} className="relative mt-3">
+                  <div className="relative">
+                    <svg
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2"
+                      width="13" height="13" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ color: "var(--color-ink-3)" }} aria-hidden
+                    >
+                      <circle cx="11" cy="11" r="8" /><path d="m21 21-4.35-4.35" />
+                    </svg>
+                    <input
+                      type="text"
+                      placeholder="Search all agents..."
+                      value={agentSearch}
+                      disabled={flow === "generating" || flow === "minting"}
+                      onChange={(e) => { setAgentSearch(e.target.value); setSearchOpen(true); }}
+                      onFocus={() => setSearchOpen(true)}
+                      onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => { if (e.key === "Escape") setSearchOpen(false); }}
+                      className="w-full rounded-[14px] border border-[var(--color-border-strong)] py-2.5 pl-9 pr-4 font-mono-x text-[13px] outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
+                      style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
+                      aria-label="Search agents"
+                      aria-haspopup="listbox"
+                      aria-expanded={showDropdown}
+                    />
+                  </div>
+                  {showDropdown && (
+                    <div
+                      role="listbox"
+                      aria-label="Agent list"
+                      className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-52 overflow-y-auto rounded-[16px] border shadow-[var(--shadow-doc)]"
+                      style={{ background: "var(--color-paper)", borderColor: "var(--color-border-strong)" }}
+                    >
+                      {filteredForDropdown.length === 0 ? (
+                        <p className="px-4 py-3 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
+                          No agents match
+                        </p>
+                      ) : (
+                        filteredForDropdown.map((a) => {
+                          const active = a.agentId === agentId;
+                          return (
+                            <button
+                              key={a.agentId}
+                              role="option"
+                              aria-selected={active}
+                              type="button"
+                              disabled={flow === "generating" || flow === "minting"}
+                              onClick={() => handlePickAgent(a.agentId)}
+                              className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors first:rounded-t-[16px] last:rounded-b-[16px] disabled:opacity-50 ${active ? "" : "hover:bg-[var(--color-cream-deep)]"}`}
+                              style={active ? { background: "var(--color-cream-warm)" } : {}}
+                            >
+                              <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-full object-cover" />
+                              <span className="font-mono-x text-[12px]" style={{ color: active ? "var(--color-accent)" : "var(--color-ink)" }}>
+                                {a.name}
+                              </span>
+                              {active && (
+                                <span className="ml-auto font-mono-x text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--color-accent)" }}>
+                                  selected
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {agent ? (
                   <p className="mt-4 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     {agent.meta.aesthetic}

@@ -53,7 +53,11 @@ export function Nav() {
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
-        scrolled || open ? "border-b border-[var(--color-border)] backdrop-blur-md" : "border-b border-transparent"
+        open
+          ? "border-b border-[var(--color-border)] backdrop-blur-md"
+          : scrolled
+            ? "border-b border-[var(--color-border)] md:backdrop-blur-md"
+            : "border-b border-transparent"
       }`}
       style={{ background: scrolled || open ? "rgb(var(--rgb-cream) / 0.8)" : "transparent" }}
     >
