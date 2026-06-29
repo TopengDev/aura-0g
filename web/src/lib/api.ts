@@ -633,7 +633,7 @@ export function featuredOutputs(outputs: Output[]): Output[] {
 // all real minted art (the showcase roots already surface as the agent portraits).
 export function nonFeaturedOutputs(outputs: Output[]): Output[] {
   const featured = new Set(FEATURED_OUTPUT_IDS);
-  return outputs.filter((o) => !featured.has(o.tokenId) && !o.imageRoot.startsWith("0g://showcase-"));
+  return outputs.filter((o) => !featured.has(o.tokenId) && !o.imageRoot?.startsWith("0g://showcase-"));
 }
 
 // ── Image URL (single source of truth) ─────────────────────────────────────
@@ -649,6 +649,8 @@ export function nonFeaturedOutputs(outputs: Output[]): Output[] {
 // slash-free "showcase-<name>" slug before it becomes a path segment; the route map keys match this
 // slash-free form. encodeURIComponent still runs (harmless: nothing left to encode for the slug).
 export function imageRootSlug(imageRoot: string): string {
+  // defensive: a null/undefined root (e.g. an imageless activity-feed item) must not crash SSR.
+  if (!imageRoot) return "";
   return imageRoot.startsWith("0g://") ? imageRoot.slice("0g://".length) : imageRoot;
 }
 
