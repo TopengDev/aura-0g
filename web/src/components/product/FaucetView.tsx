@@ -60,7 +60,7 @@ export function FaucetView() {
             ) : (
               <Panel className="p-6 sm:p-8">
                 <div className="flex items-center justify-between">
-                  <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     Your balance
                   </div>
                   <Chip tone={low ? "default" : "ok"}>{low ? "Running low" : "Funded"}</Chip>
@@ -73,9 +73,9 @@ export function FaucetView() {
                   <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>{bal?.symbol ?? "0G"}</span>
                 </div>
 
-                <div className="mt-3 flex items-center gap-2 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--color-ok)" }} />
-                  <a href={`${EXPLORER}/address/${address}`} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
+                <div className="mt-3 flex items-center gap-2 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+                  <span className="h-3 w-px shrink-0" style={{ background: "var(--color-ok)" }} />
+                  <a href={`${EXPLORER}/address/${address}`} target="_blank" rel="noreferrer" className="font-mono-x underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
                     {shortHex(address)}
                   </a>
                   <span>on {APP_CHAIN.name}</span>
@@ -83,7 +83,7 @@ export function FaucetView() {
 
                 <ProvLine className="my-6" />
 
-                <p className="text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                <p className="text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                   {low ? (
                     <>You will want a bit more <ZeroG /> before minting or trading. The faucet sends about <strong style={{ color: "var(--color-ink)" }}>0.5 0G</strong> per claim, which comfortably covers the whole flow (a full create, generate, mint, and trade run spends roughly 0.1 0G).</>
                   ) : (
@@ -93,7 +93,7 @@ export function FaucetView() {
 
                 <div className="mt-6">
                   <ActionButton href={FAUCET_URL}>Open the 0G faucet -&gt;</ActionButton>
-                  <p className="mt-3 text-center font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
+                  <p className="mt-3 text-center text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                     opens faucet.0g.ai in a new tab
                   </p>
                 </div>
@@ -104,18 +104,18 @@ export function FaucetView() {
           {/* Steps + honest notes */}
           <Reveal delay={0.06}>
             <Panel className="p-6 sm:p-8" style={{ background: "var(--color-cream-warm)" }}>
-              <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+              <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                 How to claim
               </div>
               <ol className="mt-5 space-y-4">
                 {STEPS.map((s, i) => (
                   <li key={s.title} className="flex gap-4">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono-x text-[12px]" style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}>
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono-x text-[16px]" style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}>
                       {i + 1}
                     </span>
                     <div className="min-w-0">
-                      <div className="font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>{s.title}</div>
-                      <div className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{s.body}</div>
+                      <div className="text-[16px] font-semibold" style={{ color: "var(--color-ink)" }}>{s.title}</div>
+                      <div className="mt-1 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{s.body}</div>
                     </div>
                   </li>
                 ))}
@@ -123,13 +123,13 @@ export function FaucetView() {
 
               <ProvLine className="my-6" />
 
-              <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+              <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                 Good to know
               </div>
               <ul className="mt-4 space-y-2.5">
                 {NOTES.map((n) => (
-                  <li key={n.id} className="flex items-start gap-2.5 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-                    <span aria-hidden className="mt-2 h-1 w-1 shrink-0 rounded-full" style={{ background: "var(--color-ink-3)" }} />
+                  <li key={n.id} className="flex items-start gap-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                    <span aria-hidden className="mt-[0.7em] h-px w-3 shrink-0" style={{ background: "var(--color-border-strong)" }} />
                     {n.body}
                   </li>
                 ))}
@@ -143,8 +143,8 @@ export function FaucetView() {
           <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
             {GAS_USES.map((g) => (
               <Panel key={g.label} className="p-5">
-                <div className="font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>{g.label}</div>
-                <p className="mt-2 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{g.body}</p>
+                <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>{g.label}</div>
+                <p className="mt-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{g.body}</p>
               </Panel>
             ))}
           </div>

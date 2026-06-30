@@ -38,12 +38,14 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: EASE }}
-            className="flex items-center gap-3 font-mono-x text-[11px] uppercase tracking-[0.18em]"
-            style={{ color: "var(--color-ink-3)" }}
+            className="flex flex-wrap items-center gap-x-3.5 gap-y-1"
           >
-            <span>A marketplace for verifiable creative Auras</span>
-            <span className="hidden sm:inline" style={{ color: "var(--color-ink-3)" }}>
-              · on <ZeroG /> Galileo
+            <span className="h-px w-7 shrink-0" style={{ background: "var(--color-accent)" }} aria-hidden />
+            <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+              A marketplace for verifiable creative Auras
+            </span>
+            <span className="label-caps hidden text-[13px] sm:inline" style={{ color: "var(--color-ink-3)" }}>
+              on <ZeroG /> Galileo
             </span>
           </motion.div>
 
@@ -92,14 +94,14 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
           >
             <Link
               href="/explore"
-              className="rounded-full px-7 py-3.5 font-mono-x text-[13px] tracking-[0.02em] transition-opacity hover:opacity-85"
+              className="micro rounded-full px-7 py-3.5 text-[16px] font-semibold tracking-[0.005em] hover:-translate-y-px hover:shadow-[var(--shadow-pill)] active:translate-y-0 active:scale-[0.98]"
               style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}
             >
               Explore the gallery
             </Link>
             <Link
               href="/generate"
-              className="rounded-full border px-7 py-3.5 font-mono-x text-[13px] tracking-[0.02em] transition-colors hover:bg-[color-mix(in_oklab,var(--color-ink)_6%,transparent)]"
+              className="micro rounded-full border px-7 py-3.5 text-[16px] font-semibold tracking-[0.005em] hover:-translate-y-px hover:bg-[color-mix(in_oklab,var(--color-ink)_6%,transparent)] active:translate-y-0 active:scale-[0.98]"
               style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink)" }}
             >
               Generate free
@@ -111,16 +113,18 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
             initial={{ opacity: 0, y: 14 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: EASE, delay: 0.42 }}
-            className="mt-10 flex flex-wrap items-center gap-x-7 gap-y-2 border-t pt-6 font-mono-x text-[11px] uppercase tracking-[0.12em]"
-            style={{ borderColor: "var(--color-border)", color: "var(--color-ink-3)" }}
+            className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-2 border-t pt-6"
+            style={{ borderColor: "var(--color-border)" }}
           >
-            <span>
-              <span style={{ color: "var(--color-ink)" }}>{agentCount}</span> living Auras
+            <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)" }}>
+              <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink)", letterSpacing: "0" }}>{agentCount}</span> living Auras
             </span>
-            <span>
-              <span style={{ color: "var(--color-ink)" }}>{outputCount}</span> verifiable Relics
+            <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)" }}>
+              <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink)", letterSpacing: "0" }}>{outputCount}</span> verifiable Relics
             </span>
-            <span>chain 16602</span>
+            <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)" }}>
+              chain <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-2)", letterSpacing: "0" }}>16602</span>
+            </span>
           </motion.div>
         </div>
 
@@ -224,10 +228,10 @@ function ShowpieceCard({
             decoding="async"
             className={`h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03] ${muted ? "opacity-90" : ""}`}
           />
-          {/* style chip top-left */}
+          {/* style tag top-left */}
           <span
-            className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]"
-            style={{ background: "color-mix(in oklab, var(--color-ink) 82%, transparent)", color: "var(--color-cream)" }}
+            className="tag micro absolute left-3 top-3"
+            style={{ background: "color-mix(in oklab, var(--color-ink) 78%, transparent)", color: "var(--color-cream)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid color-mix(in oklab, var(--color-cream) 16%, transparent)" }}
           >
             {o.style}
           </span>
@@ -238,23 +242,23 @@ function ShowpieceCard({
               style={{ background: "linear-gradient(to top, color-mix(in oklab, var(--color-ink) 78%, transparent), transparent)" }}
             >
               <div>
-                <div className="font-display text-[clamp(22px,2.4vw,30px)] leading-none" style={{ color: "var(--color-cream)" }}>
+                <div className="font-display text-[clamp(24px,2.6vw,32px)] leading-none" style={{ color: "var(--color-cream)" }}>
                   {o.agentName}
                 </div>
-                <div className="mt-1.5 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "color-mix(in oklab, var(--color-cream) 72%, transparent)" }}>
+                <div className="label-caps mt-2 text-[13px]" style={{ color: "color-mix(in oklab, var(--color-cream) 74%, transparent)" }}>
                   verifiable · tee-attested
                 </div>
               </div>
-              <span className="font-mono-x text-[11px]" style={{ color: "color-mix(in oklab, var(--color-cream) 80%, transparent)" }}>
+              <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "color-mix(in oklab, var(--color-cream) 82%, transparent)" }}>
                 #{o.tokenId}
               </span>
             </div>
           ) : (
             <span
-              className="absolute bottom-2.5 right-3 font-mono-x text-[10px]"
-              style={{ color: "color-mix(in oklab, var(--color-cream) 86%, transparent)", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}
+              className="absolute bottom-2.5 right-3 text-[16px] font-semibold"
+              style={{ color: "color-mix(in oklab, var(--color-cream) 90%, transparent)", textShadow: "0 1px 6px rgba(0,0,0,0.5)" }}
             >
-              {o.agentName} #{o.tokenId}
+              {o.agentName} <span className="font-mono-x tabular-nums">#{o.tokenId}</span>
             </span>
           )}
         </div>

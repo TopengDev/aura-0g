@@ -25,11 +25,11 @@ export async function Footer() {
             <div className="font-display" style={{ fontSize: 30, letterSpacing: "0.14em" }}>
               AURA
             </div>
-            <p className="mt-3 max-w-[34ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+            <p className="mt-3 max-w-[34ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
               A marketplace for art you can prove. Every Relic is created by an autonomous on-chain Aura,
               attested in a TEE, and stored on <ZeroG />.
             </p>
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-[var(--color-border-strong)] px-3 py-1.5 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-2)" }}>
+            <div className="tag mt-5" style={{ border: "1px solid var(--color-border-strong)", background: "var(--color-paper)", color: "var(--color-ink-2)" }}>
               <ZeroG /> Galileo Testnet
             </div>
           </div>
@@ -47,23 +47,25 @@ export async function Footer() {
           ]} />
 
           <div>
-            <h4 className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+            <h4 className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.13em" }}>
               Network
             </h4>
-            <dl className="mt-4 space-y-2.5">
-              <div className="flex items-center justify-between gap-3">
-                <dt className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>chainId</dt>
-                <dd className="font-mono-x text-[11px]" style={{ color: "var(--color-ink)" }}>{chainId}</dd>
+            <dl className="mt-4 space-y-3">
+              <div className="flex items-baseline justify-between gap-3">
+                <dt className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.06em" }}>chainId</dt>
+                <dd className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink)" }}>{chainId}</dd>
               </div>
               {contractLinks.map((c) => (
-                <div key={c.label} className="flex items-center justify-between gap-3">
-                  <dt className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>{c.label}</dt>
+                /* label on its own line, the address below + nowrap, so a long label never forces the
+                   0x value to wrap mid-hash in this narrow footer column. */
+                <div key={c.label} className="flex flex-col gap-0.5">
+                  <dt className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.06em" }}>{c.label}</dt>
                   <dd>
                     <a
                       href={`${EXPLORER}/address/${c.addr}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="font-mono-x text-[11px] underline-offset-2 hover:underline"
+                      className="micro inline-block whitespace-nowrap font-mono-x text-[16px] underline-offset-2 hover:underline"
                       style={{ color: "var(--color-accent)" }}
                     >
                       {shortAddr(c.addr)}
@@ -76,19 +78,19 @@ export async function Footer() {
               href={FAUCET_URL}
               target="_blank"
               rel="noreferrer"
-              className="mt-5 inline-flex items-center gap-1.5 font-mono-x text-[11px] transition-opacity hover:opacity-70"
+              className="lnk micro mt-5 inline-flex items-center gap-1.5 text-[16px] font-semibold hover:opacity-70"
               style={{ color: "var(--color-accent)" }}
             >
-              Need test <ZeroG />? Faucet <span aria-hidden>-&gt;</span>
+              Need test <ZeroG />? Faucet <span className="arrow" aria-hidden>-&gt;</span>
             </a>
           </div>
         </div>
 
         <div className="mt-14 flex flex-col items-start justify-between gap-3 border-t border-[var(--color-border)] pt-6 sm:flex-row sm:items-center">
-          <span className="font-mono-x text-[10px] tracking-[0.06em]" style={{ color: "var(--color-ink-3)" }}>
+          <span className="text-[16px] font-medium" style={{ color: "var(--color-ink-3)" }}>
             AURA. Art you can prove, from living Auras on <ZeroG />.
           </span>
-          <span className="font-mono-x text-[10px] tracking-[0.06em]" style={{ color: "var(--color-ink-3)" }}>
+          <span className="text-[16px] font-medium" style={{ color: "var(--color-ink-3)" }}>
             Built on <ZeroG /> Galileo. Testnet preview.
           </span>
         </div>
@@ -100,13 +102,13 @@ export async function Footer() {
 function FooterCol({ title, links }: { title: string; links: { label: string; href: string }[] }) {
   return (
     <div>
-      <h4 className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+      <h4 className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.13em" }}>
         {title}
       </h4>
       <ul className="mt-4 space-y-2.5">
         {links.map((l) => (
           <li key={l.label}>
-            <a href={l.href} className="text-[13px] transition-colors hover:text-[var(--color-ink)]" style={{ color: "var(--color-ink-2)" }}>
+            <a href={l.href} className="text-[16px] font-medium transition-colors hover:text-[var(--color-ink)]" style={{ color: "var(--color-ink-2)" }}>
               {l.label}
             </a>
           </li>

@@ -2,6 +2,7 @@
 
 import type { Activity } from "@/lib/api";
 import { shortHex } from "@/lib/api";
+import { Kicker } from "./Kicker";
 
 // Section 6 - ACTIVITY ticker. Skeleton: full-bleed-marquee (edge-to-edge single moving line - the
 // provenance line, now in motion). Technique: continuous CSS/transform marquee (NOT scroll-scrubbed,
@@ -29,9 +30,7 @@ export function ActivityTicker({ activity }: { activity: Activity[] }) {
     <section className="relative overflow-hidden border-y py-10" style={{ borderColor: "var(--color-border)", background: "color-mix(in oklab, var(--color-cream-deep) 50%, transparent)" }}>
       <div className="mb-6 px-5 sm:px-8">
         <div className="mx-auto flex w-full max-w-[var(--container-wrap)] items-center gap-3">
-          <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-            Live on-chain activity
-          </span>
+          <Kicker label="Live on-chain activity" />
         </div>
       </div>
 
@@ -52,22 +51,23 @@ export function ActivityTicker({ activity }: { activity: Activity[] }) {
 function Chip({ a }: { a: Activity }) {
   const isSale = a.kind === "sale";
   return (
-    <span className="mx-5 inline-flex items-center gap-3 whitespace-nowrap font-mono-x text-[13px]">
+    <span className="mx-5 inline-flex items-center gap-3 whitespace-nowrap text-[16px]">
       <span
-        className="rounded-full px-2.5 py-0.5 text-[10px] uppercase tracking-[0.1em]"
+        className="tag"
         style={{
-          background: isSale ? "var(--color-accent)" : "color-mix(in oklab, var(--color-ink) 8%, transparent)",
+          background: isSale ? "var(--color-accent)" : "color-mix(in oklab, var(--color-ink) 7%, transparent)",
           color: isSale ? "var(--color-cream)" : "var(--color-ink-2)",
+          border: isSale ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
         }}
       >
         {KIND_LABEL[a.kind] ?? a.kind}
       </span>
-      {a.agentName && <span style={{ color: "var(--color-ink)" }}>{a.agentName}</span>}
-      {a.tokenId != null && <span style={{ color: "var(--color-ink-3)" }}>#{a.tokenId}</span>}
+      {a.agentName && <span className="font-semibold" style={{ color: "var(--color-ink)" }}>{a.agentName}</span>}
+      {a.tokenId != null && <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-3)" }}>#{a.tokenId}</span>}
       {a.price && (
-        <span style={{ color: "var(--color-accent)" }}>{a.price} 0G</span>
+        <span className="font-mono-x tabular-nums" style={{ color: "var(--color-accent)" }}>{a.price} 0G</span>
       )}
-      <span style={{ color: "var(--color-ink-3)" }}>{shortHex(a.txHash)}</span>
+      <span className="font-mono-x" style={{ color: "var(--color-ink-3)" }}>{shortHex(a.txHash)}</span>
       <span style={{ color: "var(--color-border-strong)" }}>/</span>
     </span>
   );

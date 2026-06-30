@@ -30,7 +30,7 @@ export function AgentDetailView({
     <section className="relative px-5 py-12 sm:px-8 sm:py-16">
       <div className="mx-auto w-full max-w-[var(--container-wrap)]">
         <Reveal>
-          <Link href="/agents" className="font-mono-x text-[11px] uppercase tracking-[0.14em] hover:underline" style={{ color: "var(--color-ink-3)" }}>
+          <Link href="/agents" className="label-caps text-[13px] uppercase tracking-[0.14em] hover:underline" style={{ color: "var(--color-ink-3)" }}>
             &lt;- All Auras
           </Link>
         </Reveal>
@@ -63,7 +63,7 @@ export function AgentDetailView({
             </Reveal>
 
             <Reveal delay={0.08}>
-              <p className="mt-5 max-w-[64ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              <p className="mt-5 max-w-[64ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                 {a.meta.aesthetic}
               </p>
             </Reveal>
@@ -71,10 +71,10 @@ export function AgentDetailView({
             {a.meta.lore ? (
               <Reveal delay={0.09}>
                 <div className="mt-6">
-                  <div className="mb-1 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  <div className="mb-1 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     Lore
                   </div>
-                  <p className="max-w-[64ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <p className="max-w-[64ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     {a.meta.lore}
                   </p>
                 </div>
@@ -84,10 +84,10 @@ export function AgentDetailView({
             {a.meta.personality ? (
               <Reveal delay={0.1}>
                 <div className="mt-5">
-                  <div className="mb-1 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  <div className="mb-1 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     Personality
                   </div>
-                  <p className="max-w-[64ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <p className="max-w-[64ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     {a.meta.personality}
                   </p>
                 </div>
@@ -97,7 +97,7 @@ export function AgentDetailView({
             {/* Identity / on-chain DNA */}
             <Reveal delay={0.1}>
               <Panel className="mt-7 p-5">
-                <div className="mb-1 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="mb-1 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Identity. on-chain
                 </div>
                 <dl>
@@ -121,7 +121,7 @@ export function AgentDetailView({
                   className="border-b px-5 py-4"
                   style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}
                 >
-                  <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     Talk to the Aura
                   </div>
                   <div className="font-display" style={{ fontSize: "22px", lineHeight: 1.1 }}>
@@ -129,7 +129,7 @@ export function AgentDetailView({
                   </div>
                 </div>
                 <div className="px-5 py-5">
-                  <p className="max-w-[60ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <p className="max-w-[60ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     {a.name} stays in character, remembers your past conversations, knows its own on-chain record, and
                     can create a Relic on request, which you mint non-custodially in your own wallet. Replies served by
                     0G run inside a TEE and are attested per reply.
@@ -180,7 +180,7 @@ export function AgentDetailView({
                 <ActionButton href={`/generate?agent=${a.agentId}`} variant="outline">
                   Generate with {a.name} -&gt;
                 </ActionButton>
-                <p className="mt-2 text-center font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                <p className="mt-2 text-center text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                   Generation is sponsored. Sign in once to generate.
                 </p>
               </div>
@@ -195,7 +195,7 @@ export function AgentDetailView({
             <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
               <StatFigure value={a.outputCount} label="Relics created" />
               <StatFigure value={a.salesCount} label="Secondary sales" />
-              <StatFigure value={<>{a.royaltiesEarned} <span className="font-mono-x text-[14px]" style={{ color: "var(--color-ink-3)" }}>0G</span></>} label="Royalties earned" />
+              <StatFigure value={<>{a.royaltiesEarned} <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span></>} label="Royalties earned" />
               <StatFigure value={`${a.royaltyPct}%`} label="Relic royalty" />
             </div>
           </div>
@@ -206,19 +206,19 @@ export function AgentDetailView({
           <Reveal>
             <div className="flex items-end justify-between gap-4">
               <div>
-                <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>The collection</span>
+                <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>The collection</span>
                 <h2 className="font-display mt-3" style={{ fontSize: "clamp(28px,4.5vw,48px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
                   Everything {a.name} has made.
                 </h2>
               </div>
-              <span className="font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>{outputs.length} relics</span>
+              <span className="text-[16px]" style={{ color: "var(--color-ink-3)" }}><span className="font-mono-x tabular-nums">{outputs.length}</span> relics</span>
             </div>
           </Reveal>
 
           {outputs.length === 0 ? (
             <Panel className="mt-8 p-10 text-center">
               <p className="font-display" style={{ fontSize: "clamp(22px,3.5vw,32px)" }}>No relics yet.</p>
-              <p className="mt-2 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
+              <p className="mt-2 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                 This Aura has not minted any work yet. Generate the first one (sponsored, you just sign in once).
               </p>
               <div className="mx-auto mt-5 max-w-[260px]">
@@ -245,15 +245,15 @@ function OutputThumb({ output: o }: { output: Output }) {
   return (
     <Link
       href={`/outputs/${o.tokenId}`}
-      className="group block overflow-hidden rounded-[18px] border transition-shadow duration-300 hover:shadow-[var(--shadow-card)]"
+      className="group block overflow-hidden rounded-[18px] border micro hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
       style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
     >
       <div className="relative aspect-square w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
         <img src={img} alt={`${o.agentName} #${o.tokenId}`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
       </div>
-      <div className="flex items-center justify-between p-3 font-mono-x text-[11px]">
-        <span style={{ color: "var(--color-ink-2)" }}>#{o.tokenId}</span>
-        <span style={{ color: "var(--color-accent)" }}>View -&gt;</span>
+      <div className="flex items-center justify-between p-3 text-[16px]">
+        <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-2)" }}>#{o.tokenId}</span>
+        <span className="font-semibold" style={{ color: "var(--color-accent)" }}>View -&gt;</span>
       </div>
     </Link>
   );

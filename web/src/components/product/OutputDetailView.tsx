@@ -45,7 +45,7 @@ export function OutputDetailView({
     <section className="relative px-5 py-12 sm:px-8 sm:py-16">
       <div className="mx-auto w-full max-w-[var(--container-wrap)]">
         <Reveal>
-          <Link href={agent ? `/agents/${o.creatorAgentId}` : "/agents"} className="font-mono-x text-[11px] uppercase tracking-[0.14em] hover:underline" style={{ color: "var(--color-ink-3)" }}>
+          <Link href={agent ? `/agents/${o.creatorAgentId}` : "/agents"} className="label-caps text-[13px] uppercase tracking-[0.14em] hover:underline" style={{ color: "var(--color-ink-3)" }}>
             &lt;- {agent ? agent.name : "All Auras"}
           </Link>
         </Reveal>
@@ -59,7 +59,7 @@ export function OutputDetailView({
               </div>
             </Reveal>
             <Reveal delay={0.05}>
-              <div className="mt-3 flex items-center justify-between font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+              <div className="mt-3 flex items-center justify-between font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                 <span>Relic NFT #{o.tokenId}</span>
                 <a href={`${EXPLORER}/token/${CONTRACTS.outputNFT}?a=${o.tokenId}`} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
                   {shortHex(CONTRACTS.outputNFT)} on 0G Scan
@@ -79,7 +79,7 @@ export function OutputDetailView({
               {o.rarity ? (
                 <div className="mt-3 flex items-center gap-2">
                   <RarityBadge rarity={o.rarity} />
-                  <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                  <span className="text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                     provably rolled from the on-chain seed
                   </span>
                 </div>
@@ -91,7 +91,7 @@ export function OutputDetailView({
               <Link href={`/agents/${o.creatorAgentId}`} className="flex items-center gap-3 rounded-[18px] border p-3 transition-shadow hover:shadow-[var(--shadow-card)]" style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${agent?.meta.accent ?? "#2a3858"} 8%, var(--color-paper))` }}>
                 <img src={agentPortraitUrl({ agentId: o.creatorAgentId, name: o.agentName ?? "", style: o.style })} alt={o.agentName} className="h-12 w-12 rounded-full object-cover" />
                 <div className="min-w-0 flex-1">
-                  <div className="font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>Created by</div>
+                  <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>Created by</div>
                   <div className="font-display" style={{ fontSize: 20, lineHeight: 1.1 }}>{o.agentName}</div>
                 </div>
                 <Chip accent={agent?.meta.accent}>{o.style}</Chip>
@@ -124,10 +124,10 @@ export function OutputDetailView({
           {/* Generative direction (the prompt/style the agent paints from) */}
           <Reveal>
             <Panel className="p-6">
-              <div className="mb-3 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+              <div className="mb-3 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                 Generative direction
               </div>
-              <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              <p className="text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                 {agent?.meta.aesthetic ?? `A ${o.style} generation by ${o.agentName}.`}
               </p>
               <div className="mt-5">
@@ -137,7 +137,7 @@ export function OutputDetailView({
                   <MetaRow k="Style" v={o.style} mono={false} />
                 </dl>
               </div>
-              <p className="mt-4 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+              <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                 The same Aura + same seed reproduces this Relic deterministically. The full prompt is
                 sealed into the on-chain provenance hash below.
               </p>
@@ -206,7 +206,7 @@ function ProvenanceBlock({
   return (
     <Panel className="p-6">
       <div className="flex items-center justify-between">
-        <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+        <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
           Provenance. unforgeable
         </div>
         <Chip tone="ok">TEE-attested</Chip>
@@ -230,23 +230,23 @@ function ProvenanceBlock({
 
       {verify.phase === "done" ? (
         <div className="mt-4 rounded-xl border p-4" style={{ borderColor: verify.ok ? "color-mix(in oklab, var(--color-ok) 40%, transparent)" : "var(--color-warn)" }}>
-          <div className="font-mono-x text-[12px]" style={{ color: verify.ok ? "var(--color-ok)" : "var(--color-warn)" }}>
+          <div className="font-mono-x text-[16px]" style={{ color: verify.ok ? "var(--color-ok)" : "var(--color-warn)" }}>
             {verify.ok ? "Verified on-chain ✓" : "Verification incomplete"}
           </div>
           <ul className="mt-3 space-y-1.5">
             {verify.checks.map((c) => (
-              <li key={c.label} className="flex items-center gap-2 font-mono-x text-[11px]" style={{ color: "var(--color-ink-2)" }}>
+              <li key={c.label} className="flex items-center gap-2 font-mono-x text-[16px]" style={{ color: "var(--color-ink-2)" }}>
                 <span style={{ color: c.ok ? "var(--color-ok)" : "var(--color-warn)" }}>{c.ok ? "✓" : "✕"}</span>
                 {c.label}
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-[12px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>{verify.summary}</p>
+          <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>{verify.summary}</p>
           {verify.roll ? <ProvablePullPanel roll={verify.roll} /> : null}
         </div>
       ) : null}
       {verify.phase === "error" ? (
-        <div className="mt-4 rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+        <div className="mt-4 rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
           {verify.message}
         </div>
       ) : null}
@@ -264,14 +264,14 @@ function ProvablePullPanel({ roll }: { roll: SummonRoll }) {
   return (
     <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--color-border)", background: "var(--color-cream-warm)" }}>
       <div className="flex items-center justify-between gap-2">
-        <div className="font-mono-x text-[11px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
+        <div className="label-caps text-[13px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
           Provable pull
         </div>
         <RarityBadge rarity={roll.rarity} />
       </div>
 
       {/* the rig-proof: the browser recomputed seedRoot == on-chain seed */}
-      <div className="mt-3 flex items-start gap-2 font-mono-x text-[11px]" style={{ color: clientOk ? "var(--color-ok)" : "var(--color-warn)" }}>
+      <div className="mt-3 flex items-start gap-2 font-mono-x text-[16px]" style={{ color: clientOk ? "var(--color-ok)" : "var(--color-warn)" }}>
         <span>{clientOk ? "✓" : "✕"}</span>
         <span>
           {clientOk
@@ -293,12 +293,12 @@ function ProvablePullPanel({ roll }: { roll: SummonRoll }) {
 
       {dims.length ? (
         <>
-          <div className="mt-4 mb-2 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
+          <div className="mt-4 mb-2 label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
             Rolled subject ({dims.length} dimensions)
           </div>
           <div className="flex flex-wrap gap-1.5">
             {dims.map(([k, v]) => (
-              <span key={k} className="rounded-full border px-2 py-0.5 font-mono-x text-[10px]" style={{ borderColor: "var(--color-border)", color: "var(--color-ink-2)" }} title={k}>
+              <span key={k} className="tag micro" style={{ border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)", letterSpacing: "0.06em" }} title={k}>
                 {v}
               </span>
             ))}
@@ -321,29 +321,29 @@ function RoyaltyBlock({
   return (
     <Panel className="p-6" style={{ background: "var(--color-cream-warm)" }}>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+        <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
           Royalty. follows the agent
         </div>
         <Chip tone="accent">{r.royaltyPct}% per sale</Chip>
       </div>
-      <p className="mt-4 max-w-[70ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+      <p className="mt-4 max-w-[70ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         {r.thesis}
       </p>
       <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
-          <div className="font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>Current receiver</div>
-          <Link href={`/agents/${agentId}`} className="mt-1 inline-block font-mono-x text-[13px] underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
+          <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>Current receiver</div>
+          <Link href={`/agents/${agentId}`} className="mt-1 inline-block font-mono-x text-[16px] underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
             {shortHex(r.receiver)}
           </Link>
-          <div className="mt-1 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+          <div className="mt-1 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
             {r.receiverIsAgentOwner ? `= the current owner of ${agentName}` : "resolves live on sale"}
           </div>
         </div>
         <div>
-          <div className="mb-1 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>At sample prices</div>
+          <div className="mb-1 label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>At sample prices</div>
           <dl>
             {r.samples.map((s) => (
-              <div key={s.salePrice} className="flex items-center justify-between border-b py-1.5 font-mono-x text-[12px] last:border-b-0" style={{ borderColor: "var(--color-border)" }}>
+              <div key={s.salePrice} className="flex items-center justify-between border-b py-1.5 font-mono-x text-[16px] last:border-b-0" style={{ borderColor: "var(--color-border)" }}>
                 <dt style={{ color: "var(--color-ink-3)" }}>{s.salePrice}</dt>
                 <dd style={{ color: "var(--color-ink)" }}>{s.royaltyAmount}</dd>
               </div>

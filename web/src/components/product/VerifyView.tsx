@@ -95,7 +95,7 @@ export function VerifyView({ initialId }: { initialId?: string }) {
                       placeholder="e.g. 6"
                       aria-label="Relic token id"
                       // Resting border in className (not inline) so focus:border-* wins (inline style would override it).
-                      className="w-full rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 font-mono-x text-[14px] outline-none transition-colors focus:border-[var(--color-accent)]"
+                      className="w-full rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 font-medium text-[16px] outline-none transition-colors focus:border-[var(--color-accent)]"
                       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
                     />
                   </div>
@@ -109,18 +109,18 @@ export function VerifyView({ initialId }: { initialId?: string }) {
 
               <ProvLine className="my-6" />
 
-              <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+              <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                 What gets checked
               </div>
               <ul className="mt-4 space-y-2.5">
                 {WHAT_GETS_CHECKED.map((c) => (
-                  <li key={c} className="flex items-start gap-2.5 font-mono-x text-[12px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-                    <span aria-hidden style={{ color: "var(--color-ink-3)" }}>·</span>
+                  <li key={c} className="flex items-start gap-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                    <span aria-hidden className="mt-[0.7em] h-px w-3 shrink-0" style={{ background: "var(--color-border-strong)" }} />
                     {c}
                   </li>
                 ))}
               </ul>
-              <p className="mt-5 text-[12px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+              <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                 Reads run against the live <ZeroG /> Galileo chain (id 16602). Nothing is signed or spent.
               </p>
             </Panel>
@@ -166,7 +166,7 @@ function IdlePanel() {
       <h2 className="font-display mt-5" style={{ fontSize: "clamp(24px,3.4vw,34px)", lineHeight: 1.05 }}>
         Provenance, on demand.
       </h2>
-      <p className="mx-auto mt-3 max-w-[42ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+      <p className="mx-auto mt-3 max-w-[42ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         Every AURA Relic carries an unforgeable on-chain trail. Enter a token id to re-derive it live.
         Try <button type="button" className="underline underline-offset-4" style={{ color: "var(--color-accent)" }} onClick={() => { const el = document.querySelector<HTMLInputElement>('input[aria-label="Relic token id"]'); if (el) { el.value = "6"; el.dispatchEvent(new Event("input", { bubbles: true })); el.focus(); } }}>#6</button>{" "}
         to see a fully verified Relic.
@@ -179,10 +179,10 @@ function CheckingPanel({ id }: { id: string }) {
   return (
     <Panel className="p-6 sm:p-8">
       <div className="flex items-center justify-between">
-        <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+        <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
           Verifying relic #{id}
         </div>
-        <span className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-accent)" }}>
+        <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-accent)" }}>
           Reading chain
         </span>
       </div>
@@ -191,7 +191,7 @@ function CheckingPanel({ id }: { id: string }) {
           <div key={c} className="aura-skeleton h-9 rounded-[12px]" />
         ))}
       </div>
-      <p className="mt-5 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+      <p className="mt-5 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
         Reading the chain (provenance + royalty)...
       </p>
     </Panel>
@@ -213,7 +213,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
         {/* Verdict header */}
         <div className="flex items-center justify-between gap-3 border-b px-6 py-5 sm:px-8" style={{ borderColor: "var(--color-border)", background: ok ? "color-mix(in oklab, var(--color-ok) 10%, transparent)" : "color-mix(in oklab, var(--color-warn) 10%, transparent)" }}>
           <div>
-            <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+            <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
               {p.agent.name} · relic #{id}
             </div>
             <div className="font-display mt-1.5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1, color: accent }}>
@@ -227,9 +227,9 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
           {/* Checklist */}
           <ul className="space-y-2.5">
             {checks.map((c) => (
-              <li key={c.label} className="flex items-center gap-3 font-mono-x text-[12px]" style={{ color: "var(--color-ink)" }}>
+              <li key={c.label} className="flex items-center gap-3 text-[16px] font-medium" style={{ color: "var(--color-ink)" }}>
                 <span
-                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px]"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[16px]"
                   style={{ background: c.ok ? "color-mix(in oklab, var(--color-ok) 16%, transparent)" : "color-mix(in oklab, var(--color-warn) 16%, transparent)", color: c.ok ? "var(--color-ok)" : "var(--color-warn)" }}
                 >
                   {c.ok ? "✓" : "✕"}
@@ -239,14 +239,14 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
             ))}
           </ul>
 
-          <p className="mt-5 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+          <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
             {summary}
           </p>
 
           <ProvLine className="my-6" />
 
           {/* Real on-chain values */}
-          <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+          <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
             On-chain facts
           </div>
           <dl className="mt-4">
@@ -267,12 +267,12 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
             <>
               <ProvLine className="my-6" />
               <div className="flex items-center justify-between gap-3">
-                <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Paid commission · the moat
                 </div>
                 <Chip tone="ok">Summoned</Chip>
               </div>
-              <p className="mt-3 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                 This wasn’t a free mint. A collector paid <strong style={{ color: "var(--color-ink)" }}>{result.summon.fee} <ZeroG /></strong> to
                 summon the Aura, and the fee settled <strong style={{ color: "var(--color-ink)" }}>on-chain</strong>, straight to the Aura&rsquo;s
                 owner. Supply can never exceed paid demand.
@@ -294,7 +294,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
               href={`${EXPLORER}/token/${CONTRACTS.outputNFT}?a=${id}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 font-mono-x text-[13px] transition-opacity hover:opacity-85"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 font-semibold text-[16px] transition-opacity hover:opacity-85"
               style={{ background: "transparent", color: "var(--color-ink)", border: "1px solid var(--color-border-strong)" }}
             >
               On 0G Scan -&gt;
@@ -316,7 +316,7 @@ function NotFoundPanel({ id }: { id: string }) {
         <h2 className="font-display mt-5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1.05 }}>
           No relic #{id} on-chain.
         </h2>
-        <p className="mx-auto mt-3 max-w-[42ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+        <p className="mx-auto mt-3 max-w-[42ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
           Nothing with that token id has been minted on the 0G Galileo testnet. Double-check the id, or
           browse the gallery to find a verifiable Relic.
         </p>
@@ -338,7 +338,7 @@ function ErrorPanel({ message }: { message: string }) {
         <h2 className="font-display mt-5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1.05 }}>
           Could not verify.
         </h2>
-        <p className="mx-auto mt-3 max-w-[42ch] font-mono-x text-[12px] leading-relaxed" style={{ color: "var(--color-warn)" }}>
+        <p className="mx-auto mt-3 max-w-[42ch] text-[16px] leading-relaxed" style={{ color: "var(--color-warn)" }}>
           {message}
         </p>
       </Panel>

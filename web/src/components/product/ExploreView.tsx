@@ -181,8 +181,8 @@ export function ExploreView({ data }: { data: ExploreData }) {
               </Panel>
             </Reveal>
           )}
-          <p className="mt-6 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-            Reads live from the indexer over <ZeroG /> Galileo (chain 16602).
+          <p className="mt-6 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+            Reads live from the indexer over <ZeroG /> Galileo (chain <span className="font-mono-x tabular-nums">16602</span>).
           </p>
         </div>
       </section>
@@ -208,18 +208,18 @@ function SectionHead({
     <Reveal>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+          <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
             {kicker}
           </span>
           <h2 className="font-display mt-3" style={{ fontSize: "clamp(30px, 4.6vw, 54px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
             {title}
           </h2>
-          <p className="mt-3 max-w-[52ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+          <p className="mt-3 max-w-[52ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
             {note}
           </p>
         </div>
         {href && hrefLabel ? (
-          <Link href={href} className="font-mono-x text-[12px] underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
+          <Link href={href} className="text-[16px] font-semibold underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
             {hrefLabel} -&gt;
           </Link>
         ) : null}
@@ -233,14 +233,14 @@ function Glance({ n, label }: { n: number; label: string }) {
   return (
     <div>
       <div className="font-display" style={{ fontSize: "clamp(26px,4vw,40px)", lineHeight: 1, letterSpacing: "-0.01em" }}>{n}</div>
-      <div className="mt-1.5 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>{label}</div>
+      <div className="mt-1.5 label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>{label}</div>
     </div>
   );
 }
 
 function EmptyRow({ label }: { label: string }) {
   return (
-    <p className="mt-10 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
+    <p className="mt-10 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
       {label}
     </p>
   );
@@ -260,7 +260,7 @@ function TrendingCard({ rank, item, agent }: { rank: number; item: TrendingItem;
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
         <img src={portrait} alt={`${agent.name} portrait`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
-        <span className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full font-mono-x text-[11px]" style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}>
+        <span className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full font-mono-x text-[16px]" style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}>
           {rank}
         </span>
         <span className="absolute right-3 top-3"><Chip tone="solid" accent={accent}>{agent.style}</Chip></span>
@@ -268,10 +268,10 @@ function TrendingCard({ rank, item, agent }: { rank: number; item: TrendingItem;
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="font-display" style={{ fontSize: 26, lineHeight: 1 }}>{agent.name}</h3>
-          <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>#{agent.agentId}</span>
+          <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>#{agent.agentId}</span>
         </div>
-        <p className="mt-2 text-[13px] leading-snug" style={{ color: "var(--color-ink-2)" }}>{agent.meta.tagline}</p>
-        <div className="mt-auto flex items-center justify-between border-t pt-4 font-mono-x text-[11px]" style={{ borderColor: "var(--color-border)" }}>
+        <p className="mt-2 text-[16px] leading-snug" style={{ color: "var(--color-ink-2)" }}>{agent.meta.tagline}</p>
+        <div className="mt-auto flex items-center justify-between border-t pt-4 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border)" }}>
           <span style={{ color: "var(--color-ink-3)" }}>
             <span style={{ color: "var(--color-accent)" }}>{item.trendingScore}</span> score
           </span>
@@ -295,21 +295,21 @@ function OutputCard({ output: o, big = false }: { output: Output; big?: boolean 
     return (
       <Link
         href={`/outputs/${o.tokenId}`}
-        className="group relative flex h-full min-h-[260px] flex-col overflow-hidden rounded-[18px] border transition-shadow duration-300 hover:shadow-[var(--shadow-card)]"
+        className="group relative flex h-full min-h-[260px] flex-col overflow-hidden rounded-[18px] border micro hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
         style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
       >
         <div className="relative w-full flex-1 overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
           <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
-          <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 82%, transparent)", color: "var(--color-cream)" }}>
+          <span className="tag micro absolute left-3 top-3" style={{ background: "color-mix(in oklab, var(--color-ink) 78%, transparent)", color: "var(--color-cream)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid color-mix(in oklab, var(--color-cream) 16%, transparent)" }}>
             {o.style}
           </span>
           <span className="absolute right-3 top-3"><RarityBadge rarity={o.rarity} size="sm" hideCommon /></span>
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 pb-4 pt-14" style={{ background: "linear-gradient(to top, color-mix(in oklab, var(--color-ink) 78%, transparent), transparent)" }}>
             <div>
               <div className="font-display text-[clamp(24px,2.6vw,34px)] leading-none" style={{ color: "var(--color-cream)" }}>{o.agentName}</div>
-              <div className="mt-1.5 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "color-mix(in oklab, var(--color-cream) 72%, transparent)" }}>verifiable · tee-attested</div>
+              <div className="mt-1.5 label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "color-mix(in oklab, var(--color-cream) 72%, transparent)" }}>verifiable · tee-attested</div>
             </div>
-            <span className="font-mono-x text-[11px]" style={{ color: "color-mix(in oklab, var(--color-cream) 80%, transparent)" }}>#{o.tokenId}</span>
+            <span className="font-mono-x text-[16px]" style={{ color: "color-mix(in oklab, var(--color-cream) 80%, transparent)" }}>#{o.tokenId}</span>
           </div>
         </div>
       </Link>
@@ -318,12 +318,12 @@ function OutputCard({ output: o, big = false }: { output: Output; big?: boolean 
   return (
     <Link
       href={`/outputs/${o.tokenId}`}
-      className="group block overflow-hidden rounded-[18px] border transition-shadow duration-300 hover:shadow-[var(--shadow-card)]"
+      className="group block overflow-hidden rounded-[18px] border micro hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
       style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
     >
       <div className="relative aspect-square w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
         <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
-        <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)" }}>
+        <span className="tag micro absolute left-3 top-3" style={{ background: "color-mix(in oklab, var(--color-ink) 78%, transparent)", color: "var(--color-cream)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid color-mix(in oklab, var(--color-cream) 16%, transparent)" }}>
           {o.style}
         </span>
         <span className="absolute right-3 top-3"><RarityBadge rarity={o.rarity} size="sm" hideCommon /></span>
@@ -331,13 +331,13 @@ function OutputCard({ output: o, big = false }: { output: Output; big?: boolean 
       <div className="p-4">
         <div className="flex items-baseline justify-between">
           <span className="font-display text-[19px]">{o.agentName}</span>
-          <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>#{o.tokenId}</span>
+          <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>#{o.tokenId}</span>
         </div>
-        <div className="mt-2.5 flex items-center justify-between font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
-          <span className="inline-flex items-center gap-1">
+        <div className="mt-2.5 flex items-center justify-between text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+          <span className="label-caps inline-flex items-center gap-1" style={{ letterSpacing: "0.08em" }}>
             tee <span style={{ color: "var(--color-ok)" }}>✓</span>
           </span>
-          <span style={{ color: "var(--color-accent)" }}>Verify -&gt;</span>
+          <span className="font-semibold" style={{ color: "var(--color-accent)" }}>Verify -&gt;</span>
         </div>
       </div>
     </Link>
@@ -351,14 +351,14 @@ function CreatorRow({ rank, creator: c }: { rank: number; creator: CreatorRollup
   const href = topAgent ? `/agents/${topAgent.agentId}` : "/agents";
   return (
     <li className="flex items-center gap-4 border-b px-5 py-4 last:border-b-0 sm:px-6" style={{ borderColor: "var(--color-border)" }}>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono-x text-[11px]" style={{ background: rank <= 3 ? "var(--color-ink)" : "transparent", color: rank <= 3 ? "var(--color-cream)" : "var(--color-ink-3)", border: rank <= 3 ? "none" : "1px solid var(--color-border-strong)" }}>
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono-x text-[16px]" style={{ background: rank <= 3 ? "var(--color-ink)" : "transparent", color: rank <= 3 ? "var(--color-cream)" : "var(--color-ink-3)", border: rank <= 3 ? "none" : "1px solid var(--color-border-strong)" }}>
         {rank}
       </span>
       <div className="min-w-0 flex-1">
-        <Link href={href} className="font-mono-x text-[13px] underline-offset-4 hover:underline" style={{ color: "var(--color-ink)" }}>
+        <Link href={href} className="font-mono-x text-[16px] underline-offset-4 hover:underline" style={{ color: "var(--color-ink)" }}>
           {shortHex(c.owner)}
         </Link>
-        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
+        <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
           {c.agents.slice(0, 3).map((a, i) => (
             <span key={a.agentId}>
               {i > 0 ? <span className="mr-2" style={{ color: "var(--color-border-strong)" }}>·</span> : null}
@@ -369,13 +369,13 @@ function CreatorRow({ rank, creator: c }: { rank: number; creator: CreatorRollup
         </div>
       </div>
       <div className="hidden shrink-0 text-right sm:block">
-        <div className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>{c.outputCount} relics · {c.salesCount} sales</div>
+        <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>{c.outputCount} relics · {c.salesCount} sales</div>
       </div>
       <div className="shrink-0 text-right">
-        <div className="font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>
+        <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
           {c.royaltiesEarned} <span style={{ color: "var(--color-ink-3)" }}>0G</span>
         </div>
-        <div className="font-mono-x text-[9px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>royalties</div>
+        <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>royalties</div>
       </div>
     </li>
   );
@@ -405,24 +405,24 @@ function ActivityRow({ index, e }: { index: number; e: Activity }) {
       className="group flex items-center gap-4 border-b px-5 py-4 transition-colors last:border-b-0 hover:bg-[color-mix(in_oklab,var(--color-ink)_4%,transparent)] sm:px-6"
       style={{ borderColor: "var(--color-border)" }}
     >
-      <span className="font-mono-x text-[11px] tabular-nums" style={{ color: "var(--color-ink-3)" }}>
+      <span className="font-mono-x text-[16px] tabular-nums" style={{ color: "var(--color-ink-3)" }}>
         {String(index).padStart(2, "0")}
       </span>
       <Chip tone={isSale ? "accent" : "default"}>{KIND_LABEL[e.kind] ?? e.kind}</Chip>
       <div className="min-w-0 flex-1">
         {href ? (
-          <Link href={href} className="block truncate font-mono-x text-[12px] underline-offset-2 group-hover:underline" style={{ color: "var(--color-ink)" }}>
+          <Link href={href} className="block truncate text-[16px] font-medium underline-offset-2 group-hover:underline" style={{ color: "var(--color-ink)" }}>
             {label}
           </Link>
         ) : (
-          <div className="truncate font-mono-x text-[12px]" style={{ color: "var(--color-ink)" }}>{label}</div>
+          <div className="truncate text-[16px] font-medium" style={{ color: "var(--color-ink)" }}>{label}</div>
         )}
-        <div className="mt-0.5 font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
+        <div className="mt-0.5 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
           {timeAgo(e.timestamp)}
           {e.txHash ? (
             <>
               {" · "}
-              <a href={`${EXPLORER}/tx/${e.txHash}`} target="_blank" rel="noreferrer" className="underline underline-offset-2" style={{ color: "var(--color-accent)" }}>
+              <a href={`${EXPLORER}/tx/${e.txHash}`} target="_blank" rel="noreferrer" className="font-mono-x underline underline-offset-2" style={{ color: "var(--color-accent)" }}>
                 {shortHex(e.txHash)}
               </a>
             </>
@@ -430,7 +430,7 @@ function ActivityRow({ index, e }: { index: number; e: Activity }) {
         </div>
       </div>
       {e.price ? (
-        <span className="shrink-0 font-mono-x text-[12px]" style={{ color: "var(--color-ink)" }}>
+        <span className="shrink-0 font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
           {e.price} <span style={{ color: "var(--color-ink-3)" }}>0G</span>
         </span>
       ) : null}

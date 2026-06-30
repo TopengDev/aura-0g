@@ -49,7 +49,7 @@ export function Pager({
       </PagerButton>
       {pages.map((p, i) =>
         p === -1 ? (
-          <span key={`gap-${i}`} className="px-1.5 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }} aria-hidden>
+          <span key={`gap-${i}`} className="px-1.5 font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }} aria-hidden>
             …
           </span>
         ) : (
@@ -82,10 +82,10 @@ function PagerButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="min-w-[34px] rounded-full px-3 py-2 font-mono-x text-[11px] uppercase tracking-[0.08em] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+      className="micro min-w-[40px] rounded-[10px] px-3.5 py-2 text-[16px] font-semibold tabular-nums hover:-translate-y-px active:translate-y-0 active:scale-[0.95] disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-35"
       style={
         active
-          ? { background: "var(--color-ink)", color: "var(--color-cream)" }
+          ? { background: "var(--color-ink)", color: "var(--color-cream)", border: "1px solid var(--color-ink)" }
           : { border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }
       }
       {...rest}

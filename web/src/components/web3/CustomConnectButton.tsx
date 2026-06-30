@@ -9,8 +9,8 @@ import { useBalance } from "wagmi";
 // wallet is elsewhere.
 const base = {
   borderRadius: 9999,
-  fontFamily: "var(--font-mono)",
-  fontWeight: 500,
+  fontFamily: "var(--font-body)",
+  fontWeight: 600,
   cursor: "pointer",
   transition: "opacity .15s ease",
 } as const;
@@ -26,7 +26,7 @@ export function CustomConnectButton() {
               <button
                 type="button"
                 onClick={openConnectModal}
-                style={{ ...base, fontSize: 13.5, padding: "11px 22px", background: "var(--color-ink)", color: "var(--color-cream)", border: "1px solid var(--color-ink)" }}
+                style={{ ...base, fontSize: 16, padding: "10px 22px", background: "var(--color-ink)", color: "var(--color-cream)", border: "1px solid var(--color-ink)" }}
               >
                 Connect wallet
               </button>
@@ -34,7 +34,7 @@ export function CustomConnectButton() {
               <button
                 type="button"
                 onClick={openChainModal}
-                style={{ ...base, fontSize: 13, padding: "11px 18px", background: "transparent", color: "var(--color-warn)", border: "1px solid var(--color-warn)" }}
+                style={{ ...base, fontSize: 16, padding: "10px 18px", background: "transparent", color: "var(--color-warn)", border: "1px solid var(--color-warn)" }}
               >
                 Wrong network. Switch
               </button>
@@ -67,12 +67,13 @@ function ConnectedChip({
     <button
       type="button"
       onClick={onClick}
-      style={{ ...base, display: "inline-flex", alignItems: "center", gap: 9, fontSize: 12.5, padding: "9px 15px", background: "var(--color-paper)", color: "var(--color-ink)", border: "1px solid var(--color-border-strong)" }}
+      style={{ ...base, display: "inline-flex", alignItems: "center", gap: 10, fontSize: 16, padding: "8px 16px", background: "var(--color-paper)", color: "var(--color-ink)", border: "1px solid var(--color-border-strong)" }}
     >
-      <span style={{ width: 7, height: 7, borderRadius: 9999, background: "var(--color-ok)", flexShrink: 0 }} />
+      {/* a short accent tick marks the connected/live state (not a status dot - Christopher bans dots) */}
+      <span style={{ width: 12, height: 2, background: "var(--color-ok)", flexShrink: 0 }} />
       <span>{displayName}</span>
       {amount ? (
-        <span style={{ fontSize: 11, letterSpacing: "0.04em", color: "var(--color-ink-3)" }}>{amount}</span>
+        <span className="font-mono-x tabular-nums" style={{ fontSize: 16, color: "var(--color-ink-3)" }}>{amount}</span>
       ) : null}
     </button>
   );

@@ -149,14 +149,14 @@ export function SummonPanel({
       style={{ borderColor: "var(--color-border-strong)", background: "var(--color-cream-warm)" }}
     >
       <div className="flex items-center justify-between gap-3">
-        <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+        <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
           Summon
         </span>
         {summonable ? <Chip tone="accent">Live commission</Chip> : <Chip>Not summonable</Chip>}
       </div>
 
       {note ? (
-        <div className="mt-4 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+        <div className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
           {note}
         </div>
       ) : null}
@@ -167,7 +167,7 @@ export function SummonPanel({
           <div className="font-display" style={{ fontSize: "clamp(34px,6vw,54px)", lineHeight: 1, letterSpacing: "-0.01em" }}>
             {price} <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
           </div>
-          <div className="mt-1 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+          <div className="mt-1 font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
             commission an original 1/1, generated live by {agentName}
           </div>
         </div>
@@ -181,7 +181,7 @@ export function SummonPanel({
           <StepRail steps={progressSteps(status?.status ?? "pending", delivered)} />
 
           {!terminal ? (
-            <div className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+            <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
               live generation takes ~42s inside the TEE · {elapsed}s elapsed
             </div>
           ) : null}
@@ -190,7 +190,7 @@ export function SummonPanel({
             <DeliveredCard status={status!} />
           ) : status?.expired ? (
             <div className="space-y-3">
-              <div className="rounded-xl border p-3 text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+              <div className="rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                 The Aura did not deliver before the deadline. Reclaim your payment (anti-rug).
               </div>
               <ActionButton variant="warn" onClick={() => refund(requestId)} disabled={busy}>
@@ -201,7 +201,7 @@ export function SummonPanel({
         </div>
       ) : !isConnected ? (
         <div className="space-y-3">
-          <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+          <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
             Connect a wallet on the 0G Galileo testnet to summon {agentName}.
           </p>
           <ConnectButton.Custom>
@@ -213,7 +213,7 @@ export function SummonPanel({
           {busy && state.action === "summon" ? phaseLabel(state.phase) : `Summon for ${price} 0G`}
         </ActionButton>
       ) : (
-        <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+        <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
           {isOwner
             ? "You own this Aura. Set a commission price below to let collectors summon it."
             : "The owner hasn’t opened this Aura for commissions yet."}
@@ -223,28 +223,28 @@ export function SummonPanel({
       {/* ── owner controls: price + earnings ── */}
       {isOwner ? (
         <div className="mt-6 space-y-3 rounded-[16px] border p-4" style={{ borderColor: "var(--color-border)" }}>
-          <div className="font-mono-x text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
+          <div className="label-caps text-[13px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
             Owner · this Aura earns for you
           </div>
-          <div className="flex items-center rounded-full border px-4" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
+          <div className="micro flex items-center rounded-[14px] border px-4 focus-within:border-[var(--color-accent)]" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
             <input
               inputMode="decimal"
               value={priceInput}
               onChange={(e) => setPriceInput(e.target.value)}
               placeholder={summonable ? `Update price (now ${price} 0G)` : "Set a commission price (e.g. 0.05)"}
-              className="w-full bg-transparent py-3 font-mono-x text-[13px] outline-none"
+              className="w-full bg-transparent py-3 font-medium text-[16px] outline-none"
               style={{ color: "var(--color-ink)" }}
             />
-            <span className="font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
+            <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
           </div>
           <ActionButton variant="outline" onClick={onSetPrice} disabled={busy || !validPrice(priceInput)}>
             {busy && state.action === "setPrice" ? phaseLabel(state.phase) : summonable ? "Update commission price" : "Open for commissions"}
           </ActionButton>
           <div className="flex items-center justify-between gap-3 pt-1">
-            <div className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+            <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
               earnings to withdraw
             </div>
-            <div className="font-mono-x text-[13px]" style={{ color: hasEarnings ? "var(--color-ok)" : "var(--color-ink-3)" }}>
+            <div className="font-mono-x text-[16px]" style={{ color: hasEarnings ? "var(--color-ok)" : "var(--color-ink-3)" }}>
               {earnings} 0G
             </div>
           </div>
@@ -274,7 +274,7 @@ function DeliveredCard({ status }: { status: SummonStatus }) {
     <div className="rounded-[16px] border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
       <div className="flex items-center gap-2">
         <Chip tone="ok">Delivered</Chip>
-        <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+        <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
           relic #{status.tokenId}
         </span>
       </div>
@@ -284,7 +284,7 @@ function DeliveredCard({ status }: { status: SummonStatus }) {
           <img src={imageUrl(status.imageRoot)} alt={`Summoned relic #${status.tokenId}`} className="block w-full" loading="lazy" />
         </Link>
       ) : null}
-      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[16px]">
         <Link href={`/verify?id=${status.tokenId}`} className="underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
           Verify provenance + the paid split
         </Link>
@@ -294,7 +294,7 @@ function DeliveredCard({ status }: { status: SummonStatus }) {
           </a>
         ) : null}
       </div>
-      <p className="mt-3 text-[12px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+      <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         Yours now. The {status.fee ?? ""} 0G fee just paid the Aura&rsquo;s current owner, and every future
         resale royalty follows the Aura too.
       </p>
@@ -317,8 +317,8 @@ function WriteStatus({ state, onReset }: { state: ReturnType<typeof useSummon>["
   if (state.phase === "idle") return null;
   if (state.phase === "error") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
-        <div className="font-mono-x">{state.error}</div>
+      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+        <div className="font-medium">{state.error}</div>
         <button type="button" onClick={onReset} className="mt-2 underline underline-offset-4">
           Try again
         </button>
@@ -327,8 +327,8 @@ function WriteStatus({ state, onReset }: { state: ReturnType<typeof useSummon>["
   }
   if (state.phase === "success" && state.action !== "summon") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[12px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
-        <div className="font-mono-x">{state.step ?? "Done"} ✓</div>
+      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
+        <div className="font-medium">{state.step ?? "Done"} ✓</div>
         <button type="button" onClick={onReset} className="mt-1 underline underline-offset-4">
           Done
         </button>
@@ -337,7 +337,7 @@ function WriteStatus({ state, onReset }: { state: ReturnType<typeof useSummon>["
   }
   if (state.phase === "pending" || state.phase === "confirming") {
     return (
-      <div className="mt-4 rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+      <div className="mt-4 rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
         {state.step ?? "Working…"}
         {state.txHash ? (
           <a href={`${EXPLORER}/tx/${state.txHash}`} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-accent)" }}>

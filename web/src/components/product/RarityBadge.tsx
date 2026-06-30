@@ -41,10 +41,10 @@ export function RarityBadge({
     border: `1px solid ${t.ring}`,
     boxShadow: tier === "Legendary" ? `0 0 0 1px ${t.ring}, 0 2px 10px -4px ${t.ring}` : undefined,
   };
-  const pad = size === "sm" ? "px-2 py-0.5 text-[9px]" : "px-2.5 py-1 text-[10px]";
+  const pad = size === "sm" ? "px-2 py-1 text-[12.5px]" : "px-2.5 py-1.5 text-[13px]";
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded-full font-mono-x uppercase tracking-[0.12em] ${pad} ${className}`}
+      className={`label-caps micro inline-flex items-center gap-1 rounded-[6px] tracking-[0.1em] ${pad} ${className}`}
       style={style}
       title={`Rarity: ${t.label} (provably derived from the on-chain seed)`}
     >

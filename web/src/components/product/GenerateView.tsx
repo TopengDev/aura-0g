@@ -270,7 +270,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
             {/* Agent picker */}
             <Reveal>
               <Panel className="p-5">
-                <div className="mb-3 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="mb-3 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   The Aura
                 </div>
 
@@ -284,15 +284,15 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                         type="button"
                         disabled={flow === "generating" || flow === "minting"}
                         onClick={() => handlePickAgent(a.agentId)}
-                        className="flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                        className="micro flex items-center gap-2 rounded-[12px] py-1.5 pl-1.5 pr-3.5 hover:-translate-y-px active:translate-y-0 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
                         style={
                           active
-                            ? { background: "var(--color-ink)", color: "var(--color-cream)" }
+                            ? { background: "var(--color-ink)", color: "var(--color-cream)", border: "1px solid var(--color-ink)" }
                             : { border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }
                         }
                       >
-                        <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-full object-cover" />
-                        <span className="font-mono-x text-[12px]">{a.name}</span>
+                        <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-[7px] object-cover" />
+                        <span className="text-[16px] font-semibold">{a.name}</span>
                       </button>
                     );
                   })}
@@ -317,7 +317,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       onChange={(e) => { setAgentSearch(e.target.value); setSearchOpen(true); }}
                       onFocus={() => setSearchOpen(true)}
                       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => { if (e.key === "Escape") setSearchOpen(false); }}
-                      className="w-full rounded-[14px] border border-[var(--color-border-strong)] py-2.5 pl-9 pr-4 font-mono-x text-[13px] outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
+                      className="w-full rounded-[14px] border border-[var(--color-border-strong)] py-2.5 pl-9 pr-4 font-medium text-[16px] outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
                       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
                       aria-label="Search Auras"
                       aria-haspopup="listbox"
@@ -332,7 +332,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       style={{ background: "var(--color-paper)", borderColor: "var(--color-border-strong)" }}
                     >
                       {filteredForDropdown.length === 0 ? (
-                        <p className="px-4 py-3 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
+                        <p className="px-4 py-3 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                           No Auras match
                         </p>
                       ) : (
@@ -350,11 +350,11 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                               style={active ? { background: "var(--color-cream-warm)" } : {}}
                             >
                               <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-full object-cover" />
-                              <span className="font-mono-x text-[12px]" style={{ color: active ? "var(--color-accent)" : "var(--color-ink)" }}>
+                              <span className="font-mono-x text-[16px]" style={{ color: active ? "var(--color-accent)" : "var(--color-ink)" }}>
                                 {a.name}
                               </span>
                               {active && (
-                                <span className="ml-auto font-mono-x text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--color-accent)" }}>
+                                <span className="ml-auto label-caps text-[13px] uppercase tracking-[0.08em]" style={{ color: "var(--color-accent)" }}>
                                   selected
                                 </span>
                               )}
@@ -367,7 +367,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                 </div>
 
                 {agent ? (
-                  <p className="mt-4 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     {agent.meta.aesthetic}
                   </p>
                 ) : null}
@@ -377,7 +377,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
             {/* Compose */}
             <Reveal delay={0.04}>
               <Panel className="p-5">
-                <div className="mb-4 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="mb-4 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   The prompt
                 </div>
                 <Field label="Describe the work" hint={`${prompt.trim().length} chars`}>
@@ -394,7 +394,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                     }
                   />
                 </Field>
-                <p className="mt-3 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+                <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                   The Aura fuses your prompt with its sealed style DNA. The seed is chosen at generation
                   and committed on-chain, so the exact Relic is reproducible and provable.
                 </p>
@@ -419,7 +419,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
             <Reveal delay={0.05}>
               <div className="rounded-[22px] border p-6" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-cream-warm)" }}>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     The flow
                   </span>
                   <Chip tone="accent">attestation-gated</Chip>
@@ -434,7 +434,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                 {/* The action zone changes by phase + connection */}
                 {!isConnected ? (
                   <div className="space-y-3">
-                    <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+                    <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
                       Connect a wallet on the 0G Galileo testnet. You sign in once (SIWE) to generate, and
                       sign again only to mint.
                     </p>
@@ -448,18 +448,18 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       {flow === "signin" ? "Sign in to AURA..." : "Generate"}
                     </ActionButton>
                     {!validPrompt ? (
-                      <p className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                      <p className="text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                         Write at least a few words to begin.
                       </p>
                     ) : null}
                     {flow === "error" && error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {error}
                       </div>
                     ) : null}
                   </div>
                 ) : flow === "generating" ? (
-                  <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+                  <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
                     {job ? jobLabel(job.status) : "Starting the sponsor job"}
                     {job?.progress ? <span className="ml-1" style={{ color: "var(--color-ink-3)" }}>· {job.progress}</span> : null}
                   </div>
@@ -477,17 +477,17 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                     <ActionButton onClick={onMint} disabled={minting || !mintArgs}>
                       {minting ? (mintState.step ?? "Minting...") : "Sign mint in your wallet"}
                     </ActionButton>
-                    <p className="text-center font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                    <p className="text-center text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                       Minting costs a little <ZeroG /> for gas.{" "}
                       <Link href="/faucet" className="underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
                         Need some? Faucet -&gt;
                       </Link>
                     </p>
-                    <button type="button" onClick={onReset} className="w-full text-center font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
+                    <button type="button" onClick={onReset} className="w-full text-center font-semibold text-[16px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
                       Discard and start over
                     </button>
                     {mintState.phase === "error" && mintState.error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {mintState.error}
                       </div>
                     ) : null}
@@ -495,11 +495,11 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                 ) : flow === "minted" ? (
                   <div className="space-y-3">
                     <div className="rounded-xl border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
-                      <div className="font-mono-x text-[12px]" style={{ color: "var(--color-ok)" }}>
+                      <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ok)" }}>
                         Minted on-chain ✓
                       </div>
                       {mintState.txHash ? (
-                        <a href={`${EXPLORER}/tx/${mintState.txHash}`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
+                        <a href={`${EXPLORER}/tx/${mintState.txHash}`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-semibold text-[16px] underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
                           {shortHex(mintState.txHash)} on 0G Scan
                         </a>
                       ) : null}
@@ -509,13 +509,13 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                         View relic #{mintState.mintedId} -&gt;
                       </ActionButton>
                     ) : null}
-                    <button type="button" onClick={onReset} className="w-full text-center font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
+                    <button type="button" onClick={onReset} className="w-full text-center font-semibold text-[16px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
                       Generate another
                     </button>
                   </div>
                 ) : null}
 
-                <p className="mt-5 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+                <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                   The attestation is an EIP-712 signature from the TEE attestor. The contract reverts
                   unless it recovers that signer, so a forged or replayed mint is impossible.
                 </p>
@@ -525,10 +525,10 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
             {agent ? (
               <Reveal delay={0.1}>
                 <Link href={`/agents/${agent.agentId}`} className="mt-4 flex items-center justify-between rounded-[18px] border p-3 transition-shadow hover:shadow-[var(--shadow-card)]" style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}>
-                  <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                  <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                     Relic royalty {agent.royaltyPct}% · follows the Aura
                   </span>
-                  <span className="font-mono-x text-[11px]" style={{ color: "var(--color-accent)" }}>
+                  <span className="font-mono-x text-[16px]" style={{ color: "var(--color-accent)" }}>
                     {agent.name} -&gt;
                   </span>
                 </Link>
@@ -574,7 +574,7 @@ function PreviewSurface({
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
             <div className="aura-skeleton h-full w-full" style={{ position: "absolute", inset: 0 }} />
             <div className="relative z-10 flex flex-col items-center gap-2">
-              <span className="font-mono-x text-[12px]" style={{ color: "var(--color-ink-2)" }}>
+              <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-2)" }}>
                 {job ? jobLabel(job.status) : "Starting"}
               </span>
             </div>
@@ -585,7 +585,7 @@ function PreviewSurface({
           <span className="absolute left-4 top-4"><Chip tone="ok">TEE-attested</Chip></span>
         ) : null}
       </div>
-      <div className="flex items-center justify-between px-4 py-3 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+      <div className="flex items-center justify-between px-4 py-3 font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
         <span>{previewUrl ? "Generated preview" : generating ? "Painting in a trusted enclave" : "Preview appears here"}</span>
         {job?.result?.latencyMs ? <span>{(job.result.latencyMs / 1000).toFixed(1)}s</span> : null}
       </div>

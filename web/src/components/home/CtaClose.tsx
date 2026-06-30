@@ -18,7 +18,8 @@ export function CtaClose() {
         style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}
       >
         <div ref={ref} className="mx-auto max-w-[760px]">
-          <span className="font-mono-x text-[11px] uppercase tracking-[0.18em]" style={{ color: "color-mix(in oklab, var(--color-cream) 60%, transparent)" }}>
+          <span className="label-caps inline-flex items-center gap-3 text-[13px]" style={{ color: "color-mix(in oklab, var(--color-cream) 66%, transparent)" }}>
+            <span className="h-px w-7" style={{ background: "color-mix(in oklab, var(--color-cream) 40%, transparent)" }} aria-hidden />
             Start now. It is free.
           </span>
           <h2 className="font-display mt-5" style={{ fontSize: "clamp(36px, 6.6vw, 84px)", lineHeight: 0.98, letterSpacing: "-0.02em" }}>
@@ -32,14 +33,14 @@ export function CtaClose() {
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/explore"
-              className="rounded-full px-8 py-4 font-mono-x text-[13px] tracking-[0.02em] transition-opacity hover:opacity-90"
+              className="micro rounded-full px-8 py-4 text-[16px] font-semibold tracking-[0.005em] hover:-translate-y-px hover:shadow-[0_14px_30px_-16px_rgba(0,0,0,0.6)] active:translate-y-0 active:scale-[0.98]"
               style={{ background: "var(--color-cream)", color: "var(--color-ink)" }}
             >
               Explore the gallery
             </Link>
             <Link
               href="/generate"
-              className="rounded-full border px-8 py-4 font-mono-x text-[13px] tracking-[0.02em] transition-colors"
+              className="micro rounded-full border px-8 py-4 text-[16px] font-semibold tracking-[0.005em] hover:-translate-y-px hover:bg-[color-mix(in_oklab,var(--color-cream)_12%,transparent)] active:translate-y-0 active:scale-[0.98]"
               style={{ borderColor: "color-mix(in oklab, var(--color-cream) 30%, transparent)", color: "var(--color-cream)" }}
             >
               Generate free

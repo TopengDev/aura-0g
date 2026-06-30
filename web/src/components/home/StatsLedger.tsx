@@ -2,6 +2,7 @@
 
 import { Reveal } from "@/components/Reveal";
 import { ZeroG } from "@/components/atoms/ZeroG";
+import { Kicker } from "./Kicker";
 import { CountUp } from "./CountUp";
 
 // Section 3 - LIVE STATS ledger. Skeleton: split-asymmetric (label column left, big figures right,
@@ -38,13 +39,11 @@ export function StatsLedger({ data }: { data: LedgerData }) {
       <div className="mx-auto grid w-full max-w-[var(--container-wrap)] gap-12 md:grid-cols-[0.5fr_1fr]">
         <Reveal>
           <div className="md:sticky md:top-28">
-            <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-              The ledger
-            </span>
-            <h2 className="font-display mt-3" style={{ fontSize: "clamp(30px, 4.4vw, 52px)", lineHeight: 1.02, letterSpacing: "-0.015em" }}>
+            <Kicker index="02" label="The ledger" />
+            <h2 className="font-display mt-5" style={{ fontSize: "clamp(30px, 4.4vw, 52px)", lineHeight: 1.02, letterSpacing: "-0.015em" }}>
               Live, on-chain, and counting.
             </h2>
-            <p className="mt-4 max-w-[34ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+            <p className="mt-4 max-w-[34ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
               Not a mockup. Every figure here is read straight from the indexer and the <ZeroG /> Galileo
               testnet, right now.
             </p>
@@ -57,8 +56,8 @@ export function StatsLedger({ data }: { data: LedgerData }) {
               <div className="w-full border-t py-7 first:border-t-0 sm:py-8" style={{ borderColor: "var(--color-border)" }}>
                 <div className="flex flex-wrap items-end justify-between gap-4">
                   <div>
-                    <div className="text-[15px] font-medium" style={{ color: "var(--color-ink)" }}>{r.label}</div>
-                    <div className="font-mono-x text-[11px] uppercase tracking-[0.08em]" style={{ color: "var(--color-ink-3)" }}>{r.sub}</div>
+                    <div className="text-[18px] font-semibold" style={{ color: "var(--color-ink)" }}>{r.label}</div>
+                    <div className="label-caps mt-1 text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>{r.sub}</div>
                   </div>
                   <div
                     className="font-display tabular-nums"
@@ -72,11 +71,11 @@ export function StatsLedger({ data }: { data: LedgerData }) {
           ))}
           {data.sponsorBalance != null && (
             <Reveal delay={0.3}>
-              <div className="mt-2 flex items-center justify-between border-t pt-5" style={{ borderColor: "var(--color-border)" }}>
-                <span className="font-mono-x text-[11px] uppercase tracking-[0.08em]" style={{ color: "var(--color-ink-3)" }}>
+              <div className="mt-2 flex items-center justify-between gap-4 border-t pt-5" style={{ borderColor: "var(--color-border)" }}>
+                <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>
                   Sponsor balance (covers free generation)
                 </span>
-                <span className="font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>
+                <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink)" }}>
                   {data.sponsorBalance.toFixed(3)} <ZeroG />
                 </span>
               </div>

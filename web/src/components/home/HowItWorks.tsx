@@ -2,6 +2,7 @@
 
 import { Reveal } from "@/components/Reveal";
 import { ZeroG } from "@/components/atoms/ZeroG";
+import { Kicker } from "./Kicker";
 import { useInView } from "@/lib/useInView";
 
 // Section 7 - HOW IT WORKS. Skeleton: index-numbered vertical timeline (left/center spine, oversized
@@ -38,11 +39,9 @@ export function HowItWorks() {
     <section id="how" className="relative px-5 py-28 sm:px-8 sm:py-36">
       <div className="mx-auto w-full max-w-[940px]">
         <Reveal>
-          <div className="mb-16 text-center">
-            <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-              The pipeline
-            </span>
-            <h2 className="font-display mt-3" style={{ fontSize: "clamp(32px, 5.4vw, 64px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
+          <div className="mb-16 flex flex-col items-center text-center">
+            <Kicker label="The pipeline" />
+            <h2 className="font-display mt-5" style={{ fontSize: "clamp(32px, 5.4vw, 64px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
               How it works.
             </h2>
           </div>
@@ -78,17 +77,17 @@ export function HowItWorks() {
                         {s.n}
                       </span>
                     </div>
-                    {/* node on the spine */}
+                    {/* node on the spine: a short hairline tick (not a dot - Christopher bans decorative dots) */}
                     <span
-                      className="absolute left-[22px] top-2 z-10 h-3 w-3 rounded-full border-2 md:left-1/2 md:-translate-x-1/2"
-                      style={{ background: "var(--color-cream)", borderColor: "var(--color-accent)" }}
+                      className="absolute left-[18px] top-[14px] z-10 h-px w-[18px] md:left-1/2 md:-translate-x-1/2"
+                      style={{ background: "var(--color-accent)" }}
                       aria-hidden
                     />
                     <div className="md:w-1/2">
                       <h3 className="font-display" style={{ fontSize: "clamp(22px, 3vw, 30px)", lineHeight: 1.1 }}>
                         {s.title}
                       </h3>
-                      <p className="mt-3 max-w-[42ch] text-[15px] leading-relaxed md:inline-block" style={{ color: "var(--color-ink-2)" }}>
+                      <p className="mt-3 max-w-[42ch] text-[16px] leading-relaxed md:inline-block" style={{ color: "var(--color-ink-2)" }}>
                         {s.body}
                       </p>
                     </div>

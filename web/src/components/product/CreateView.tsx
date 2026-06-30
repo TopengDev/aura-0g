@@ -229,14 +229,14 @@ export function CreateView() {
             {/* Reference image */}
             <Reveal>
               <Panel className="p-5">
-                <div className="mb-3 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="mb-3 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Reference image
                 </div>
                 <ImageDrop imageUrl={imageUrl} onPick={onPickImage} disabled={flow === "building" || flow === "minting"} />
                 {imageError ? (
-                  <p className="mt-2 font-mono-x text-[11px]" style={{ color: "var(--color-warn)" }}>{imageError}</p>
+                  <p className="mt-2 text-[16px]" style={{ color: "var(--color-warn)" }}>{imageError}</p>
                 ) : (
-                  <p className="mt-2 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                  <p className="mt-2 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                     PNG or JPEG, {MIN_PX} to {MAX_PX}px each side. This becomes the Aura&apos;s determinism anchor.
                   </p>
                 )}
@@ -246,7 +246,7 @@ export function CreateView() {
             {/* Identity */}
             <Reveal delay={0.04}>
               <Panel className="p-5 space-y-4">
-                <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Identity
                 </div>
                 <Field label="Aura name" hint={`${name.trim().length}/48`}>
@@ -264,7 +264,7 @@ export function CreateView() {
             {/* Direction (advanced, optional) */}
             <Reveal delay={0.05}>
               <Panel className="p-5 space-y-4">
-                <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Direction <span style={{ color: "var(--color-ink-3)", opacity: 0.7 }}>· optional</span>
                 </div>
                 <Field label="Identity lock">
@@ -279,7 +279,7 @@ export function CreateView() {
             {/* Royalties */}
             <Reveal delay={0.06}>
               <Panel className="p-5">
-                <div className="mb-4 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="mb-4 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Royalties
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -290,12 +290,12 @@ export function CreateView() {
                     <TextInput value={resalePct} onChange={setResalePct} inputMode="decimal" type="text" placeholder="10" disabled={flow === "building" || flow === "minting"} />
                   </Field>
                 </div>
-                <p className="mt-3 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+                <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                   Relic royalty routes to whoever owns this Aura on every sale of its work. Aura resale
                   royalty pays you, the original creator, each time the Aura itself is resold.
                 </p>
                 {(!validPct(royaltyPct) || !validPct(resalePct)) ? (
-                  <p className="mt-2 font-mono-x text-[11px]" style={{ color: "var(--color-warn)" }}>
+                  <p className="mt-2 text-[16px]" style={{ color: "var(--color-warn)" }}>
                     Each royalty must be between 0 and 20%.
                   </p>
                 ) : null}
@@ -308,7 +308,7 @@ export function CreateView() {
             <Reveal delay={0.05}>
               <div className="rounded-[22px] border p-6" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-cream-warm)" }}>
                 <div className="flex items-center justify-between gap-3">
-                  <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     Mint flow
                   </span>
                   <Chip tone="accent">permissionless</Chip>
@@ -322,7 +322,7 @@ export function CreateView() {
 
                 {!isConnected ? (
                   <div className="space-y-3">
-                    <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+                    <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
                       Connect a wallet on the 0G Galileo testnet. You sign in once (SIWE) to build, and
                       sign again to mint the Aura.
                     </p>
@@ -336,18 +336,18 @@ export function CreateView() {
                       {flow === "signin" ? "Sign in to AURA..." : "Build the Aura"}
                     </ActionButton>
                     {!formValid ? (
-                      <p className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                      <p className="text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                         Add a reference image, a name, and a style descriptor to begin.
                       </p>
                     ) : null}
                     {flow === "error" && error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {error}
                       </div>
                     ) : null}
                   </div>
                 ) : flow === "building" ? (
-                  <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+                  <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
                     Storing to 0G, encrypting the brain, deriving the attestation. This takes a few seconds.
                   </div>
                 ) : flow === "ready" || flow === "minting" || flow === "confirming" ? (
@@ -362,7 +362,7 @@ export function CreateView() {
                       </dl>
                     ) : null}
                     {flow === "confirming" ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
                         Activating the Aura brain
                       </div>
                     ) : (
@@ -370,11 +370,11 @@ export function CreateView() {
                         {minting ? (mintState.step ?? "Minting...") : "Sign mint in your wallet"}
                       </ActionButton>
                     )}
-                    <button type="button" onClick={onReset} className="w-full text-center font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
+                    <button type="button" onClick={onReset} className="w-full text-center font-semibold text-[16px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
                       Discard and start over
                     </button>
                     {mintState.phase === "error" && mintState.error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {mintState.error}
                       </div>
                     ) : null}
@@ -382,11 +382,11 @@ export function CreateView() {
                 ) : flow === "minted" ? (
                   <div className="space-y-3">
                     <div className="rounded-xl border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
-                      <div className="font-mono-x text-[12px]" style={{ color: "var(--color-ok)" }}>
+                      <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ok)" }}>
                         Aura registered on-chain ✓
                       </div>
                       {mintState.txHash ? (
-                        <a href={`${EXPLORER}/tx/${mintState.txHash}`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
+                        <a href={`${EXPLORER}/tx/${mintState.txHash}`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-semibold text-[16px] underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
                           {shortHex(mintState.txHash)} on 0G Scan
                         </a>
                       ) : null}
@@ -397,13 +397,13 @@ export function CreateView() {
                         <ActionButton href={`/generate?agent=${mintedId}`} variant="outline">Generate with it -&gt;</ActionButton>
                       </>
                     ) : null}
-                    <button type="button" onClick={onReset} className="w-full text-center font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
+                    <button type="button" onClick={onReset} className="w-full text-center font-semibold text-[16px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
                       Create another
                     </button>
                   </div>
                 ) : null}
 
-                <p className="mt-5 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+                <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                   The style fingerprint is a keccak hash of the canonical public style. It is committed
                   on-chain at mint, so the Aura&apos;s identity is provable and cannot drift silently.
                 </p>
@@ -461,7 +461,7 @@ function ImageDrop({
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="absolute bottom-3 right-3 rounded-full px-3 py-1.5 font-mono-x text-[11px]"
+              className="micro absolute bottom-3 right-3 rounded-[10px] px-3.5 py-1.5 text-[16px] font-semibold hover:-translate-y-px active:scale-[0.96]"
               style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}
             >
               Replace
@@ -480,7 +480,7 @@ function ImageDrop({
             <path d="M3 16l5-5 4 4 3-3 6 6" strokeLinecap="round" strokeLinejoin="round" />
             <circle cx="8.5" cy="8.5" r="1.5" />
           </svg>
-          <span className="font-mono-x text-[12px]" style={{ color: "var(--color-ink-2)" }}>Drop an image or click to choose</span>
+          <span className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>Drop an image or click to choose</span>
         </button>
       )}
     </div>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { motion } from "framer-motion";
 import type { CSSProperties, ReactNode } from "react";
 
 // Shared product-page primitives. These apply the Technical Editorial system CONSISTENTLY (the per-
@@ -26,7 +27,7 @@ export function PageHeader({
 }) {
   return (
     <header className="w-full">
-      <div className="flex items-center gap-3 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+      <div className="flex items-center gap-3 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
         <span>{kicker}</span>
         {marker ? (
           <>
@@ -42,7 +43,7 @@ export function PageHeader({
         {title}
       </h1>
       {lede ? (
-        <p className="mt-5 max-w-[58ch] text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
+        <p className="mt-5 max-w-[58ch] text-[16px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
           {lede}
         </p>
       ) : null}
@@ -57,7 +58,9 @@ export function ProvLine({ className = "", style }: { className?: string; style?
   return <div className={`prov-rule h-px w-full ${className}`} style={{ opacity: 0.7, ...style }} />;
 }
 
-// A small mono chip, optionally tinted by an agent accent. Used for style tags and statuses.
+// A sharp technical-editorial TAG (not a full-rounded capslock micro-pill). Sharp 7px corners + real
+// padding + a hairline read as a spec tag, not a generic badge. Optionally tinted by an agent accent.
+// `onArt` is the variant for an overlay on artwork (solid ink ground + backdrop-blur for legibility).
 export function Chip({
   children,
   accent,
@@ -65,24 +68,68 @@ export function Chip({
 }: {
   children: ReactNode;
   accent?: string;
-  tone?: "default" | "solid" | "ok" | "accent";
+  tone?: "default" | "solid" | "ok" | "accent" | "onArt";
 }) {
   const style: CSSProperties =
     tone === "solid"
-      ? { background: accent ?? "var(--color-ink)", color: "#fff" }
-      : tone === "ok"
-        ? { background: "color-mix(in oklab, var(--color-ok) 16%, transparent)", color: "var(--color-ok)" }
-        : tone === "accent"
-          ? { background: "color-mix(in oklab, var(--color-accent) 14%, transparent)", color: "var(--color-accent)" }
-          : {
-              border: "1px solid var(--color-border-strong)",
-              color: "var(--color-ink-2)",
-              background: accent ? `color-mix(in oklab, ${accent} 10%, var(--color-paper))` : "var(--color-paper)",
-            };
+      ? { background: accent ?? "var(--color-ink)", color: "#fff", border: `1px solid color-mix(in oklab, ${accent ?? "var(--color-ink)"} 100%, transparent)` }
+      : tone === "onArt"
+        ? { background: "color-mix(in oklab, var(--color-ink) 78%, transparent)", color: "var(--color-cream)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid color-mix(in oklab, var(--color-cream) 16%, transparent)" }
+        : tone === "ok"
+          ? { background: "color-mix(in oklab, var(--color-ok) 14%, transparent)", color: "var(--color-ok)", border: "1px solid color-mix(in oklab, var(--color-ok) 30%, transparent)" }
+          : tone === "accent"
+            ? { background: "color-mix(in oklab, var(--color-accent) 12%, transparent)", color: "var(--color-accent)", border: "1px solid color-mix(in oklab, var(--color-accent) 26%, transparent)" }
+            : {
+                border: "1px solid var(--color-border-strong)",
+                color: "var(--color-ink-2)",
+                background: accent ? `color-mix(in oklab, ${accent} 9%, var(--color-paper))` : "var(--color-paper)",
+              };
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 font-mono-x text-[10px] uppercase tracking-[0.1em]" style={style}>
+    <span className="tag micro" style={style}>
       {children}
     </span>
+  );
+}
+
+// A segmented control: a bordered track whose ACTIVE option is a solid fill that SLIDES between
+// positions (framer layoutId). Replaces the row of free-floating capslock filter pills. Used for the
+// catalog sort + the dashboard tabs.
+export function Segmented<T extends string>({
+  options,
+  value,
+  onChange,
+  layoutId = "seg",
+}: {
+  options: { key: T; label: ReactNode }[];
+  value: T;
+  onChange: (k: T) => void;
+  layoutId?: string;
+}) {
+  return (
+    <div className="inline-flex flex-wrap items-center gap-0.5 rounded-[12px] border p-1" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
+      {options.map((o) => {
+        const active = o.key === value;
+        return (
+          <button
+            key={o.key}
+            type="button"
+            onClick={() => onChange(o.key)}
+            className="micro relative rounded-[9px] px-3.5 py-1.5 label-caps text-[13px] active:scale-[0.97]"
+            style={{ letterSpacing: "0.08em", color: active ? "var(--color-cream)" : "var(--color-ink-2)" }}
+          >
+            {active ? (
+              <motion.span
+                layoutId={`${layoutId}-active`}
+                className="absolute inset-0 rounded-[9px]"
+                style={{ background: "var(--color-ink)" }}
+                transition={{ type: "spring", stiffness: 420, damping: 34 }}
+              />
+            ) : null}
+            <span className="relative z-10">{o.label}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -101,7 +148,7 @@ export function MetaRow({
   ok?: boolean;
   mono?: boolean;
 }) {
-  const valueClass = `flex min-w-0 items-center justify-end gap-1.5 ${mono ? "font-mono-x text-[12px]" : "text-[13px]"}`;
+  const valueClass = `flex min-w-0 items-center justify-end gap-1.5 ${mono ? "font-mono-x text-[16px]" : "text-[16px]"}`;
   const value = (
     <span className={valueClass} style={{ color: "var(--color-ink)" }}>
       {v}
@@ -110,7 +157,7 @@ export function MetaRow({
   );
   return (
     <div className="flex items-start justify-between gap-4 border-b py-2.5 last:border-b-0" style={{ borderColor: "var(--color-border)" }}>
-      <dt className="shrink-0 font-mono-x text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--color-ink-3)" }}>
+      <dt className="shrink-0 label-caps text-[13px] uppercase tracking-[0.1em]" style={{ color: "var(--color-ink-3)" }}>
         {k}
       </dt>
       <dd className="min-w-0 text-right">
@@ -157,8 +204,8 @@ export function CopyValue({
         onClick={onCopy}
         aria-label={copied ? "Copied" : "Copy full value"}
         title={copied ? "Copied" : "Copy full value"}
-        className="inline-flex shrink-0 items-center justify-center rounded-md p-0.5 transition-opacity hover:opacity-100"
-        style={{ color: copied ? "var(--color-ok)" : "var(--color-ink-3)", opacity: 0.8 }}
+        className="micro inline-flex shrink-0 items-center justify-center rounded-md p-1 hover:bg-[color-mix(in_oklab,var(--color-ink)_8%,transparent)] active:scale-[0.88]"
+        style={{ color: copied ? "var(--color-ok)" : "var(--color-ink-3)" }}
       >
         {copied ? (
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -202,7 +249,7 @@ export function StatFigure({ value, label }: { value: ReactNode; label: string }
       <div className="font-display" style={{ fontSize: "clamp(30px, 5vw, 52px)", lineHeight: 1, letterSpacing: "-0.01em" }}>
         {value}
       </div>
-      <div className="mt-2 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
+      <div className="mt-2 label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
         {label}
       </div>
     </div>
@@ -232,7 +279,7 @@ export function ActionButton({
         ? { background: "transparent", color: "var(--color-warn)", border: "1px solid var(--color-warn)" }
         : { background: "var(--color-ink)", color: "var(--color-cream)", border: "1px solid var(--color-ink)" };
   const cls =
-    "inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 font-mono-x text-[13px] transition-opacity hover:opacity-85 disabled:cursor-not-allowed disabled:opacity-40";
+    "micro group inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-3 text-[16px] font-semibold tracking-[0.005em] hover:-translate-y-px hover:shadow-[var(--shadow-pill)] active:translate-y-0 active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0 disabled:hover:shadow-none";
   if (href) {
     return (
       <Link href={href} className={cls} style={style}>
@@ -261,11 +308,11 @@ export function Field({
   return (
     <label className="block">
       <div className="mb-2 flex items-baseline justify-between gap-3">
-        <span className="font-mono-x text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
+        <span className="label-caps text-[13px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
           {label}
         </span>
         {hint ? (
-          <span className="font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
+          <span className="text-[16px] font-medium tabular-nums" style={{ color: "var(--color-ink-3)" }}>
             {hint}
           </span>
         ) : null}
@@ -304,7 +351,7 @@ export function TextInput({
       placeholder={placeholder}
       // Resting border color lives in the className (not inline style) so the focus: variant can actually
       // win (an inline borderColor would override focus:border-* by specificity and kill the focus ring).
-      className="w-full rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 font-mono-x text-[13px] outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
+      className="w-full rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 text-[16px] font-medium outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
     />
   );
@@ -335,7 +382,7 @@ export function TextArea({
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
       // Resting border color in className (not inline) so focus:border-* is not overridden by inline style.
-      className="w-full resize-none rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 text-[14px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
+      className="w-full resize-none rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 text-[16px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
     />
   );
@@ -359,23 +406,25 @@ export function StepRail({ steps }: { steps: { label: string; status: StepStatus
                 : "var(--color-ink-3)";
         return (
           <li key={s.label} className="flex items-center gap-3 py-2">
+            {/* step marker: a short hairline tick (not a status dot - Christopher bans decorative dots) */}
             <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
               <span
-                className="relative inline-flex h-2.5 w-2.5 items-center justify-center rounded-full"
+                className="inline-block"
                 style={{
-                  background: s.status === "pending" ? "transparent" : color,
-                  border: s.status === "pending" ? "1.5px solid var(--color-border-strong)" : `1.5px solid ${color}`,
+                  width: s.status === "pending" ? 10 : 14,
+                  height: 2,
+                  background: s.status === "pending" ? "var(--color-border-strong)" : color,
                 }}
               />
             </span>
             <span
-              className="font-mono-x text-[12px] tracking-[0.02em]"
-              style={{ color: s.status === "pending" ? "var(--color-ink-3)" : "var(--color-ink)" }}
+              className="label-caps text-[13px]"
+              style={{ color: s.status === "pending" ? "var(--color-ink-3)" : "var(--color-ink)", letterSpacing: "0.08em" }}
             >
               {s.label}
             </span>
-            {s.status === "done" ? <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ok)" }}>done</span> : null}
-            <span className="ml-auto font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
+            {s.status === "done" ? <span className="label-caps text-[13px]" style={{ color: "var(--color-ok)", letterSpacing: "0.08em" }}>done</span> : null}
+            <span className="ml-auto font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink-3)" }}>
               {String(i + 1).padStart(2, "0")}
             </span>
           </li>
@@ -401,7 +450,7 @@ export function ConnectGate({
       <h2 className="font-display" style={{ fontSize: "clamp(26px,4vw,38px)", lineHeight: 1.02 }}>
         {title}
       </h2>
-      <p className="mx-auto mt-4 max-w-[44ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+      <p className="mx-auto mt-4 max-w-[44ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         {body}
       </p>
       <div className="mx-auto mt-7 max-w-[280px]">{children}</div>

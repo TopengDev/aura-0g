@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { Reveal } from "@/components/Reveal";
-import { PageHeader, ProvLine, Chip } from "@/components/product/primitives";
+import { PageHeader, ProvLine, Chip, Segmented } from "@/components/product/primitives";
 import { Pager, paginate, AGENTS_PAGE_SIZE } from "@/components/product/Pager";
 import { agentPortraitUrl } from "@/lib/api";
 import type { Agent, MarketListing } from "@/lib/api";
@@ -103,34 +103,18 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
         <Reveal delay={0.05}>
           <div className="mt-10 flex flex-col gap-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex w-full items-center rounded-full border px-4 sm:max-w-[340px]" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
+              <div className="micro flex w-full items-center rounded-[14px] border px-4 focus-within:border-[var(--color-accent)] sm:max-w-[340px]" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
                 <SearchIcon />
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Search Auras, styles..."
-                  className="w-full bg-transparent py-2.5 pl-2 font-mono-x text-[12px] outline-none"
+                  className="w-full bg-transparent py-2.5 pl-2 font-medium text-[16px] outline-none"
                   style={{ color: "var(--color-ink)" }}
                   aria-label="Search Auras"
                 />
               </div>
-              <div className="flex flex-wrap gap-1.5">
-                {SORTS.map((s) => (
-                  <button
-                    key={s.key}
-                    type="button"
-                    onClick={() => setSort(s.key)}
-                    className="rounded-full px-3.5 py-2 font-mono-x text-[11px] uppercase tracking-[0.08em] transition-colors"
-                    style={
-                      sort === s.key
-                        ? { background: "var(--color-ink)", color: "var(--color-cream)" }
-                        : { border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }
-                    }
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
+              <Segmented options={SORTS} value={sort} onChange={setSort} layoutId="agents-sort" />
             </div>
 
             {/* Style filter chips */}
@@ -150,7 +134,7 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
         {visible.length === 0 ? (
           <div className="mt-16 text-center">
             <p className="font-display" style={{ fontSize: "clamp(24px,4vw,36px)" }}>No Auras match.</p>
-            <p className="mt-2 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
+            <p className="mt-2 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
               Try clearing the filters or the search.
             </p>
           </div>
@@ -166,7 +150,7 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
 
         <Pager page={curPage} pageCount={pageCount} onPage={setPage} className="mt-12" />
 
-        <p className="mt-8 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+        <p className="mt-8 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
           Showing {pageRows.length} of {visible.length} catalog Auras
           {visible.length !== rows.length ? ` (filtered from ${rows.length})` : ""}. {totalCount} Auras minted on-chain (chain 16602).
         </p>
@@ -194,7 +178,7 @@ function AgentCard({ row }: { row: AgentRow }) {
           <Chip tone="solid" accent={accent}>{a.style}</Chip>
         </span>
         {listing ? (
-          <span className="absolute right-3 top-3 rounded-full px-3 py-1 font-mono-x text-[10px] uppercase tracking-[0.08em]" style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}>
+          <span className="tag micro absolute right-3 top-3" style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid color-mix(in oklab, var(--color-cream) 16%, transparent)" }}>
             {listing.price} 0G
           </span>
         ) : null}
@@ -202,14 +186,14 @@ function AgentCard({ row }: { row: AgentRow }) {
       <div className="flex flex-1 flex-col p-5">
         <div className="flex items-baseline justify-between gap-3">
           <h3 className="font-display" style={{ fontSize: 26, lineHeight: 1 }}>{a.name}</h3>
-          <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>#{a.agentId}</span>
+          <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>#{a.agentId}</span>
         </div>
-        <p className="mt-2 text-[13px] leading-snug" style={{ color: "var(--color-ink-2)" }}>{a.meta.tagline}</p>
-        <div className="mt-4 flex items-center gap-1.5 font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
-          <span>owner</span>
-          <span style={{ color: "var(--color-ink-2)" }}>{a.owner.slice(0, 6)}…{a.owner.slice(-4)}</span>
+        <p className="mt-2 text-[16px] leading-snug" style={{ color: "var(--color-ink-2)" }}>{a.meta.tagline}</p>
+        <div className="mt-4 flex items-center gap-2 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+          <span className="label-caps" style={{ letterSpacing: "0.08em" }}>owner</span>
+          <span className="font-mono-x" style={{ color: "var(--color-ink-2)" }}>{a.owner.slice(0, 6)}…{a.owner.slice(-4)}</span>
         </div>
-        <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-4 font-mono-x text-[11px]" style={{ borderColor: "var(--color-border)" }}>
+        <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-4" style={{ borderColor: "var(--color-border)" }}>
           <Stat n={a.outputCount} l="relics" />
           <Stat n={a.salesCount} l="sales" />
           <Stat n={`${a.royaltyPct}%`} l="royalty" />
@@ -222,8 +206,8 @@ function AgentCard({ row }: { row: AgentRow }) {
 function Stat({ n, l }: { n: number | string; l: string }) {
   return (
     <div>
-      <div style={{ color: "var(--color-ink)", fontSize: 15 }}>{n}</div>
-      <div className="mt-0.5 uppercase tracking-[0.08em]" style={{ color: "var(--color-ink-3)" }}>{l}</div>
+      <div className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink)" }}>{n}</div>
+      <div className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>{l}</div>
     </div>
   );
 }
@@ -233,11 +217,11 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full px-3 py-1.5 font-mono-x text-[10px] uppercase tracking-[0.1em] transition-colors"
+      className="tag micro hover:-translate-y-px active:scale-[0.96]"
       style={
         active
-          ? { background: "color-mix(in oklab, var(--color-accent) 16%, transparent)", color: "var(--color-accent)", border: "1px solid color-mix(in oklab, var(--color-accent) 40%, transparent)" }
-          : { border: "1px solid var(--color-border)", color: "var(--color-ink-3)", background: "transparent" }
+          ? { background: "var(--color-ink)", color: "var(--color-cream)", border: "1px solid var(--color-ink)" }
+          : { border: "1px solid var(--color-border-strong)", color: "var(--color-ink-3)", background: "var(--color-paper)" }
       }
     >
       {children}

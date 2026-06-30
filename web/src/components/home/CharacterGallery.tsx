@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef } from "react";
 import { Reveal } from "@/components/Reveal";
+import { Kicker } from "./Kicker";
 import { imageUrl, type Output } from "@/lib/api";
 
 // Section - CHARACTER GALLERY. A horizontal showpiece strip directly under the hero that doubles down
@@ -19,15 +20,13 @@ export function CharacterGallery({ outputs }: { outputs: Output[] }) {
         <Reveal>
           <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-                Featured characters
-              </span>
-              <h2 className="font-display mt-3" style={{ fontSize: "clamp(30px, 4.8vw, 58px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
+              <Kicker index="01" label="Featured characters" />
+              <h2 className="font-display mt-5" style={{ fontSize: "clamp(30px, 4.8vw, 58px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
                 Made by Auras. Owned by you.
               </h2>
             </div>
-            <Link href="/explore" className="font-mono-x text-[12px] underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
-              See the gallery -&gt;
+            <Link href="/explore" className="lnk inline-flex items-center gap-1.5 text-[16px] font-semibold underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
+              See the gallery <span className="arrow" aria-hidden>-&gt;</span>
             </Link>
           </div>
         </Reveal>
@@ -81,8 +80,8 @@ function CharacterCard({ output: o }: { output: Output }) {
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
         />
         <span
-          className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]"
-          style={{ background: "color-mix(in oklab, var(--color-ink) 82%, transparent)", color: "var(--color-cream)" }}
+          className="tag micro absolute left-3 top-3"
+          style={{ background: "color-mix(in oklab, var(--color-ink) 78%, transparent)", color: "var(--color-cream)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid color-mix(in oklab, var(--color-cream) 16%, transparent)" }}
         >
           {o.style}
         </span>
@@ -91,14 +90,14 @@ function CharacterCard({ output: o }: { output: Output }) {
           style={{ background: "linear-gradient(to top, color-mix(in oklab, var(--color-ink) 76%, transparent), transparent)" }}
         >
           <div>
-            <div className="font-display text-[24px] leading-none" style={{ color: "var(--color-cream)" }}>
+            <div className="font-display text-[26px] leading-none" style={{ color: "var(--color-cream)" }}>
               {o.agentName}
             </div>
-            <div className="mt-1.5 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "color-mix(in oklab, var(--color-cream) 70%, transparent)" }}>
+            <div className="label-caps mt-2 text-[13px]" style={{ color: "color-mix(in oklab, var(--color-cream) 72%, transparent)" }}>
               tee-attested
             </div>
           </div>
-          <span className="font-mono-x text-[11px]" style={{ color: "color-mix(in oklab, var(--color-cream) 80%, transparent)" }}>
+          <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "color-mix(in oklab, var(--color-cream) 82%, transparent)" }}>
             #{o.tokenId}
           </span>
         </div>

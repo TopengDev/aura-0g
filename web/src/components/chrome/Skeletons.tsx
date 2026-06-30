@@ -30,7 +30,7 @@ export function EmptyState({ label = "Nothing here yet." }: { label?: string }) 
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
       <div className="prov-rule h-px w-16" />
-      <p className="font-mono-x text-[12px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
+      <p className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.14em" }}>
         {label}
       </p>
     </div>

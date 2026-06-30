@@ -39,6 +39,10 @@ export function Nav() {
   // Close the mobile menu on route change.
   useEffect(() => setOpen(false), [pathname]);
 
+  // /chat is a full-height app surface (its own sidebar + back affordance), so the global top bar is
+  // hidden there - it otherwise crops the sidebar header and steals 56px of the conversation height.
+  const hidden = pathname === "/chat" || pathname.startsWith("/chat/");
+
   // Lock body scroll while the mobile menu is open.
   useEffect(() => {
     if (typeof document === "undefined") return;
@@ -50,6 +54,8 @@ export function Nav() {
 
   const visibleLinks = LINKS.filter((l) => !l.connectedOnly || isConnected);
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+
+  if (hidden) return null;
 
   return (
     <header
@@ -74,7 +80,8 @@ export function Nav() {
             <Link
               key={l.href}
               href={l.href}
-              className="font-mono-x text-[12px] tracking-[0.04em] transition-colors"
+              data-active={isActive(l.href)}
+              className="navlink micro text-[16px] font-medium tracking-[0.005em] hover:text-[var(--color-ink)]"
               style={{ color: isActive(l.href) ? "var(--color-ink)" : "var(--color-ink-2)" }}
             >
               {l.label}
@@ -122,7 +129,7 @@ export function Nav() {
                   style={{ color: isActive(l.href) ? "var(--color-ink)" : "var(--color-ink-2)" }}
                 >
                   {l.label}
-                  <span className="font-mono-x text-[10px] tracking-[0.1em]" style={{ color: "var(--color-ink-3)" }}>
+                  <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                     {String(visibleLinks.indexOf(l) + 1).padStart(2, "0")}
                   </span>
                 </Link>

@@ -127,28 +127,28 @@ export function CliView() {
             <h2 className="font-display mt-4" style={{ fontSize: "clamp(28px,4vw,44px)", lineHeight: 1.02, letterSpacing: "-0.01em" }}>
               One line. Any shell.
             </h2>
-            <p className="mt-4 max-w-[60ch] text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
+            <p className="mt-4 max-w-[60ch] text-[16px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
               macOS and Linux, any shell. A single static binary, no Node needed. The installer detects your
               OS and arch, verifies the checksum, and places <code className="font-mono-x" style={{ color: "var(--color-ink)" }}>aura</code> on your PATH.
             </p>
 
             <div className="mt-7 grid grid-cols-1 gap-5 lg:grid-cols-[1.25fr_0.75fr]">
-              <Panel className="p-6 sm:p-7">
-                <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+              <Panel className="min-w-0 p-6 sm:p-7">
+                <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   macOS / Linux
                 </div>
                 <div className="mt-3">
                   <CommandLine command={INSTALL} />
                 </div>
 
-                <div className="mt-6 font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="mt-6 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Windows (PowerShell)
                 </div>
                 <div className="mt-3">
                   <CommandLine command={INSTALL_WIN} />
                 </div>
 
-                <div className="mt-6 font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <div className="mt-6 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Anywhere with Node (no install)
                 </div>
                 <div className="mt-3">
@@ -156,8 +156,8 @@ export function CliView() {
                 </div>
               </Panel>
 
-              <Panel className="p-6 sm:p-7" style={{ background: "var(--color-cream-warm)" }}>
-                <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+              <Panel className="min-w-0 p-6 sm:p-7" style={{ background: "var(--color-cream-warm)" }}>
+                <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Per-OS notes
                 </div>
                 <ul className="mt-4 space-y-3.5">
@@ -166,7 +166,7 @@ export function CliView() {
                   <PlatformNote os="Windows" detail="x64 binary via PowerShell. arm64 runs under x64 emulation." />
                   <PlatformNote os="npx" detail="Node 18+ fallback. Runs the node bundle, no install." />
                 </ul>
-                <p className="mt-5 text-[12px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+                <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                   Binaries embed the runtime, so there is zero dependency to install. Hosting and download use
                   a gzip artifact (about a third the size); the installer gunzips after a checksum check.
                 </p>
@@ -182,7 +182,7 @@ export function CliView() {
             <h2 className="font-display mt-4" style={{ fontSize: "clamp(28px,4vw,44px)", lineHeight: 1.02, letterSpacing: "-0.01em" }}>
               Six commands.
             </h2>
-            <p className="mt-4 max-w-[60ch] text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
+            <p className="mt-4 max-w-[60ch] text-[16px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
               The same actions as the AURA app, driven from a terminal. Output is rarity-tinted, respects{" "}
               <code className="font-mono-x" style={{ color: "var(--color-ink)" }}>NO_COLOR</code> and non-TTY pipes,
               and every command supports scripting.
@@ -206,7 +206,7 @@ export function CliView() {
               </h2>
               <Chip tone="ok">trustless · local</Chip>
             </div>
-            <p className="mt-4 max-w-[68ch] text-[15px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
+            <p className="mt-4 max-w-[68ch] text-[16px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
               <code className="font-mono-x" style={{ color: "var(--color-ink)" }}>verify</code> does not trust the
               API&rsquo;s rarity verdict. It fetches the on-chain economic proof and the public preimage, then{" "}
               <strong style={{ color: "var(--color-ink)" }}>recomputes the seed locally</strong> -{" "}
@@ -217,17 +217,19 @@ export function CliView() {
               gacha derivation, so there is zero drift between server, web verifier, and CLI.
             </p>
 
-            <div className="mt-7 grid grid-cols-1 gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-              <div>
+            {/* Single column: the terminal runs full-width on top (the 78-digit onChainSeed line scrolls
+                INSIDE it via the pre's overflow-x-auto), then the supporting panels sit in a row below. */}
+            <div className="mt-7 flex flex-col gap-5">
+              <div className="min-w-0">
                 <div className="mb-3">
                   <CommandLine command="aura verify 23" />
                 </div>
                 <TerminalBlock text={VERIFY_TRANSCRIPT} caption="aura verify 23 · live API · the RARE pull" />
               </div>
 
-              <div className="flex flex-col gap-5">
+              <div className="grid min-w-0 grid-cols-1 gap-5 md:grid-cols-2">
                 <Panel className="p-6 sm:p-7">
-                  <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                  <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     What it asserts
                   </div>
                   <ul className="mt-4 space-y-3">
@@ -235,7 +237,7 @@ export function CliView() {
                     <VerifyCheck>The seed is a real provable-pull seed (a keccak root, not a low number).</VerifyCheck>
                     <VerifyCheck>PROVABLE: the pull is unrigged - rarity and subject re-derived locally.</VerifyCheck>
                   </ul>
-                  <p className="mt-5 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     Confirmed three ways: from source, from the compiled binary, and from the node bundle. The
                     locally recomputed seed is byte-exact equal to the on-chain seed; the derived rarity is{" "}
                     <strong style={{ color: "var(--color-ink)" }}>Rare</strong>, roll{" "}
@@ -243,11 +245,11 @@ export function CliView() {
                   </p>
                 </Panel>
 
-                <Panel className="p-6 sm:p-7" style={{ background: "var(--color-cream-warm)" }}>
-                  <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                <Panel className="flex flex-col p-6 sm:p-7" style={{ background: "var(--color-cream-warm)" }}>
+                  <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                     Script it
                   </div>
-                  <p className="mt-3 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     Every command speaks JSON. Pipe the proof straight into a CI check or a wallet flow.
                   </p>
                   <div className="mt-4">
@@ -270,7 +272,7 @@ export function CliView() {
                 </h2>
               </div>
               <ProvLine className="my-6" />
-              <p className="max-w-[74ch] text-[15px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              <p className="max-w-[74ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                 The preimage fields and <code className="font-mono-x" style={{ color: "var(--color-ink)" }}>onChainSeed</code> are
                 public, immutable on-chain values that the API merely relays; the CLI re-derives the seed,
                 rarity, and subject from them itself. The one remaining trust assumption is that the API reported
@@ -290,7 +292,7 @@ export function CliView() {
                   href="https://github.com/TopengDev/aura-0g/tree/v2/cli"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 font-mono-x text-[13px] transition-opacity hover:opacity-85"
+                  className="inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 font-semibold text-[16px] transition-opacity hover:opacity-85"
                   style={{ background: "transparent", color: "var(--color-ink)", border: "1px solid var(--color-border-strong)" }}
                 >
                   CLI source on GitHub -&gt;
@@ -308,7 +310,7 @@ export function CliView() {
 // the PageHeader kicker row so each section reads as part of the same editorial system.
 function SectionLabel({ children, marker }: { children: ReactNode; marker: string }) {
   return (
-    <div className="flex items-center gap-3 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+    <div className="flex items-center gap-3 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
       <span>{children}</span>
       <span className="prov-rule h-px flex-1" style={{ opacity: 0.5 }} />
       <span style={{ color: "var(--color-accent)" }}>{marker}</span>
@@ -335,10 +337,10 @@ function CommandLine({ command }: { command: string }) {
       className="flex items-center gap-3 rounded-[14px] border px-4 py-3"
       style={{ borderColor: "var(--color-border-strong)", background: "var(--color-cream-deep)" }}
     >
-      <span aria-hidden className="shrink-0 font-mono-x text-[13px]" style={{ color: "var(--color-accent)" }}>
+      <span aria-hidden className="shrink-0 font-mono-x text-[16px]" style={{ color: "var(--color-accent)" }}>
         $
       </span>
-      <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>
+      <code className="min-w-0 flex-1 overflow-x-auto whitespace-nowrap font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
         {command}
       </code>
       <button
@@ -346,8 +348,8 @@ function CommandLine({ command }: { command: string }) {
         onClick={onCopy}
         aria-label={copied ? "Copied" : "Copy command"}
         title={copied ? "Copied" : "Copy command"}
-        className="inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 font-mono-x text-[10px] uppercase tracking-[0.1em] transition-opacity hover:opacity-100"
-        style={{ color: copied ? "var(--color-ok)" : "var(--color-ink-3)", opacity: 0.85, border: "1px solid var(--color-border)" }}
+        className="micro label-caps inline-flex shrink-0 items-center gap-1.5 rounded-[8px] px-2.5 py-1 text-[13px] hover:bg-[color-mix(in_oklab,var(--color-ink)_6%,transparent)] active:scale-[0.94]"
+        style={{ color: copied ? "var(--color-ok)" : "var(--color-ink-3)", border: "1px solid var(--color-border-strong)", letterSpacing: "0.1em" }}
       >
         {copied ? (
           <>
@@ -373,23 +375,23 @@ function CommandLine({ command }: { command: string }) {
 // A single command card: signature + example invocation, a one-line blurb, and what it returns.
 function CommandCard({ command }: { command: Command }) {
   return (
-    <Panel className="flex h-full flex-col p-5 sm:p-6">
-      <div className="flex items-start justify-between gap-3">
-        <code className="font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>
+    <Panel className="flex h-full min-w-0 flex-col p-5 sm:p-6">
+      <div className="flex min-w-0 items-start justify-between gap-3">
+        <code className="min-w-0 overflow-x-auto whitespace-nowrap font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
           {command.signature}
         </code>
       </div>
-      <p className="mt-3 text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+      <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         {command.blurb}
       </p>
       <div className="mt-4">
         <CommandLine command={command.example} />
       </div>
       <div className="mt-4 flex items-start gap-2 border-t pt-3.5" style={{ borderColor: "var(--color-border)" }}>
-        <span className="shrink-0 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
+        <span className="shrink-0 label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
           returns
         </span>
-        <span className="text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+        <span className="text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
           {command.returns}
         </span>
       </div>
@@ -403,19 +405,19 @@ function CommandCard({ command }: { command: Command }) {
 function TerminalBlock({ text, caption }: { text: string; caption: string }) {
   const lines = text.split("\n");
   return (
-    <Panel className="overflow-hidden">
+    <Panel className="min-w-0 overflow-hidden">
       <div className="flex items-center justify-between gap-3 border-b px-4 py-2.5" style={{ borderColor: "var(--color-border)" }}>
-        <div className="flex items-center gap-1.5" aria-hidden>
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-border-strong)" }} />
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-border-strong)" }} />
-          <span className="h-2.5 w-2.5 rounded-full" style={{ background: "var(--color-border-strong)" }} />
-        </div>
-        <span className="font-mono-x text-[10px] tracking-[0.06em]" style={{ color: "var(--color-ink-3)" }}>
+        {/* terminal cursor block (a terminal idiom) instead of the macOS traffic-light dots (decorative) */}
+        <span aria-hidden className="inline-flex items-center gap-2 label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.12em" }}>
+          <span className="inline-block h-[15px] w-[8px]" style={{ background: "var(--color-accent)" }} />
+          terminal
+        </span>
+        <span className="min-w-0 truncate font-mono-x text-[16px] tracking-[0.06em]" style={{ color: "var(--color-ink-3)" }}>
           {caption}
         </span>
       </div>
       <pre
-        className="overflow-x-auto px-4 py-4 font-mono-x text-[11.5px] leading-[1.7]"
+        className="overflow-x-auto px-4 py-4 font-mono-x text-[16px] leading-[1.7]"
         style={{ background: "var(--color-cream-deep)", color: "var(--color-ink-2)" }}
       >
         {lines.map((line, i) => {
@@ -438,11 +440,8 @@ function TerminalBlock({ text, caption }: { text: string; caption: string }) {
 // disc + the claim).
 function VerifyCheck({ children }: { children: ReactNode }) {
   return (
-    <li className="flex items-start gap-3 text-[13px] leading-relaxed" style={{ color: "var(--color-ink)" }}>
-      <span
-        className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px]"
-        style={{ background: "color-mix(in oklab, var(--color-ok) 16%, transparent)", color: "var(--color-ok)" }}
-      >
+    <li className="flex items-start gap-2.5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink)" }}>
+      <span aria-hidden className="mt-px shrink-0 text-[18px] font-semibold leading-snug" style={{ color: "var(--color-ok)" }}>
         ✓
       </span>
       <span>{children}</span>
@@ -454,10 +453,10 @@ function VerifyCheck({ children }: { children: ReactNode }) {
 function PlatformNote({ os, detail }: { os: string; detail: string }) {
   return (
     <li className="flex items-start gap-3">
-      <span className="mt-0.5 w-[58px] shrink-0 font-mono-x text-[11px] uppercase tracking-[0.08em]" style={{ color: "var(--color-ink)" }}>
+      <span className="mt-0.5 w-[58px] shrink-0 label-caps text-[13px] uppercase tracking-[0.08em]" style={{ color: "var(--color-ink)" }}>
         {os}
       </span>
-      <span className="text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+      <span className="text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         {detail}
       </span>
     </li>

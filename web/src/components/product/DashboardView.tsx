@@ -10,6 +10,7 @@ import {
   Panel,
   ProvLine,
   Chip,
+  Segmented,
   StatFigure,
   ActionButton,
   ConnectGate,
@@ -122,7 +123,7 @@ export function DashboardView() {
               <StatFigure value={counts?.agentsOwned ?? 0} label="Auras owned" />
               <StatFigure value={counts?.outputsOwned ?? 0} label="Relics held" />
               <StatFigure
-                value={<>{data?.royaltiesEarned ?? "0"} <span className="font-mono-x text-[14px]" style={{ color: "var(--color-ink-3)" }}>0G</span></>}
+                value={<>{data?.royaltiesEarned ?? "0"} <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span></>}
                 label="Royalties earned"
               />
               <StatFigure value={data?.salesAsReceiver ?? 0} label="Royalty payouts" />
@@ -132,34 +133,24 @@ export function DashboardView() {
 
         {/* Tabs */}
         <Reveal delay={0.06}>
-          <div className="mt-12 flex flex-wrap items-center gap-1.5">
-            {TABS.map((t) => {
-              const n =
-                t.key === "agents"
-                  ? counts?.agentsOwned ?? 0
-                  : t.key === "outputs"
-                    ? counts?.outputsOwned ?? 0
-                    : t.key === "listings"
-                      ? listings.length
-                      : activity.length;
-              return (
-                <button
-                  key={t.key}
-                  type="button"
-                  onClick={() => setTab(t.key)}
-                  className="flex items-center gap-2 rounded-full px-4 py-2 font-mono-x text-[11px] uppercase tracking-[0.08em] transition-colors"
-                  style={
-                    tab === t.key
-                      ? { background: "var(--color-ink)", color: "var(--color-cream)" }
-                      : { border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }
-                  }
-                >
-                  {t.label}
-                  <span style={{ opacity: 0.6 }}>{n}</span>
-                </button>
-              );
-            })}
-            <button type="button" onClick={refresh} className="ml-auto font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
+          <div className="mt-12 flex flex-wrap items-center gap-3">
+            <Segmented
+              options={TABS.map((t) => {
+                const n =
+                  t.key === "agents"
+                    ? counts?.agentsOwned ?? 0
+                    : t.key === "outputs"
+                      ? counts?.outputsOwned ?? 0
+                      : t.key === "listings"
+                        ? listings.length
+                        : activity.length;
+                return { key: t.key, label: <span className="inline-flex items-center gap-2">{t.label} <span className="font-mono-x tabular-nums" style={{ opacity: 0.65 }}>{n}</span></span> };
+              })}
+              value={tab}
+              onChange={setTab}
+              layoutId="dash-tabs"
+            />
+            <button type="button" onClick={refresh} className="lnk micro ml-auto inline-flex items-center gap-1.5 text-[16px] font-semibold hover:opacity-70 active:scale-[0.97]" style={{ color: "var(--color-ink-3)" }}>
               {loading ? "Refreshing..." : "Refresh"}
             </button>
           </div>
@@ -212,9 +203,9 @@ function AgentsTab({ agents }: { agents: Agent[] }) {
             <div className="flex flex-1 flex-col p-5">
               <div className="flex items-baseline justify-between gap-3">
                 <h3 className="font-display" style={{ fontSize: 24, lineHeight: 1 }}>{a.name}</h3>
-                <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>#{a.agentId}</span>
+                <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>#{a.agentId}</span>
               </div>
-              <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-4 font-mono-x text-[11px]" style={{ borderColor: "var(--color-border)" }}>
+              <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-4 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border)" }}>
                 <MiniStat n={a.outputCount} l="relics" />
                 <MiniStat n={a.salesCount} l="sales" />
                 <MiniStat n={`${a.royaltiesEarned}`} l="0G earned" />
@@ -244,13 +235,13 @@ function OutputsTab({ outputs }: { outputs: Output[] }) {
         <Reveal key={o.tokenId} delay={Math.min(0.04 * i, 0.24)}>
           <Link
             href={`/outputs/${o.tokenId}`}
-            className="group block overflow-hidden rounded-[18px] border transition-shadow duration-300 hover:shadow-[var(--shadow-card)]"
+            className="group block overflow-hidden rounded-[18px] border micro hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
             style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
           >
             <div className="relative aspect-square w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
               <img src={`/images/${encodeURIComponent(o.imageRoot.replace(/^0g:\/\//, ""))}?style=${o.style}`} alt={`${o.agentName} #${o.tokenId}`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
             </div>
-            <div className="flex items-center justify-between p-3 font-mono-x text-[11px]">
+            <div className="flex items-center justify-between p-3 font-mono-x text-[16px]">
               <span style={{ color: "var(--color-ink-2)" }}>{o.agentName} #{o.tokenId}</span>
               <span style={{ color: "var(--color-accent)" }}>-&gt;</span>
             </div>
@@ -312,27 +303,27 @@ function ListingRow({ listing: l, onChanged }: { listing: MarketListing; onChang
           <Link href={href} className="font-display hover:underline" style={{ fontSize: 20, lineHeight: 1 }}>
             #{l.tokenId}
           </Link>
-          <span className="font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>
+          <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
             {l.price} <span style={{ color: "var(--color-ink-3)" }}>0G</span>
           </span>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-          <div className="flex items-center rounded-full border px-3 sm:w-[180px]" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
+          <div className="micro flex items-center rounded-[14px] border px-3 focus-within:border-[var(--color-accent)] sm:w-[180px]" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
             <input
               inputMode="decimal"
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder={`New price (now ${l.price})`}
-              className="w-full bg-transparent py-2 font-mono-x text-[12px] outline-none"
+              className="w-full bg-transparent py-2 font-medium text-[16px] outline-none"
               style={{ color: "var(--color-ink)" }}
             />
-            <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
+            <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
           </div>
           <button
             type="button"
             onClick={() => updatePrice(kind, l.tokenId, price)}
             disabled={busy || !validPrice}
-            className="rounded-full px-4 py-2 font-mono-x text-[12px] transition-opacity hover:opacity-85 disabled:opacity-40"
+            className="micro rounded-[12px] px-4 py-2 font-semibold text-[16px] hover:-translate-y-px hover:opacity-90 active:translate-y-0 active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none"
             style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}
           >
             {busy && state.action === "updatePrice" ? "..." : "Update"}
@@ -341,7 +332,7 @@ function ListingRow({ listing: l, onChanged }: { listing: MarketListing; onChang
             type="button"
             onClick={() => cancel(kind, l.tokenId)}
             disabled={busy}
-            className="rounded-full px-4 py-2 font-mono-x text-[12px] transition-opacity hover:opacity-85 disabled:opacity-40"
+            className="micro rounded-[12px] px-4 py-2 font-semibold text-[16px] hover:-translate-y-px hover:opacity-90 active:translate-y-0 active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none"
             style={{ background: "transparent", color: "var(--color-warn)", border: "1px solid var(--color-warn)" }}
           >
             {busy && state.action === "cancel" ? "..." : "Cancel"}
@@ -350,7 +341,7 @@ function ListingRow({ listing: l, onChanged }: { listing: MarketListing; onChang
       </div>
 
       {state.phase !== "idle" ? (
-        <div className="mt-3 font-mono-x text-[11px]" style={{ color: state.phase === "error" ? "var(--color-warn)" : state.phase === "success" ? "var(--color-ok)" : "var(--color-ink-2)" }}>
+        <div className="mt-3 font-mono-x text-[16px]" style={{ color: state.phase === "error" ? "var(--color-warn)" : state.phase === "success" ? "var(--color-ok)" : "var(--color-ink-2)" }}>
           {state.phase === "error" ? state.error : state.phase === "success" ? `${state.step ?? "Done"} ✓` : state.step}
           {state.txHash ? (
             <a href={`${EXPLORER}/tx/${state.txHash}`} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
@@ -380,15 +371,15 @@ function ActivityTab({ items, address }: { items: Activity[]; address: string })
       <ul>
         {items.map((e, i) => (
           <li key={e.id} className="flex items-center gap-4 border-b px-5 py-4 last:border-b-0" style={{ borderColor: "var(--color-border)" }}>
-            <span className="font-mono-x text-[11px] tabular-nums" style={{ color: "var(--color-ink-3)" }}>
+            <span className="font-mono-x text-[16px] tabular-nums" style={{ color: "var(--color-ink-3)" }}>
               {String(i + 1).padStart(2, "0")}
             </span>
             <Chip tone={e.kind === "sale" ? "accent" : "default"}>{labelForKind(e.kind)}</Chip>
             <div className="min-w-0 flex-1">
-              <div className="truncate font-mono-x text-[12px]" style={{ color: "var(--color-ink)" }}>
+              <div className="truncate font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
                 {describeEvent(e, a)}
               </div>
-              <div className="mt-0.5 font-mono-x text-[10px]" style={{ color: "var(--color-ink-3)" }}>
+              <div className="mt-0.5 font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                 {timeAgo(e.timestamp)}
                 {e.txHash ? (
                   <>
@@ -401,11 +392,11 @@ function ActivityTab({ items, address }: { items: Activity[]; address: string })
               </div>
             </div>
             {e.price ? (
-              <span className="shrink-0 font-mono-x text-[12px]" style={{ color: "var(--color-ink)" }}>
+              <span className="shrink-0 font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
                 {e.price} <span style={{ color: "var(--color-ink-3)" }}>0G</span>
               </span>
             ) : e.royaltyPaid && e.royaltyReceiver?.toLowerCase() === a ? (
-              <span className="shrink-0 font-mono-x text-[12px]" style={{ color: "var(--color-ok)" }}>
+              <span className="shrink-0 font-mono-x text-[16px]" style={{ color: "var(--color-ok)" }}>
                 +{e.royaltyPaid} <span style={{ color: "var(--color-ink-3)" }}>0G</span>
               </span>
             ) : null}
@@ -421,7 +412,7 @@ function EmptyState({ title, body, cta }: { title: string; body: string; cta: { 
   return (
     <Panel className="mx-auto max-w-[560px] p-10 text-center">
       <p className="font-display" style={{ fontSize: "clamp(24px,4vw,34px)" }}>{title}</p>
-      <p className="mx-auto mt-3 max-w-[44ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{body}</p>
+      <p className="mx-auto mt-3 max-w-[44ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{body}</p>
       <div className="mx-auto mt-6 max-w-[260px]">
         <ActionButton href={cta.href}>{cta.label}</ActionButton>
       </div>
@@ -442,8 +433,8 @@ function LoadingGrid() {
 function MiniStat({ n, l }: { n: number | string; l: string }) {
   return (
     <div>
-      <div style={{ color: "var(--color-ink)", fontSize: 15 }}>{n}</div>
-      <div className="mt-0.5 uppercase tracking-[0.08em]" style={{ color: "var(--color-ink-3)" }}>{l}</div>
+      <div className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink)" }}>{n}</div>
+      <div className="label-caps mt-0.5 text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>{l}</div>
     </div>
   );
 }

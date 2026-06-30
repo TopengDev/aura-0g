@@ -46,7 +46,7 @@ export function TradePanel({
   return (
     <div className="rounded-[22px] border p-6" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-cream-warm)" }}>
       <div className="flex items-center justify-between gap-3">
-        <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+        <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
           Trade
         </span>
         {isListed ? (
@@ -56,7 +56,7 @@ export function TradePanel({
         )}
       </div>
 
-      {note ? <div className="mt-4 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{note}</div> : null}
+      {note ? <div className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{note}</div> : null}
 
       {/* Price headline when listed */}
       {isListed ? (
@@ -64,7 +64,7 @@ export function TradePanel({
           <div className="font-display" style={{ fontSize: "clamp(34px,6vw,54px)", lineHeight: 1, letterSpacing: "-0.01em" }}>
             {price} <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
           </div>
-          <div className="mt-1 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+          <div className="mt-1 font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
             seller {shortHex(listing!.seller)}
           </div>
         </div>
@@ -75,7 +75,7 @@ export function TradePanel({
       {/* ── The controls ── */}
       {!isConnected ? (
         <div className="space-y-3">
-          <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+          <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
             Connect a wallet on the 0G Galileo testnet to {isListed ? "buy" : "trade"} this {noun}.
           </p>
           <ConnectButton.Custom>
@@ -103,7 +103,7 @@ export function TradePanel({
       ) : isOwner && !isListed ? (
         // LIST (with the one-time approval pre-step)
         <div className="space-y-3">
-          <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+          <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
             You own this {noun}. List it for sale. The first listing approves the marketplace as an
             operator (one-time), then posts the price on-chain.
           </p>
@@ -114,7 +114,7 @@ export function TradePanel({
         </div>
       ) : (
         // not owner + not listed
-        <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
+        <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
           This {noun} is not currently listed for sale. When the owner lists it, a Buy action appears
           here.
         </p>
@@ -136,16 +136,16 @@ function PriceField({
   placeholder: string;
 }) {
   return (
-    <div className="flex items-center rounded-full border px-4" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
+    <div className="micro flex items-center rounded-[14px] border px-4 focus-within:border-[var(--color-accent)]" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
       <input
         inputMode="decimal"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        className="w-full bg-transparent py-3 font-mono-x text-[13px] outline-none"
+        className="w-full bg-transparent py-3 font-medium text-[16px] outline-none"
         style={{ color: "var(--color-ink)" }}
       />
-      <span className="font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
+      <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span>
     </div>
   );
 }
@@ -171,16 +171,16 @@ function TradeStatus({ state, onReset }: { state: ReturnType<typeof useTrade>["s
   const txHash = state.txHash ?? state.approvalTxHash;
   if (state.phase === "error") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
-        <div className="font-mono-x">{state.error}</div>
+      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+        <div className="font-medium">{state.error}</div>
         <button type="button" onClick={onReset} className="mt-2 underline underline-offset-4">Try again</button>
       </div>
     );
   }
   if (state.phase === "success") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[12px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
-        <div className="font-mono-x">{state.step ?? "Done"} ✓</div>
+      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
+        <div className="font-medium">{state.step ?? "Done"} ✓</div>
         {txHash ? (
           <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-mono-x underline underline-offset-4">
             {shortHex(txHash)} on 0G Scan
@@ -192,7 +192,7 @@ function TradeStatus({ state, onReset }: { state: ReturnType<typeof useTrade>["s
   }
   // in-flight
   return (
-    <div className="mt-4 rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+    <div className="mt-4 rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
       {state.step ?? "Working..."}
       {txHash ? (
         <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-accent)" }}>

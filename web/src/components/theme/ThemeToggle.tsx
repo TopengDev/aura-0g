@@ -38,7 +38,7 @@ export function ThemeToggle() {
             aria-checked={isActive}
             aria-label={opt.ariaLabel}
             onClick={() => setTheme(opt.value)}
-            className="relative z-10 inline-flex items-center justify-center rounded-full p-1.5 transition-colors duration-200"
+            className="micro relative z-10 inline-flex items-center justify-center rounded-full p-1.5 active:scale-[0.9]"
             style={{ background: "transparent", border: "none", color: isActive ? "var(--color-cream)" : "var(--color-ink-2)" }}
           >
             {isActive ? (

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRef } from "react";
 import { Reveal } from "@/components/Reveal";
+import { Kicker } from "./Kicker";
 import { agentPortraitUrl, type Agent } from "@/lib/api";
 
 // Section 4 - FEATURED AGENTS. Skeleton: bento-grid (one hero agent card + 3 smaller, each tinted
@@ -18,15 +19,13 @@ export function FeaturedAgents({ agents }: { agents: Agent[] }) {
         <Reveal>
           <div className="mb-10 flex flex-wrap items-end justify-between gap-4">
             <div>
-              <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-                The catalog
-              </span>
-              <h2 className="font-display mt-3" style={{ fontSize: "clamp(32px, 5vw, 60px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
+              <Kicker index="03" label="The catalog" />
+              <h2 className="font-display mt-5" style={{ fontSize: "clamp(32px, 5vw, 60px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
                 Meet the Auras.
               </h2>
             </div>
-            <Link href="/agents" className="font-mono-x text-[12px] underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
-              All Auras -&gt;
+            <Link href="/agents" className="lnk inline-flex items-center gap-1.5 text-[16px] font-semibold underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
+              All Auras <span className="arrow" aria-hidden>-&gt;</span>
             </Link>
           </div>
         </Reveal>
@@ -87,8 +86,8 @@ function AgentCard({ agent, hero = false }: { agent: Agent; hero?: boolean }) {
           className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
         />
         <span
-          className="absolute left-4 top-4 rounded-full px-3 py-1 font-mono-x text-[10px] uppercase tracking-[0.1em]"
-          style={{ background: `color-mix(in oklab, ${accent} 90%, #000 0%)`, color: "#fff" }}
+          className="tag micro absolute left-4 top-4"
+          style={{ background: `color-mix(in oklab, ${accent} 86%, transparent)`, color: "#fff", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: `1px solid color-mix(in oklab, #fff 18%, transparent)` }}
         >
           {agent.style}
         </span>
@@ -99,17 +98,27 @@ function AgentCard({ agent, hero = false }: { agent: Agent; hero?: boolean }) {
           <h3 className="font-display" style={{ fontSize: hero ? "clamp(28px, 4vw, 44px)" : 24, lineHeight: 1 }}>
             {agent.name}
           </h3>
-          <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>#{agent.agentId}</span>
+          <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink-3)" }}>#{agent.agentId}</span>
         </div>
-        <p className="mt-2 text-[14px] leading-snug" style={{ color: "var(--color-ink-2)" }}>
+        <p className="mt-2 text-[16px] leading-snug" style={{ color: "var(--color-ink-2)" }}>
           {agent.meta.tagline}
         </p>
-        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-          <span><span style={{ color: "var(--color-ink)" }}>{agent.outputCount}</span> relics</span>
-          <span><span style={{ color: "var(--color-ink)" }}>{agent.salesCount}</span> sales</span>
-          <span><span style={{ color: "var(--color-ink)" }}>{agent.royaltyPct}%</span> royalty</span>
+        <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5">
+          <Stat value={`${agent.outputCount}`} label="relics" />
+          <Stat value={`${agent.salesCount}`} label="sales" />
+          <Stat value={`${agent.royaltyPct}%`} label="royalty" />
         </div>
       </div>
     </Link>
+  );
+}
+
+// One agent stat: mono tabular figure (the proof value) + a small-caps sans label (NOT mono).
+function Stat({ value, label }: { value: string; label: string }) {
+  return (
+    <span className="inline-flex items-baseline gap-1.5">
+      <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink)" }}>{value}</span>
+      <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>{label}</span>
+    </span>
   );
 }

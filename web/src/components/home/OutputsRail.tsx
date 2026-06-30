@@ -8,6 +8,7 @@ import type { Output } from "@/lib/api";
 import { imageUrl, shortHex } from "@/lib/api";
 import { RarityBadge } from "@/components/product/RarityBadge";
 import { ZeroG } from "@/components/atoms/ZeroG";
+import { Kicker } from "./Kicker";
 
 if (typeof window !== "undefined") {
   gsap.registerPlugin(ScrollTrigger);
@@ -108,14 +109,12 @@ function RailHeader() {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
-        <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-          Recent relics
-        </span>
-        <h2 className="font-display mt-3" style={{ fontSize: "clamp(32px, 5vw, 60px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
+        <Kicker index="04" label="Recent relics" />
+        <h2 className="font-display mt-5" style={{ fontSize: "clamp(32px, 5vw, 60px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
           Each one a verifiable Relic.
         </h2>
       </div>
-      <p className="max-w-[36ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+      <p className="max-w-[36ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         Every card carries its provenance: the Aura, the seed, the TEE attestation, the <ZeroG />
         storage root.
       </p>
@@ -129,12 +128,12 @@ function OutputCard({ output: o }: { output: Output }) {
   return (
     <Link
       href="/explore"
-      className="group block overflow-hidden rounded-[22px] border transition-shadow duration-300 hover:shadow-[var(--shadow-card)]"
+      className="group block overflow-hidden rounded-[22px] border micro hover:-translate-y-0.5 hover:shadow-[var(--shadow-card)]"
       style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
     >
       <div className="relative aspect-square w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
         <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
-        <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)" }}>
+        <span className="tag micro absolute left-3 top-3" style={{ background: "color-mix(in oklab, var(--color-ink) 78%, transparent)", color: "var(--color-cream)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", border: "1px solid color-mix(in oklab, var(--color-cream) 16%, transparent)" }}>
           {o.style}
         </span>
         {/* rarer pulls get a corner badge (Common stays clean) - the gacha payoff at a glance */}
@@ -144,15 +143,15 @@ function OutputCard({ output: o }: { output: Output }) {
       </div>
       <div className="p-4">
         <div className="flex items-baseline justify-between">
-          <span className="font-display text-[20px]">{o.agentName}</span>
-          <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>#{o.tokenId}</span>
+          <span className="font-display text-[22px]">{o.agentName}</span>
+          <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink-3)" }}>#{o.tokenId}</span>
         </div>
-        <dl className="mt-3 space-y-1.5">
+        <dl className="mt-3.5 space-y-2">
           <Row k="seed" v={o.seed} />
           <Row k="tee" v={shortHex(o.teeAttestation)} ok />
           <Row k="root" v={shortHex(o.imageRoot)} />
         </dl>
-        <div className="mt-3 flex items-center justify-end border-t pt-3 font-mono-x text-[11px]" style={{ borderColor: "var(--color-border)", color: "var(--color-accent)" }}>
+        <div className="mt-3.5 flex items-center justify-end border-t pt-3 text-[16px] font-semibold" style={{ borderColor: "var(--color-border)", color: "var(--color-accent)" }}>
           Verify -&gt;
         </div>
       </div>
@@ -163,10 +162,10 @@ function OutputCard({ output: o }: { output: Output }) {
 function Row({ k, v, ok = false }: { k: string; v: string; ok?: boolean }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="font-mono-x text-[10px] uppercase tracking-[0.08em]" style={{ color: "var(--color-ink-3)" }}>{k}</dt>
-      <dd className="flex items-center gap-1.5 font-mono-x text-[11px]" style={{ color: "var(--color-ink)" }}>
-        {v}
-        {ok && <span style={{ color: "var(--color-ok)" }}>✓</span>}
+      <dt className="label-caps shrink-0 text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>{k}</dt>
+      <dd className="flex min-w-0 items-center gap-1.5 font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink)" }}>
+        <span className="truncate">{v}</span>
+        {ok && <span className="shrink-0" style={{ color: "var(--color-ok)" }}>✓</span>}
       </dd>
     </div>
   );
