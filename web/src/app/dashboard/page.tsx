@@ -5,7 +5,7 @@ import { Footer } from "@/components/chrome/Footer";
 export const metadata: Metadata = {
   title: "Dashboard | AURA",
   description:
-    "Your AURA studio: every agent you own, every output you hold, your active listings, and the royalties your work earns on 0G Galileo.",
+    "Your AURA studio: every Aura you own, every Relic you hold, your active listings, and the royalties your work earns on 0G Galileo.",
 };
 
 // /dashboard - the wallet-gated portfolio. Tabs: My Agents (owned + royalties earned), My Outputs

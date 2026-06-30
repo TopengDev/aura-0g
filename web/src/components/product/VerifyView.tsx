@@ -29,7 +29,7 @@ export function VerifyView({ initialId }: { initialId?: string }) {
   const verify = useCallback(async (raw: string) => {
     const id = raw.trim().replace(/^#/, "");
     if (!/^\d+$/.test(id)) {
-      setState({ phase: "error", id: raw, message: "Enter a numeric output token id (for example, 6)." });
+      setState({ phase: "error", id: raw, message: "Enter a numeric Relic token id (for example, 6)." });
       return;
     }
     setState({ phase: "checking", id });
@@ -69,12 +69,12 @@ export function VerifyView({ initialId }: { initialId?: string }) {
           <PageHeader
             kicker="Provenance verifier"
             marker="read-only"
-            title={<>Verify any piece.</>}
+            title={<>Verify any Relic.</>}
             lede={
               <>
-                Paste an output token id and AURA re-reads the chain live, no wallet required. It confirms
-                the creating agent, that the image and a TEE attestation are committed on-chain, that the
-                provenance hash holds, and that the royalty still resolves to the current agent owner.
+                Paste a Relic token id and AURA re-reads the chain live, no wallet required. It confirms
+                the creating Aura, that the image and a TEE attestation are committed on-chain, that the
+                provenance hash holds, and that the royalty still resolves to the current Aura owner.
                 The same checks the marketplace runs, in your hands.
               </>
             }
@@ -86,14 +86,14 @@ export function VerifyView({ initialId }: { initialId?: string }) {
           <Reveal delay={0.04}>
             <Panel className="p-6 sm:p-8">
               <form onSubmit={onSubmit}>
-                <Field label="Output token id" hint="numeric">
+                <Field label="Relic token id" hint="numeric">
                   <div className="flex gap-2">
                     <input
                       value={input}
                       inputMode="numeric"
                       onChange={(e) => setInput(e.target.value)}
                       placeholder="e.g. 6"
-                      aria-label="Output token id"
+                      aria-label="Relic token id"
                       // Resting border in className (not inline) so focus:border-* wins (inline style would override it).
                       className="w-full rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 font-mono-x text-[14px] outline-none transition-colors focus:border-[var(--color-accent)]"
                       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
@@ -149,11 +149,11 @@ export function VerifyView({ initialId }: { initialId?: string }) {
 }
 
 const WHAT_GETS_CHECKED = [
-  "The creating agent exists on-chain.",
+  "The creating Aura exists on-chain.",
   "The image root is committed on-chain.",
   "A TEE attestation is present.",
   "The provenance hash matches the chain.",
-  "The royalty resolves to the current agent owner.",
+  "The royalty resolves to the current Aura owner.",
 ];
 
 // The pre-verification calm state: explains the thesis, nudges a sample id.
@@ -167,9 +167,9 @@ function IdlePanel() {
         Provenance, on demand.
       </h2>
       <p className="mx-auto mt-3 max-w-[42ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-        Every AURA output carries an unforgeable on-chain trail. Enter a token id to re-derive it live.
-        Try <button type="button" className="underline underline-offset-4" style={{ color: "var(--color-accent)" }} onClick={() => { const el = document.querySelector<HTMLInputElement>('input[aria-label="Output token id"]'); if (el) { el.value = "6"; el.dispatchEvent(new Event("input", { bubbles: true })); el.focus(); } }}>#6</button>{" "}
-        to see a fully verified piece.
+        Every AURA Relic carries an unforgeable on-chain trail. Enter a token id to re-derive it live.
+        Try <button type="button" className="underline underline-offset-4" style={{ color: "var(--color-accent)" }} onClick={() => { const el = document.querySelector<HTMLInputElement>('input[aria-label="Relic token id"]'); if (el) { el.value = "6"; el.dispatchEvent(new Event("input", { bubbles: true })); el.focus(); } }}>#6</button>{" "}
+        to see a fully verified Relic.
       </p>
     </Panel>
   );
@@ -180,7 +180,7 @@ function CheckingPanel({ id }: { id: string }) {
     <Panel className="p-6 sm:p-8">
       <div className="flex items-center justify-between">
         <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-          Verifying output #{id}
+          Verifying relic #{id}
         </div>
         <span className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-accent)" }}>
           Reading chain
@@ -214,7 +214,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
         <div className="flex items-center justify-between gap-3 border-b px-6 py-5 sm:px-8" style={{ borderColor: "var(--color-border)", background: ok ? "color-mix(in oklab, var(--color-ok) 10%, transparent)" : "color-mix(in oklab, var(--color-warn) 10%, transparent)" }}>
           <div>
             <div className="font-mono-x text-[10px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-              {p.agent.name} · output #{id}
+              {p.agent.name} · relic #{id}
             </div>
             <div className="font-display mt-1.5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1, color: accent }}>
               {ok ? "Verified on-chain" : "Verification incomplete"}
@@ -250,7 +250,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
             On-chain facts
           </div>
           <dl className="mt-4">
-            <MetaRow k="Creating agent" v={`${p.agent.name} (#${p.agent.agentId})`} mono={false} />
+            <MetaRow k="Creating Aura" v={`${p.agent.name} (#${p.agent.agentId})`} mono={false} />
             <MetaRow k="TEE attestation" v={shortHex(p.onChain.teeAttestation)} ok={p.verification.teeAttestationPresent} />
             <MetaRow k="Model attestation" v={shortHex(p.agent.modelAttestation)} ok={!!p.agent.modelAttestation} />
             <MetaRow k="Style DNA" v={shortHex(p.agent.styleFingerprint)} />
@@ -259,7 +259,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
             <MetaRow k="Seed" v={String(p.onChain.seed)} />
             {r ? <MetaRow k="Royalty" v={`${r.royaltyPct}% to current owner`} mono={false} /> : null}
             <MetaRow k="Royalty receiver" v={shortHex(p.verification.royaltyReceiver)} href={`${EXPLORER}/address/${p.verification.royaltyReceiver}`} ok={r ? r.receiverIsAgentOwner : false} />
-            <MetaRow k="Agent owner" v={shortHex(p.agent.owner)} href={`${EXPLORER}/address/${p.agent.owner}`} />
+            <MetaRow k="Aura owner" v={shortHex(p.agent.owner)} href={`${EXPLORER}/address/${p.agent.owner}`} />
           </dl>
 
           {/* SUMMON economic proof: this piece was a PAID commission, and the fee split settled on-chain. */}
@@ -274,12 +274,12 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
               </div>
               <p className="mt-3 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                 This wasn’t a free mint. A collector paid <strong style={{ color: "var(--color-ink)" }}>{result.summon.fee} <ZeroG /></strong> to
-                summon the agent, and the fee settled <strong style={{ color: "var(--color-ink)" }}>on-chain</strong> — straight to the agent’s
+                summon the Aura, and the fee settled <strong style={{ color: "var(--color-ink)" }}>on-chain</strong>, straight to the Aura&rsquo;s
                 owner. Supply can never exceed paid demand.
               </p>
               <dl className="mt-4">
                 <MetaRow k="Commission fee" v={`${result.summon.fee} 0G`} mono={false} />
-                <MetaRow k="→ Agent owner" v={`${result.summon.ownerCut} 0G`} href={`${EXPLORER}/address/${result.summon.agentOwner}`} ok mono={false} />
+                <MetaRow k="→ Aura owner" v={`${result.summon.ownerCut} 0G`} href={`${EXPLORER}/address/${result.summon.agentOwner}`} ok mono={false} />
                 <MetaRow k="→ Platform" v={`${result.summon.platformFee} 0G`} mono={false} />
                 <MetaRow k="Commissioned by" v={shortHex(result.summon.buyer)} href={`${EXPLORER}/address/${result.summon.buyer}`} />
                 <MetaRow k="Settlement tx" v={shortHex(result.summon.fulfillTx)} href={result.summon.fulfillTx ? `${EXPLORER}/tx/${result.summon.fulfillTx}` : undefined} ok />
@@ -289,7 +289,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
           ) : null}
 
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <ActionButton href={`/outputs/${id}`}>View the output -&gt;</ActionButton>
+            <ActionButton href={`/outputs/${id}`}>View the Relic -&gt;</ActionButton>
             <a
               href={`${EXPLORER}/token/${CONTRACTS.outputNFT}?a=${id}`}
               target="_blank"
@@ -314,11 +314,11 @@ function NotFoundPanel({ id }: { id: string }) {
           <span className="font-mono-x text-[16px]">?</span>
         </div>
         <h2 className="font-display mt-5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1.05 }}>
-          No output #{id} on-chain.
+          No relic #{id} on-chain.
         </h2>
         <p className="mx-auto mt-3 max-w-[42ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
           Nothing with that token id has been minted on the 0G Galileo testnet. Double-check the id, or
-          browse the gallery to find a verifiable piece.
+          browse the gallery to find a verifiable Relic.
         </p>
         <div className="mx-auto mt-6 max-w-[240px]">
           <ActionButton href="/explore" variant="outline">Browse the gallery -&gt;</ActionButton>

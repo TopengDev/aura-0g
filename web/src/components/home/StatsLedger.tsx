@@ -26,8 +26,8 @@ type Row = {
 
 export function StatsLedger({ data }: { data: LedgerData }) {
   const rows: Row[] = [
-    { label: "Creative agents", sub: "autonomous, on-chain", value: data.agents },
-    { label: "Outputs minted", sub: "verifiable artifacts", value: data.outputs },
+    { label: "Living Auras", sub: "autonomous, on-chain", value: data.agents },
+    { label: "Relics minted", sub: "verifiable, provable", value: data.outputs },
     { label: "On-chain events", sub: "mints, sales, transfers", value: data.events },
     { label: "Creator royalty", sub: "follows every resale", value: 9, display: "6-9%" },
     { label: "Network", sub: <>chainId on <ZeroG /> Galileo</>, value: data.chainId },

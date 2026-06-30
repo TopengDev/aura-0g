@@ -54,7 +54,7 @@ export function ExploreView({ data }: { data: ExploreData }) {
               title={<>Everything happening on AURA.</>}
               lede={
                 <>
-                  The agents people are minting from, the pieces landing on-chain right now, and the
+                  The Auras people are minting from, the Relics landing on-chain right now, and the
                   creators earning royalties as their work resells. Every item here links to its full,
                   verifiable provenance.
                 </>
@@ -65,9 +65,9 @@ export function ExploreView({ data }: { data: ExploreData }) {
           {/* At-a-glance counts */}
           <Reveal delay={0.05}>
             <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-3">
-              <Glance n={data.totalAgents} label="agents on-chain" />
+              <Glance n={data.totalAgents} label="Auras on-chain" />
               <span className="h-8 w-px" style={{ background: "var(--color-border)" }} />
-              <Glance n={data.totalOutputs} label="outputs minted" />
+              <Glance n={data.totalOutputs} label="Relics minted" />
               <span className="h-8 w-px" style={{ background: "var(--color-border)" }} />
               <Glance n={creators.length} label="creators earning" />
             </div>
@@ -83,13 +83,13 @@ export function ExploreView({ data }: { data: ExploreData }) {
         <div className="mx-auto w-full max-w-[var(--container-wrap)]">
           <SectionHead
             kicker="Trending now"
-            title="Agents on the rise."
+            title="Auras on the rise."
             note="Ranked by a 7-day window of mints, sales, and listings."
             href="/agents"
-            hrefLabel="All agents"
+            hrefLabel="All Auras"
           />
           {trending.length === 0 ? (
-            <EmptyRow label="No trending agents yet. Check back as activity picks up." />
+            <EmptyRow label="No trending Auras yet. Check back as activity picks up." />
           ) : (
             <div className="mt-10 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {trending.slice(0, 6).map(({ item, agent }, i) => (
@@ -106,14 +106,14 @@ export function ExploreView({ data }: { data: ExploreData }) {
       <section className="relative px-5 py-16 sm:px-8 sm:py-20" style={{ background: "color-mix(in oklab, var(--color-cream-deep) 50%, transparent)" }}>
         <div className="mx-auto w-full max-w-[var(--container-wrap)]">
           <SectionHead
-            kicker="Featured outputs"
-            title="The strongest pieces, first."
+            kicker="Featured Relics"
+            title="The strongest Relics, first."
             note="Curated character work leads, then the freshest mints. Each is generated, TEE-attested, and stored on-chain. Tap any to verify."
             href="/verify"
-            hrefLabel="Verify a piece"
+            hrefLabel="Verify a Relic"
           />
           {outputs.length === 0 ? (
-            <EmptyRow label="No outputs minted yet. Generate the first one." />
+            <EmptyRow label="No Relics minted yet. Generate the first one." />
           ) : (
             <>
               <div className="mt-10 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
@@ -142,7 +142,7 @@ export function ExploreView({ data }: { data: ExploreData }) {
           <SectionHead
             kicker="Top creators"
             title="Who the royalties flow to."
-            note="Aggregated across every agent a creator owns. Royalties resolve live to the current owner."
+            note="Aggregated across every Aura a creator owns. Royalties resolve live to the current owner."
           />
           {creators.length === 0 ? (
             <EmptyRow label="No creators yet." />
@@ -369,7 +369,7 @@ function CreatorRow({ rank, creator: c }: { rank: number; creator: CreatorRollup
         </div>
       </div>
       <div className="hidden shrink-0 text-right sm:block">
-        <div className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>{c.outputCount} outputs · {c.salesCount} sales</div>
+        <div className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>{c.outputCount} relics · {c.salesCount} sales</div>
       </div>
       <div className="shrink-0 text-right">
         <div className="font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>
@@ -387,13 +387,13 @@ const KIND_LABEL: Record<string, string> = {
   sale: "sale",
   transfer: "transfer",
   listing: "listed",
-  agent_mint: "agent",
+  agent_mint: "aura",
 };
 
 function ActivityRow({ index, e }: { index: number; e: Activity }) {
   const isSale = e.kind === "sale";
   const tok = e.tokenId !== null ? ` #${e.tokenId}` : "";
-  const name = e.agentName ?? (e.collectionKind === "agent" ? "an agent" : "an output");
+  const name = e.agentName ?? (e.collectionKind === "agent" ? "an Aura" : "a Relic");
   const href = e.tokenId !== null ? (e.collectionKind === "agent" ? `/agents/${e.tokenId}` : `/outputs/${e.tokenId}`) : null;
   const label = describe(e.kind, name, tok);
 

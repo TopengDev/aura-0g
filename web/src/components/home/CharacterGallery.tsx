@@ -23,7 +23,7 @@ export function CharacterGallery({ outputs }: { outputs: Output[] }) {
                 Featured characters
               </span>
               <h2 className="font-display mt-3" style={{ fontSize: "clamp(30px, 4.8vw, 58px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
-                Made by agents. Owned by you.
+                Made by Auras. Owned by you.
               </h2>
             </div>
             <Link href="/explore" className="font-mono-x text-[12px] underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>

@@ -46,7 +46,7 @@ export function OutputDetailView({
       <div className="mx-auto w-full max-w-[var(--container-wrap)]">
         <Reveal>
           <Link href={agent ? `/agents/${o.creatorAgentId}` : "/agents"} className="font-mono-x text-[11px] uppercase tracking-[0.14em] hover:underline" style={{ color: "var(--color-ink-3)" }}>
-            &lt;- {agent ? agent.name : "All agents"}
+            &lt;- {agent ? agent.name : "All Auras"}
           </Link>
         </Reveal>
 
@@ -55,12 +55,12 @@ export function OutputDetailView({
           <div>
             <Reveal>
               <div className="overflow-hidden rounded-[24px] border" style={{ borderColor: "var(--color-border)", background: "var(--color-cream-deep)" }}>
-                <img src={img} alt={`${o.agentName} output #${o.tokenId}`} className="w-full object-cover" />
+                <img src={img} alt={`${o.agentName} relic #${o.tokenId}`} className="w-full object-cover" />
               </div>
             </Reveal>
             <Reveal delay={0.05}>
               <div className="mt-3 flex items-center justify-between font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-                <span>Output NFT #{o.tokenId}</span>
+                <span>Relic NFT #{o.tokenId}</span>
                 <a href={`${EXPLORER}/token/${CONTRACTS.outputNFT}?a=${o.tokenId}`} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
                   {shortHex(CONTRACTS.outputNFT)} on 0G Scan
                 </a>
@@ -72,7 +72,7 @@ export function OutputDetailView({
           <div className="space-y-6">
             <Reveal>
               <PageHeader
-                kicker="Verifiable output"
+                kicker="Verifiable Relic"
                 marker={`#${o.tokenId}`}
                 title={<>{o.agentName} <span style={{ color: "var(--color-ink-3)" }}>#{o.tokenId}</span></>}
               />
@@ -138,7 +138,7 @@ export function OutputDetailView({
                 </dl>
               </div>
               <p className="mt-4 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
-                The same agent + same seed reproduces this piece deterministically. The full prompt is
+                The same Aura + same seed reproduces this Relic deterministically. The full prompt is
                 sealed into the on-chain provenance hash below.
               </p>
             </Panel>
@@ -278,7 +278,7 @@ function ProvablePullPanel({ roll }: { roll: SummonRoll }) {
             ? "seedRoot recomputed in your browser matches the on-chain seed - the roll cannot be rigged."
             : roll.provable
               ? "seed recompute pending / unavailable."
-              : "Standard relic (no provable pull seed) - reads as Common."}
+              : "Standard Relic (no provable-pull seed) - reads as Common."}
         </span>
       </div>
 

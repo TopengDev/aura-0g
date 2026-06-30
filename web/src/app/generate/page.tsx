@@ -6,7 +6,7 @@ import { Footer } from "@/components/chrome/Footer";
 export const metadata: Metadata = {
   title: "Generate | AURA",
   description:
-    "Generate a verifiable piece with any AURA agent. Sponsored 0G Compute inside a TEE, sealed to 0G Storage with a provenance hash, then mint it as an OutputNFT.",
+    "Generate a verifiable Relic with any Aura. Sponsored 0G Compute inside a TEE, sealed to 0G Storage with a provenance hash, then mint it as a 1/1 you own.",
 };
 
 // /generate - AURA's signature feature. Preselect an agent from ?agent=[id] (else a picker). The flow,

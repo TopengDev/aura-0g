@@ -230,9 +230,19 @@ export interface MarketplaceView {
 }
 
 // ── Fetchers (server-side or client; fail soft) ───────────────────────────
-async function getJson<T>(path: string): Promise<T | null> {
+// `revalidate` (seconds) opts a read INTO Next's data cache so the same path is not re-fetched on every
+// navigation. Default is no-store (fresh every call) so existing callers are unchanged. The detail pages
+// pass a revalidate for the immutable / slow-RPC reads (e.g. the on-chain DNA read) to amortize them: an
+// agent's style fingerprint / model attestation never change once minted, so re-paying a multi-second 0G
+// eth_call on every page view was the real cost behind the "slow agent/relic page". The browser ignores
+// the Next-only `next` option (it only takes effect during SSR, which is exactly where the cost was).
+async function getJson<T>(path: string, opts?: { revalidate?: number }): Promise<T | null> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, { cache: "no-store" });
+    const init: RequestInit =
+      opts?.revalidate != null
+        ? ({ next: { revalidate: opts.revalidate } } as RequestInit)
+        : { cache: "no-store" };
+    const res = await fetch(`${API_BASE}${path}`, init);
     if (!res.ok) return null;
     return (await res.json()) as T;
   } catch {
@@ -274,10 +284,20 @@ export async function fetchTrending(): Promise<TrendingItem[]> {
 // Fetch one agent merged from BOTH reads: the indexer-proxied /api/agents/:id (outputs[], salesCount,
 // royaltiesEarned) + the root /agents/:id (on-chain DNA: styleFingerprint, modelAttestation, model).
 // Falls back gracefully if either is down (the base read is required; the DNA enrich is best-effort).
-export async function fetchAgentById(id: number | string): Promise<AgentDetail | null> {
+// `includeDna` controls whether the SLOW on-chain DNA read (`/agents/:id`, a multi-second 0G eth_call
+// for styleFingerprint/modelAttestation/encBrainRoot) is fetched. The agent's OWN page needs it (it
+// renders the on-chain identity panel) so it passes true, but the read is cached 300s because the DNA is
+// immutable once minted. A page that only needs the agent's display identity (name/accent/aesthetic) -
+// e.g. the output page linking back to its creator - passes false and gets ONLY the fast 85ms indexer
+// read, which is what removed ~5.7s of blocking SSR from the relic page. The fast indexer base is cached
+// 20s (owner/sales/royalties are near-live and the trade flow re-reads on-chain at tx time anyway).
+export async function fetchAgentById(
+  id: number | string,
+  includeDna = true,
+): Promise<AgentDetail | null> {
   const [base, chain] = await Promise.all([
-    getJson<AgentDetail>(`/api/agents/${id}`),
-    getJson<AgentChainRead>(`/agents/${id}`),
+    getJson<AgentDetail>(`/api/agents/${id}`, { revalidate: 20 }),
+    includeDna ? getJson<AgentChainRead>(`/agents/${id}`, { revalidate: 300 }) : Promise.resolve(null),
   ]);
   if (!base) {
     if (!chain) return null;
@@ -315,12 +335,12 @@ export async function fetchAgentById(id: number | string): Promise<AgentDetail |
   };
 }
 
-export async function fetchProvenance(id: number | string): Promise<Provenance | null> {
-  return getJson<Provenance>(`/provenance/${id}`);
+export async function fetchProvenance(id: number | string, revalidate?: number): Promise<Provenance | null> {
+  return getJson<Provenance>(`/provenance/${id}`, revalidate != null ? { revalidate } : undefined);
 }
 
-export async function fetchRoyalty(id: number | string): Promise<Royalty | null> {
-  return getJson<Royalty>(`/royalty/${id}`);
+export async function fetchRoyalty(id: number | string, revalidate?: number): Promise<Royalty | null> {
+  return getJson<Royalty>(`/royalty/${id}`, revalidate != null ? { revalidate } : undefined);
 }
 
 // IMPORTANT: the flat Output shape (owner, agentName, seed, imageRoot, style, teeAttestation,
@@ -329,11 +349,12 @@ export async function fetchRoyalty(id: number | string): Promise<Royalty | null>
 // links), which is a DIFFERENT shape. The detail page enriches with /provenance/:id + /royalty/:id
 // separately, so this fetcher must return the flat Output. Falls back to deriving it from the
 // provenance object if the proxied read is unavailable.
-export async function fetchOutputById(id: number | string): Promise<Output | null> {
-  const flat = await getJson<Output>(`/api/outputs/${id}`);
+export async function fetchOutputById(id: number | string, revalidate?: number): Promise<Output | null> {
+  const opts = revalidate != null ? { revalidate } : undefined;
+  const flat = await getJson<Output>(`/api/outputs/${id}`, opts);
   if (flat && flat.owner) return flat;
   // Fallback: reconstruct the flat Output from the root provenance read (different shape).
-  const p = await getJson<Provenance>(`/outputs/${id}`);
+  const p = await getJson<Provenance>(`/outputs/${id}`, opts);
   if (!p) return null;
   return {
     tokenId: p.tokenId,
@@ -352,8 +373,8 @@ export async function fetchOutputById(id: number | string): Promise<Output | nul
   };
 }
 
-export async function fetchMarketplace(): Promise<MarketListing[]> {
-  const data = await getJson<MarketplaceView>("/marketplace");
+export async function fetchMarketplace(revalidate?: number): Promise<MarketListing[]> {
+  const data = await getJson<MarketplaceView>("/marketplace", revalidate != null ? { revalidate } : undefined);
   return data?.activeListings ?? [];
 }
 
@@ -839,8 +860,8 @@ export interface SummonProof {
   roll?: SummonRoll | null; // present for a SUMMON output; carries the provable subject + rarity recompute
 }
 
-export async function fetchSummonProof(tokenId: number | string): Promise<SummonProof | null> {
-  return getJson<SummonProof>(`/summon/output/${tokenId}/proof`);
+export async function fetchSummonProof(tokenId: number | string, revalidate?: number): Promise<SummonProof | null> {
+  return getJson<SummonProof>(`/summon/output/${tokenId}/proof`, revalidate != null ? { revalidate } : undefined);
 }
 
 // ── Formatting helpers ─────────────────────────────────────────────────────

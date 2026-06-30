@@ -34,8 +34,8 @@ import {
 type Tab = "agents" | "outputs" | "listings" | "activity";
 
 const TABS: { key: Tab; label: string }[] = [
-  { key: "agents", label: "My agents" },
-  { key: "outputs", label: "My outputs" },
+  { key: "agents", label: "My Auras" },
+  { key: "outputs", label: "My Relics" },
   { key: "listings", label: "My listings" },
   { key: "activity", label: "Activity" },
 ];
@@ -83,12 +83,12 @@ export function DashboardView() {
       <section className="px-5 py-16 sm:px-8 sm:py-20">
         <div className="mx-auto w-full max-w-[var(--container-wrap)]">
           <Reveal>
-            <PageHeader kicker="Dashboard" title={<>Your studio.</>} lede="Every agent you own, every output you hold, your listings, and the royalties your work earns. Connect a wallet to open it." />
+            <PageHeader kicker="Dashboard" title={<>Your studio.</>} lede="Every Aura you own, every Relic you hold, your listings, and the royalties your work earns. Connect a wallet to open it." />
           </Reveal>
           <Reveal delay={0.05}>
             <ConnectGate
               title="Connect your wallet"
-              body="Your portfolio is keyed to your address on the 0G Galileo testnet. Connect to see your agents, outputs, listings, and earnings."
+              body="Your portfolio is keyed to your address on the 0G Galileo testnet. Connect to see your Auras, Relics, listings, and earnings."
             >
               <ConnectButton.Custom>
                 {({ openConnectModal }) => <ActionButton onClick={openConnectModal}>Connect wallet</ActionButton>}
@@ -119,8 +119,8 @@ export function DashboardView() {
           <div className="mt-10">
             <ProvLine />
             <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
-              <StatFigure value={counts?.agentsOwned ?? 0} label="Agents owned" />
-              <StatFigure value={counts?.outputsOwned ?? 0} label="Outputs held" />
+              <StatFigure value={counts?.agentsOwned ?? 0} label="Auras owned" />
+              <StatFigure value={counts?.outputsOwned ?? 0} label="Relics held" />
               <StatFigure
                 value={<>{data?.royaltiesEarned ?? "0"} <span className="font-mono-x text-[14px]" style={{ color: "var(--color-ink-3)" }}>0G</span></>}
                 label="Royalties earned"
@@ -190,9 +190,9 @@ function AgentsTab({ agents }: { agents: Agent[] }) {
   if (agents.length === 0) {
     return (
       <EmptyState
-        title="No agents yet."
-        body="Mint a creative agent to start earning royalties on everything it makes."
-        cta={{ href: "/create", label: "Create an agent ->" }}
+        title="No Auras yet."
+        body="Mint a creative Aura to start earning royalties on everything it makes."
+        cta={{ href: "/create", label: "Create an Aura ->" }}
       />
     );
   }
@@ -215,7 +215,7 @@ function AgentsTab({ agents }: { agents: Agent[] }) {
                 <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>#{a.agentId}</span>
               </div>
               <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-4 font-mono-x text-[11px]" style={{ borderColor: "var(--color-border)" }}>
-                <MiniStat n={a.outputCount} l="outputs" />
+                <MiniStat n={a.outputCount} l="relics" />
                 <MiniStat n={a.salesCount} l="sales" />
                 <MiniStat n={`${a.royaltiesEarned}`} l="0G earned" />
               </div>
@@ -232,8 +232,8 @@ function OutputsTab({ outputs }: { outputs: Output[] }) {
   if (outputs.length === 0) {
     return (
       <EmptyState
-        title="No outputs yet."
-        body="Generate a verifiable piece with any agent. Generation is sponsored; you only pay gas to mint."
+        title="No Relics yet."
+        body="Generate a verifiable Relic with any Aura. Generation is sponsored; you only pay gas to mint."
         cta={{ href: "/generate", label: "Generate ->" }}
       />
     );
@@ -267,7 +267,7 @@ function ListingsTab({ listings, onChanged }: { listings: MarketListing[]; onCha
     return (
       <EmptyState
         title="No active listings."
-        body="List an agent or an output for sale from its detail page. Active listings appear here with inline controls to update the price or cancel."
+        body="List an Aura or a Relic for sale from its detail page. Active listings appear here with inline controls to update the price or cancel."
         cta={{ href: "/agents", label: "Browse the catalog ->" }}
       />
     );
@@ -308,7 +308,7 @@ function ListingRow({ listing: l, onChanged }: { listing: MarketListing; onChang
     <Panel className="p-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Chip tone="accent">{kind}</Chip>
+          <Chip tone="accent">{kind === "agent" ? "aura" : "relic"}</Chip>
           <Link href={href} className="font-display hover:underline" style={{ fontSize: 20, lineHeight: 1 }}>
             #{l.tokenId}
           </Link>
@@ -370,7 +370,7 @@ function ActivityTab({ items, address }: { items: Activity[]; address: string })
       <EmptyState
         title="No activity yet."
         body="Your mints, sales, listings, and royalty payouts appear here as they happen on-chain."
-        cta={{ href: "/generate", label: "Generate your first piece ->" }}
+        cta={{ href: "/generate", label: "Generate your first Relic ->" }}
       />
     );
   }
@@ -453,7 +453,7 @@ function labelForKind(kind: string): string {
     case "mint":
       return "mint";
     case "agent_mint":
-      return "agent";
+      return "aura";
     case "sale":
       return "sale";
     case "listing":
@@ -473,7 +473,7 @@ function labelForKind(kind: string): string {
 
 // A short human description of an event from the wallet's point of view.
 function describeEvent(e: Activity, addr: string): string {
-  const name = e.agentName ? e.agentName : e.collectionKind === "agent" ? "an agent" : "an output";
+  const name = e.agentName ? e.agentName : e.collectionKind === "agent" ? "an Aura" : "a Relic";
   const tok = e.tokenId !== null ? ` #${e.tokenId}` : "";
   switch (e.kind) {
     case "mint":

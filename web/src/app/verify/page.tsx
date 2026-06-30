@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Verify provenance | AURA",
   description:
-    "Re-derive any AURA output's on-chain provenance live, no wallet required. Confirms the creating agent, the on-chain image and TEE attestation, the provenance hash, and that the royalty resolves to the current agent owner.",
+    "Re-derive any AURA Relic's on-chain provenance live, no wallet required. Confirms the creating Aura, the on-chain image and TEE attestation, the provenance hash, and that the royalty resolves to the current Aura owner.",
 };
 
 export default async function VerifyPage({

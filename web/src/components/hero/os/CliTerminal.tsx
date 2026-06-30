@@ -88,7 +88,7 @@ export function CliTerminal({
         <div className="flex items-center gap-2">
           <AgentSigil size={15} color={C.gold} />
           <span style={{ fontWeight: 600, color: C.fg }}>NOKTURNE</span>
-          <span style={{ color: C.dim }}>· aura creative agent</span>
+          <span style={{ color: C.dim }}>· a living creative Aura</span>
         </div>
         <div style={{ color: C.dim }}>connected to AURA · 0G Galileo testnet · generation sponsored</div>
         <div style={{ color: C.dim }}>~/studio</div>
@@ -173,7 +173,7 @@ function ArtResolve() {
     >
       <img
         src={`/images/${encodeURIComponent("0xe3cd354dfadbb8104b503f775cc341677f98df953fe327e6fd5ebc104523b6f3")}?style=noir&w=120`}
-        alt="NOKTURNE generated output"
+        alt="NOKTURNE generated relic"
         width={44}
         height={44}
         loading="lazy"
@@ -181,7 +181,7 @@ function ArtResolve() {
         style={{ width: 44, height: 44, objectFit: "cover", borderRadius: 4, display: "block" }}
       />
       <div>
-        <div style={{ color: C.fg, fontSize: 11 }}>output.png</div>
+        <div style={{ color: C.fg, fontSize: 11 }}>relic.png</div>
         <div style={{ color: C.dim, fontSize: 10 }}>640×640 · seed 468301020</div>
       </div>
     </motion.div>

@@ -87,12 +87,12 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
         <Reveal>
           <PageHeader
             kicker="The catalog"
-            marker={`${rows.length} agents`}
-            title={<>Autonomous creative agents.</>}
+            marker={`${rows.length} Auras`}
+            title={<>Autonomous creative Auras.</>}
             lede={
               <>
-                Every agent is an on-chain iNFT with a fixed style DNA, a model attestation, and a
-                royalty that follows it. Buy an agent and you own its entire future royalty stream.
+                Every Aura is an on-chain iNFT with a fixed style DNA, a model attestation, and a
+                royalty that follows it. Buy an Aura and you own its entire future royalty stream.
                 {forSaleCount > 0 ? ` ${forSaleCount} listed for sale.` : ""}
               </>
             }
@@ -108,10 +108,10 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
                 <input
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search agents, styles..."
+                  placeholder="Search Auras, styles..."
                   className="w-full bg-transparent py-2.5 pl-2 font-mono-x text-[12px] outline-none"
                   style={{ color: "var(--color-ink)" }}
-                  aria-label="Search agents"
+                  aria-label="Search Auras"
                 />
               </div>
               <div className="flex flex-wrap gap-1.5">
@@ -149,7 +149,7 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
         {/* Grid */}
         {visible.length === 0 ? (
           <div className="mt-16 text-center">
-            <p className="font-display" style={{ fontSize: "clamp(24px,4vw,36px)" }}>No agents match.</p>
+            <p className="font-display" style={{ fontSize: "clamp(24px,4vw,36px)" }}>No Auras match.</p>
             <p className="mt-2 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
               Try clearing the filters or the search.
             </p>
@@ -167,8 +167,8 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
         <Pager page={curPage} pageCount={pageCount} onPage={setPage} className="mt-12" />
 
         <p className="mt-8 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-          Showing {pageRows.length} of {visible.length} catalog agents
-          {visible.length !== rows.length ? ` (filtered from ${rows.length})` : ""}. {totalCount} agents minted on-chain (chain 16602).
+          Showing {pageRows.length} of {visible.length} catalog Auras
+          {visible.length !== rows.length ? ` (filtered from ${rows.length})` : ""}. {totalCount} Auras minted on-chain (chain 16602).
         </p>
       </div>
     </section>
@@ -210,7 +210,7 @@ function AgentCard({ row }: { row: AgentRow }) {
           <span style={{ color: "var(--color-ink-2)" }}>{a.owner.slice(0, 6)}…{a.owner.slice(-4)}</span>
         </div>
         <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-4 font-mono-x text-[11px]" style={{ borderColor: "var(--color-border)" }}>
-          <Stat n={a.outputCount} l="outputs" />
+          <Stat n={a.outputCount} l="relics" />
           <Stat n={a.salesCount} l="sales" />
           <Stat n={`${a.royaltyPct}%`} l="royalty" />
         </div>

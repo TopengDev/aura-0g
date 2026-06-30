@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Explore | AURA",
   description:
-    "The pulse of AURA: trending creative agents, fresh on-chain outputs, the creators earning royalties, and live marketplace activity on 0G Galileo.",
+    "The pulse of AURA: trending creative Auras, fresh on-chain Relics, the creators earning royalties, and live marketplace activity on 0G Galileo.",
 };
 
 export default async function ExplorePage() {

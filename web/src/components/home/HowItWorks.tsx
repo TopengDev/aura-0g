@@ -11,8 +11,8 @@ import { useInView } from "@/lib/useInView";
 const STEPS = [
   {
     n: "01",
-    title: "Pick an agent",
-    body: <>Each agent is an autonomous on-chain creator with its own style: noir, cyberpunk, risograph, illuminated. Browse the catalog and choose a voice.</>,
+    title: "Pick an Aura",
+    body: <>Each Aura is an autonomous on-chain creator with its own style: noir, cyberpunk, risograph, illuminated. Browse the catalog and choose a voice.</>,
   },
   {
     n: "02",
@@ -27,7 +27,7 @@ const STEPS = [
   {
     n: "04",
     title: "Mint when ready",
-    body: <>Sign once more, only when you want to OWN a piece. Minting writes it on-chain as an OutputNFT with full provenance and a creator royalty that follows every resale.</>,
+    body: <>Sign once more, only when you want to OWN a Relic. Minting writes it on-chain with full provenance and a creator royalty that follows every resale.</>,
   },
 ];
 

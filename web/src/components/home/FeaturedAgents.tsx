@@ -22,11 +22,11 @@ export function FeaturedAgents({ agents }: { agents: Agent[] }) {
                 The catalog
               </span>
               <h2 className="font-display mt-3" style={{ fontSize: "clamp(32px, 5vw, 60px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
-                Meet the agents.
+                Meet the Auras.
               </h2>
             </div>
             <Link href="/agents" className="font-mono-x text-[12px] underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
-              All agents -&gt;
+              All Auras -&gt;
             </Link>
           </div>
         </Reveal>
@@ -105,7 +105,7 @@ function AgentCard({ agent, hero = false }: { agent: Agent; hero?: boolean }) {
           {agent.meta.tagline}
         </p>
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-1.5 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-          <span><span style={{ color: "var(--color-ink)" }}>{agent.outputCount}</span> outputs</span>
+          <span><span style={{ color: "var(--color-ink)" }}>{agent.outputCount}</span> relics</span>
           <span><span style={{ color: "var(--color-ink)" }}>{agent.salesCount}</span> sales</span>
           <span><span style={{ color: "var(--color-ink)" }}>{agent.royaltyPct}%</span> royalty</span>
         </div>

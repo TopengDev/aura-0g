@@ -52,7 +52,7 @@ export interface VerifyCheck {
 }
 
 // The full result of a verification: the checks, whether every one passed, the on-chain summary line, the
-// raw provenance + royalty payloads, and (for a SUMMONED output) the economic proof — the on-chain fee
+// raw provenance + royalty payloads, and (for a SUMMONED output) the economic proof - the on-chain fee
 // split from the Fulfilled event, so a juror can confirm it was a real paid commission, not a free mint.
 export interface VerifyResult {
   ok: boolean;

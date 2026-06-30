@@ -22,7 +22,7 @@ function progressSteps(status: string, delivered: boolean): { label: string; sta
   if (status === "expired") {
     return [
       { label: "Payment escrowed", status: "done" },
-      { label: "Agent did not deliver in time", status: "error" },
+      { label: "Aura did not deliver in time", status: "error" },
       { label: "Attested + minted to you", status: "pending" },
       { label: "Delivered to your wallet", status: "pending" },
     ];
@@ -31,7 +31,7 @@ function progressSteps(status: string, delivered: boolean): { label: string; sta
   const isDelivered = delivered || status === "fulfilled" || status === "settled";
   return [
     { label: "Payment escrowed", status: "done" },
-    { label: "Agent generating inside the TEE", status: isDelivered || fulfilling ? "done" : "active" },
+    { label: "Aura generating inside the TEE", status: isDelivered || fulfilling ? "done" : "active" },
     { label: "TEE attested + minting to you", status: isDelivered ? "done" : fulfilling ? "active" : "pending" },
     { label: "Delivered to your wallet", status: isDelivered ? "done" : "pending" },
   ];
@@ -109,7 +109,7 @@ export function SummonPanel({
     return () => clearInterval(t);
   }, [requestId, terminal]);
 
-  // Resume tracking a summon from the URL (?summon=<requestId>) — survives a refresh, and lets a shared
+  // Resume tracking a summon from the URL (?summon=<requestId>) - survives a refresh, and lets a shared
   // status link (or the just-paid redirect) land straight on the live progress / delivered card.
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -191,7 +191,7 @@ export function SummonPanel({
           ) : status?.expired ? (
             <div className="space-y-3">
               <div className="rounded-xl border p-3 text-[12px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
-                The agent did not deliver before the deadline. Reclaim your payment (anti-rug).
+                The Aura did not deliver before the deadline. Reclaim your payment (anti-rug).
               </div>
               <ActionButton variant="warn" onClick={() => refund(requestId)} disabled={busy}>
                 {busy && state.action === "refund" ? "Refunding…" : "Refund my payment"}
@@ -215,8 +215,8 @@ export function SummonPanel({
       ) : (
         <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
           {isOwner
-            ? "You own this agent. Set a commission price below to let collectors summon it."
-            : "The owner hasn’t opened this agent for commissions yet."}
+            ? "You own this Aura. Set a commission price below to let collectors summon it."
+            : "The owner hasn’t opened this Aura for commissions yet."}
         </p>
       )}
 
@@ -224,7 +224,7 @@ export function SummonPanel({
       {isOwner ? (
         <div className="mt-6 space-y-3 rounded-[16px] border p-4" style={{ borderColor: "var(--color-border)" }}>
           <div className="font-mono-x text-[10px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
-            Owner · this agent earns for you
+            Owner · this Aura earns for you
           </div>
           <div className="flex items-center rounded-full border px-4" style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}>
             <input
@@ -275,13 +275,13 @@ function DeliveredCard({ status }: { status: SummonStatus }) {
       <div className="flex items-center gap-2">
         <Chip tone="ok">Delivered</Chip>
         <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-          output #{status.tokenId}
+          relic #{status.tokenId}
         </span>
       </div>
       {status.imageRoot ? (
         <Link href={`/outputs/${status.tokenId}`} className="mt-3 block overflow-hidden rounded-[12px] border" style={{ borderColor: "var(--color-border)" }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imageUrl(status.imageRoot)} alt={`Summoned output #${status.tokenId}`} className="block w-full" loading="lazy" />
+          <img src={imageUrl(status.imageRoot)} alt={`Summoned relic #${status.tokenId}`} className="block w-full" loading="lazy" />
         </Link>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px]">
@@ -295,8 +295,8 @@ function DeliveredCard({ status }: { status: SummonStatus }) {
         ) : null}
       </div>
       <p className="mt-3 text-[12px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-        Yours now. The {status.fee ?? ""} 0G fee just paid the agent’s current owner — and every future
-        resale royalty follows the agent too.
+        Yours now. The {status.fee ?? ""} 0G fee just paid the Aura&rsquo;s current owner, and every future
+        resale royalty follows the Aura too.
       </p>
     </div>
   );

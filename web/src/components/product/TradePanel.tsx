@@ -38,6 +38,8 @@ export function TradePanel({
   const isOwner = !!address && !!owner && address.toLowerCase() === owner.toLowerCase();
   const isListed = !!listing;
   const price = listing?.price ?? null;
+  // User-facing noun for this asset kind (the lexicon: an agent is an "Aura", an output is a "Relic").
+  const noun = kind === "agent" ? "Aura" : "Relic";
 
   const validPrice = (v: string) => /^\d*\.?\d+$/.test(v) && Number(v) > 0;
 
@@ -74,7 +76,7 @@ export function TradePanel({
       {!isConnected ? (
         <div className="space-y-3">
           <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
-            Connect a wallet on the 0G Galileo testnet to {isListed ? "buy" : "trade"} this {kind}.
+            Connect a wallet on the 0G Galileo testnet to {isListed ? "buy" : "trade"} this {noun}.
           </p>
           <ConnectButton.Custom>
             {({ openConnectModal }) => (
@@ -102,7 +104,7 @@ export function TradePanel({
         // LIST (with the one-time approval pre-step)
         <div className="space-y-3">
           <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
-            You own this {kind}. List it for sale. The first listing approves the marketplace as an
+            You own this {noun}. List it for sale. The first listing approves the marketplace as an
             operator (one-time), then posts the price on-chain.
           </p>
           <PriceField value={priceInput} onChange={setPriceInput} placeholder="Price in 0G (e.g. 0.05)" />
@@ -113,7 +115,7 @@ export function TradePanel({
       ) : (
         // not owner + not listed
         <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
-          This {kind} is not currently listed for sale. When the owner lists it, a Buy action appears
+          This {noun} is not currently listed for sale. When the owner lists it, a Buy action appears
           here.
         </p>
       )}

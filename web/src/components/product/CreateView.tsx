@@ -147,7 +147,7 @@ export function CreateView() {
       setDraft(args);
       setFlow("ready");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not build the agent.");
+      setError(e instanceof Error ? e.message : "Could not build the Aura.");
       setFlow("error");
     }
   }, [formValid, image, auth, name, royaltyBps, creatorResaleBps, styleDescriptor, identityLock, negative, signatureCharacter]);
@@ -199,7 +199,7 @@ export function CreateView() {
         status: done || confirming ? "done" : mintingNow ? "active" : "pending",
       },
       {
-        label: confirming ? "Activating the agent brain" : "Agent live",
+        label: confirming ? "Activating the Aura brain" : "Aura live",
         status: done ? "done" : confirming ? "active" : "pending",
       },
     ];
@@ -211,13 +211,13 @@ export function CreateView() {
         <Reveal>
           <PageHeader
             kicker="Create"
-            marker="new agent iNFT"
-            title={<>Mint a creative agent.</>}
+            marker="new Aura iNFT"
+            title={<>Mint a creative Aura.</>}
             lede={
               <>
                 Give it a reference image and a style, and AURA seals an encrypted brain to <ZeroG />{" "}
                 Storage, derives a provable style-DNA fingerprint, and attests the model from a live TEE.
-                You sign the mint and own the agent, its style, and every royalty it earns.
+                You sign the mint and own the Aura, its style, and every royalty it earns.
               </>
             }
           />
@@ -237,7 +237,7 @@ export function CreateView() {
                   <p className="mt-2 font-mono-x text-[11px]" style={{ color: "var(--color-warn)" }}>{imageError}</p>
                 ) : (
                   <p className="mt-2 font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-                    PNG or JPEG, {MIN_PX} to {MAX_PX}px each side. This becomes the agent&apos;s determinism anchor.
+                    PNG or JPEG, {MIN_PX} to {MAX_PX}px each side. This becomes the Aura&apos;s determinism anchor.
                   </p>
                 )}
               </Panel>
@@ -249,11 +249,11 @@ export function CreateView() {
                 <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Identity
                 </div>
-                <Field label="Agent name" hint={`${name.trim().length}/48`}>
+                <Field label="Aura name" hint={`${name.trim().length}/48`}>
                   <TextInput value={name} onChange={setName} maxLength={48} placeholder="e.g. NOCTILUCA" disabled={flow === "building" || flow === "minting"} />
                 </Field>
                 <Field label="Style descriptor" hint={`${styleDescriptor.trim().length} chars, min 8`}>
-                  <TextArea value={styleDescriptor} onChange={setStyleDescriptor} rows={3} maxLength={500} placeholder="Describe the agent's aesthetic: palette, light, texture, mood, subject." disabled={flow === "building" || flow === "minting"} />
+                  <TextArea value={styleDescriptor} onChange={setStyleDescriptor} rows={3} maxLength={500} placeholder="Describe the Aura's aesthetic: palette, light, texture, mood, subject." disabled={flow === "building" || flow === "minting"} />
                 </Field>
                 <Field label="Signature character (optional)">
                   <TextInput value={signatureCharacter} onChange={setSignatureCharacter} maxLength={120} placeholder="A recurring subject or motif, if any" disabled={flow === "building" || flow === "minting"} />
@@ -283,16 +283,16 @@ export function CreateView() {
                   Royalties
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Output royalty %" hint="max 20%">
+                  <Field label="Relic royalty %" hint="max 20%">
                     <TextInput value={royaltyPct} onChange={setRoyaltyPct} inputMode="decimal" type="text" placeholder="7" disabled={flow === "building" || flow === "minting"} />
                   </Field>
-                  <Field label="Agent resale royalty %" hint="max 20%">
+                  <Field label="Aura resale royalty %" hint="max 20%">
                     <TextInput value={resalePct} onChange={setResalePct} inputMode="decimal" type="text" placeholder="10" disabled={flow === "building" || flow === "minting"} />
                   </Field>
                 </div>
                 <p className="mt-3 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
-                  Output royalty routes to whoever owns this agent on every sale of its work. Agent resale
-                  royalty pays you, the original creator, each time the agent itself is resold.
+                  Relic royalty routes to whoever owns this Aura on every sale of its work. Aura resale
+                  royalty pays you, the original creator, each time the Aura itself is resold.
                 </p>
                 {(!validPct(royaltyPct) || !validPct(resalePct)) ? (
                   <p className="mt-2 font-mono-x text-[11px]" style={{ color: "var(--color-warn)" }}>
@@ -324,7 +324,7 @@ export function CreateView() {
                   <div className="space-y-3">
                     <p className="text-[13px]" style={{ color: "var(--color-ink-2)" }}>
                       Connect a wallet on the 0G Galileo testnet. You sign in once (SIWE) to build, and
-                      sign again to mint the agent.
+                      sign again to mint the Aura.
                     </p>
                     <ConnectButton.Custom>
                       {({ openConnectModal }) => <ActionButton onClick={openConnectModal}>Connect wallet</ActionButton>}
@@ -333,7 +333,7 @@ export function CreateView() {
                 ) : flow === "compose" || flow === "signin" || flow === "error" ? (
                   <div className="space-y-3">
                     <ActionButton onClick={onBuild} disabled={!formValid || flow === "signin"}>
-                      {flow === "signin" ? "Sign in to AURA..." : "Build the agent"}
+                      {flow === "signin" ? "Sign in to AURA..." : "Build the Aura"}
                     </ActionButton>
                     {!formValid ? (
                       <p className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
@@ -357,13 +357,13 @@ export function CreateView() {
                         <MetaRow k="Style DNA fingerprint" v={shortHex(draft.styleFingerprint)} />
                         <MetaRow k="Model attestation" v={shortHex(draft.modelAttestation)} ok />
                         <MetaRow k="Encrypted brain root" v={shortHex(draft.encBrainRoot)} />
-                        <MetaRow k="Output royalty" v={`${(draft.royaltyBps / 100).toFixed(2)}%`} />
+                        <MetaRow k="Relic royalty" v={`${(draft.royaltyBps / 100).toFixed(2)}%`} />
                         <MetaRow k="Creator resale" v={`${(draft.creatorResaleBps / 100).toFixed(2)}%`} />
                       </dl>
                     ) : null}
                     {flow === "confirming" ? (
                       <div className="rounded-xl border p-3 font-mono-x text-[12px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
-                        Activating the agent brain
+                        Activating the Aura brain
                       </div>
                     ) : (
                       <ActionButton onClick={onMint} disabled={minting || !draft}>
@@ -383,7 +383,7 @@ export function CreateView() {
                   <div className="space-y-3">
                     <div className="rounded-xl border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
                       <div className="font-mono-x text-[12px]" style={{ color: "var(--color-ok)" }}>
-                        Agent registered on-chain ✓
+                        Aura registered on-chain ✓
                       </div>
                       {mintState.txHash ? (
                         <a href={`${EXPLORER}/tx/${mintState.txHash}`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
@@ -393,7 +393,7 @@ export function CreateView() {
                     </div>
                     {mintedId !== null ? (
                       <>
-                        <ActionButton href={`/agents/${mintedId}`}>View agent #{mintedId} -&gt;</ActionButton>
+                        <ActionButton href={`/agents/${mintedId}`}>View Aura #{mintedId} -&gt;</ActionButton>
                         <ActionButton href={`/generate?agent=${mintedId}`} variant="outline">Generate with it -&gt;</ActionButton>
                       </>
                     ) : null}
@@ -405,7 +405,7 @@ export function CreateView() {
 
                 <p className="mt-5 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                   The style fingerprint is a keccak hash of the canonical public style. It is committed
-                  on-chain at mint, so the agent&apos;s identity is provable and cannot drift silently.
+                  on-chain at mint, so the Aura&apos;s identity is provable and cannot drift silently.
                 </p>
               </div>
             </Reveal>

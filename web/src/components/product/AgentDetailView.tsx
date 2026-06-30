@@ -31,7 +31,7 @@ export function AgentDetailView({
       <div className="mx-auto w-full max-w-[var(--container-wrap)]">
         <Reveal>
           <Link href="/agents" className="font-mono-x text-[11px] uppercase tracking-[0.14em] hover:underline" style={{ color: "var(--color-ink-3)" }}>
-            &lt;- All agents
+            &lt;- All Auras
           </Link>
         </Reveal>
 
@@ -54,7 +54,7 @@ export function AgentDetailView({
             <Reveal delay={0.05}>
               <div className="mt-6">
                 <PageHeader
-                  kicker="Creative agent"
+                  kicker="Living Aura"
                   marker={`#${a.agentId} · v${a.styleVersion}`}
                   title={a.name}
                   lede={a.meta.tagline}
@@ -105,7 +105,7 @@ export function AgentDetailView({
                   {a.styleFingerprint ? <MetaRow k="Style DNA fingerprint" v={shortHex(a.styleFingerprint)} /> : null}
                   {a.modelAttestation ? <MetaRow k="Model attestation" v={shortHex(a.modelAttestation)} ok /> : null}
                   {a.model ? <MetaRow k="Model" v={a.model} mono={false} /> : null}
-                  <MetaRow k="Output royalty" v={`${a.royaltyPct}%`} />
+                  <MetaRow k="Relic royalty" v={`${a.royaltyPct}%`} />
                   <MetaRow k="Creator resale royalty" v={`${a.creatorResaleBps / 100}%`} />
                   <MetaRow k="Style version" v={`v${a.styleVersion}`} />
                   <MetaRow k="Agent iNFT" v={shortHex(CONTRACTS.agentRegistry)} href={agentUrl} />
@@ -124,9 +124,9 @@ export function AgentDetailView({
                 listing={listing}
                 note={
                   <>
-                    Buying this agent transfers ownership <strong style={{ color: "var(--color-ink)" }}>and its entire future royalty stream</strong>. Every
-                    future sale of any output {a.name} has minted (or ever mints) pays its <ZeroG />{" "}
-                    royalty to whoever owns this agent. The royalty follows the work.
+                    Buying this Aura transfers ownership <strong style={{ color: "var(--color-ink)" }}>and its entire future royalty stream</strong>. Every
+                    future sale of any Relic {a.name} has minted (or ever mints) pays its <ZeroG />{" "}
+                    royalty to whoever owns this Aura. The royalty follows the work.
                   </>
                 }
               />
@@ -139,9 +139,9 @@ export function AgentDetailView({
                   owner={a.owner}
                   note={
                     <>
-                      Pay to commission {a.name} and it generates a TEE-attested 1/1 <strong style={{ color: "var(--color-ink)" }}>live, on demand</strong> — minted
-                      straight to you. The fee pays the agent’s <strong style={{ color: "var(--color-ink)" }}>current owner</strong>, and so does every future resale
-                      royalty. Own the agent, earn from every summon.
+                      Pay to summon {a.name} and it creates a TEE-attested 1/1 <strong style={{ color: "var(--color-ink)" }}>live, on demand</strong>, minted
+                      straight to you. The fee pays the Aura&rsquo;s <strong style={{ color: "var(--color-ink)" }}>current owner</strong>, and so does every future resale
+                      royalty. Own the Aura, earn from every summon.
                     </>
                   }
                 />
@@ -165,10 +165,10 @@ export function AgentDetailView({
           <div className="mt-14">
             <ProvLine />
             <div className="mt-6 grid grid-cols-2 gap-6 sm:grid-cols-4">
-              <StatFigure value={a.outputCount} label="Outputs created" />
+              <StatFigure value={a.outputCount} label="Relics created" />
               <StatFigure value={a.salesCount} label="Secondary sales" />
               <StatFigure value={<>{a.royaltiesEarned} <span className="font-mono-x text-[14px]" style={{ color: "var(--color-ink-3)" }}>0G</span></>} label="Royalties earned" />
-              <StatFigure value={`${a.royaltyPct}%`} label="Output royalty" />
+              <StatFigure value={`${a.royaltyPct}%`} label="Relic royalty" />
             </div>
           </div>
         </Reveal>
@@ -183,15 +183,15 @@ export function AgentDetailView({
                   Everything {a.name} has made.
                 </h2>
               </div>
-              <span className="font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>{outputs.length} outputs</span>
+              <span className="font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>{outputs.length} relics</span>
             </div>
           </Reveal>
 
           {outputs.length === 0 ? (
             <Panel className="mt-8 p-10 text-center">
-              <p className="font-display" style={{ fontSize: "clamp(22px,3.5vw,32px)" }}>No outputs yet.</p>
+              <p className="font-display" style={{ fontSize: "clamp(22px,3.5vw,32px)" }}>No relics yet.</p>
               <p className="mt-2 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
-                This agent has not minted any work. Generate the first one (sponsored, you just sign in once).
+                This Aura has not minted any work yet. Generate the first one (sponsored, you just sign in once).
               </p>
               <div className="mx-auto mt-5 max-w-[260px]">
                 <ActionButton href={`/generate?agent=${a.agentId}`}>Generate with {a.name} -&gt;</ActionButton>

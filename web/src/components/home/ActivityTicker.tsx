@@ -12,7 +12,7 @@ const KIND_LABEL: Record<string, string> = {
   sale: "SALE",
   transfer: "TRANSFER",
   listing: "LISTING",
-  agent_mint: "AGENT MINT",
+  agent_mint: "AURA MINT",
 };
 
 export function ActivityTicker({ activity }: { activity: Activity[] }) {

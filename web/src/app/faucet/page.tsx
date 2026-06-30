@@ -9,7 +9,7 @@ import { Footer } from "@/components/chrome/Footer";
 export const metadata: Metadata = {
   title: "Testnet faucet | AURA",
   description:
-    "Get free testnet 0G for gas on 0G Galileo. Minting, listing, buying, and creating an agent are user-signed transactions; generation itself is sponsored.",
+    "Get free testnet 0G for gas on 0G Galileo. Minting, listing, buying, and creating an Aura are user-signed transactions; generation itself is sponsored.",
 };
 
 export default function FaucetPage() {

@@ -227,7 +227,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
         status: signDone ? "done" : mintingNow ? "active" : flow === "ready" ? "pending" : "pending",
       },
       {
-        label: "Output minted",
+        label: "Relic minted",
         status: signDone ? "done" : "pending",
       },
     ];
@@ -237,9 +237,9 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
     return (
       <section className="px-5 py-16 sm:px-8">
         <div className="mx-auto w-full max-w-[var(--container-wrap)]">
-          <PageHeader kicker="Generate" title="No agents available yet." lede="The catalog is empty. Create an agent first, then generate with it." />
+          <PageHeader kicker="Generate" title="No Auras available yet." lede="The catalog is empty. Create an Aura first, then generate with it." />
           <div className="mt-8 max-w-[260px]">
-            <ActionButton href="/create">Create an agent -&gt;</ActionButton>
+            <ActionButton href="/create">Create an Aura -&gt;</ActionButton>
           </div>
         </div>
       </section>
@@ -253,10 +253,10 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
           <PageHeader
             kicker="Generate"
             marker={agent ? `with ${agent.name}` : undefined}
-            title={<>Make a verifiable piece.</>}
+            title={<>Make a verifiable Relic.</>}
             lede={
               <>
-                Pick an agent, describe the work, and it paints on <ZeroG /> Compute inside a TEE. The
+                Pick an Aura, describe the work, and it paints on <ZeroG /> Compute inside a TEE. The
                 result is sealed to <ZeroG /> Storage with a provenance hash and an attestation, then you
                 sign the mint. Generation is sponsored. You only pay gas to mint.
               </>
@@ -271,7 +271,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
             <Reveal>
               <Panel className="p-5">
                 <div className="mb-3 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-                  The agent
+                  The Aura
                 </div>
 
                 {/* Top-5 quick-select badges */}
@@ -311,7 +311,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                     </svg>
                     <input
                       type="text"
-                      placeholder="Search all agents..."
+                      placeholder="Search all Auras..."
                       value={agentSearch}
                       disabled={flow === "generating" || flow === "minting"}
                       onChange={(e) => { setAgentSearch(e.target.value); setSearchOpen(true); }}
@@ -319,7 +319,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => { if (e.key === "Escape") setSearchOpen(false); }}
                       className="w-full rounded-[14px] border border-[var(--color-border-strong)] py-2.5 pl-9 pr-4 font-mono-x text-[13px] outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
                       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
-                      aria-label="Search agents"
+                      aria-label="Search Auras"
                       aria-haspopup="listbox"
                       aria-expanded={showDropdown}
                     />
@@ -327,13 +327,13 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                   {showDropdown && (
                     <div
                       role="listbox"
-                      aria-label="Agent list"
+                      aria-label="Aura list"
                       className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-52 overflow-y-auto rounded-[16px] border shadow-[var(--shadow-doc)]"
                       style={{ background: "var(--color-paper)", borderColor: "var(--color-border-strong)" }}
                     >
                       {filteredForDropdown.length === 0 ? (
                         <p className="px-4 py-3 font-mono-x text-[12px]" style={{ color: "var(--color-ink-3)" }}>
-                          No agents match
+                          No Auras match
                         </p>
                       ) : (
                         filteredForDropdown.map((a) => {
@@ -390,13 +390,13 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                     placeholder={
                       agent
                         ? `e.g. a lone figure under a streetlamp in the rain, drifting smoke, in ${agent.name}'s style`
-                        : "Describe the piece you want"
+                        : "Describe the Relic you want"
                     }
                   />
                 </Field>
                 <p className="mt-3 font-mono-x text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
-                  The agent fuses your prompt with its sealed style DNA. The seed is chosen at generation
-                  and committed on-chain, so the exact piece is reproducible and provable.
+                  The Aura fuses your prompt with its sealed style DNA. The seed is chosen at generation
+                  and committed on-chain, so the exact Relic is reproducible and provable.
                 </p>
               </Panel>
             </Reveal>
@@ -506,7 +506,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                     </div>
                     {mintState.mintedId !== null ? (
                       <ActionButton href={`/outputs/${mintState.mintedId}`}>
-                        View output #{mintState.mintedId} -&gt;
+                        View relic #{mintState.mintedId} -&gt;
                       </ActionButton>
                     ) : null}
                     <button type="button" onClick={onReset} className="w-full text-center font-mono-x text-[11px] underline underline-offset-4" style={{ color: "var(--color-ink-3)" }}>
@@ -526,7 +526,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
               <Reveal delay={0.1}>
                 <Link href={`/agents/${agent.agentId}`} className="mt-4 flex items-center justify-between rounded-[18px] border p-3 transition-shadow hover:shadow-[var(--shadow-card)]" style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}>
                   <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
-                    Output royalty {agent.royaltyPct}% · follows the agent
+                    Relic royalty {agent.royaltyPct}% · follows the Aura
                   </span>
                   <span className="font-mono-x text-[11px]" style={{ color: "var(--color-accent)" }}>
                     {agent.name} -&gt;

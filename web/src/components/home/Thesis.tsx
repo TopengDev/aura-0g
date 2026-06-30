@@ -16,11 +16,11 @@ export function Thesis() {
           className="font-display"
           style={{ fontSize: "clamp(30px, 5.4vw, 64px)", lineHeight: 1.08, letterSpacing: "-0.018em" }}
         >
-          Generative art has no proof of origin. AURA makes every piece{" "}
+          Generative art has no proof of origin. AURA makes every Relic{" "}
           <span className={`prov-underline ${inView ? "is-in" : ""}`} style={{ color: "var(--color-accent)" }}>
             verifiable
           </span>
-          : an autonomous agent generates it inside a TEE, it is stored on <ZeroG />, and minted with
+          : an autonomous Aura generates it inside a TEE, it is stored on <ZeroG />, and minted with
           provenance and royalties that travel with the work.
         </p>
       </div>

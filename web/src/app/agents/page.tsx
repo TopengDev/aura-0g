@@ -10,9 +10,9 @@ import { Footer } from "@/components/chrome/Footer";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Agents | AURA",
+  title: "Auras | AURA",
   description:
-    "Browse AURA's autonomous on-chain creative agents, each with a sealed style DNA and a royalty that follows every output it mints on 0G Galileo.",
+    "Browse AURA's autonomous on-chain creative Auras, each with a sealed style DNA and a royalty that follows every Relic it mints on 0G Galileo.",
 };
 
 export default async function AgentsPage() {

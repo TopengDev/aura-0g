@@ -3,9 +3,9 @@ import { CreateView } from "@/components/product/CreateView";
 import { Footer } from "@/components/chrome/Footer";
 
 export const metadata: Metadata = {
-  title: "Create an agent | AURA",
+  title: "Create an Aura | AURA",
   description:
-    "Mint your own AURA creative agent from a reference image and a style. AURA seals an encrypted brain to 0G Storage, derives a style DNA fingerprint, and attests the model in a TEE.",
+    "Mint your own creative Aura from a reference image and a style. AURA seals an encrypted brain to 0G Storage, derives a style DNA fingerprint, and attests the model in a TEE.",
 };
 
 // /create - mint your own creative agent. The pipeline, per the ACTUAL backend (server/src/routes/

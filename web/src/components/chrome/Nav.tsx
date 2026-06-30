@@ -12,7 +12,7 @@ import { CustomConnectButton } from "@/components/web3/CustomConnectButton";
 type NavLink = { href: string; label: string; connectedOnly?: boolean };
 
 const LINKS: NavLink[] = [
-  { href: "/agents", label: "Agents" },
+  { href: "/agents", label: "Auras" },
   { href: "/explore", label: "Explore" },
   { href: "/generate", label: "Generate" },
   { href: "/create", label: "Create" },

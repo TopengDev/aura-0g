@@ -11,7 +11,7 @@ export type CliExchange = {
   tool: { name: string; args: string; status: string };
 };
 
-export const CLI_AGENT = "nokturne-agent";
+export const CLI_AGENT = "nokturne-aura";
 
 export const CLI_EXCHANGES: CliExchange[] = [
   {

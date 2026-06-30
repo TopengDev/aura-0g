@@ -109,14 +109,14 @@ function RailHeader() {
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-          Recent outputs
+          Recent relics
         </span>
         <h2 className="font-display mt-3" style={{ fontSize: "clamp(32px, 5vw, 60px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
-          Each one a verifiable artifact.
+          Each one a verifiable Relic.
         </h2>
       </div>
       <p className="max-w-[36ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-        Every card carries its provenance: the agent, the seed, the TEE attestation, the <ZeroG />
+        Every card carries its provenance: the Aura, the seed, the TEE attestation, the <ZeroG />
         storage root.
       </p>
     </div>

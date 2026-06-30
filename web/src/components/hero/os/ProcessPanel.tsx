@@ -26,7 +26,7 @@ const STEPS = {
 } as const;
 
 const FOOTER = {
-  generate: "generated in a TEE and stored on 0G as a verifiable artifact, minted with provenance and a creator royalty.",
+  generate: "generated in a TEE and stored on 0G as a verifiable Relic, minted with provenance and a creator royalty.",
   verify: "every field is checkable on-chain. provenance and royalties follow the work forever.",
 };
 

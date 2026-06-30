@@ -25,7 +25,7 @@ export function CtaClose() {
             Make art worth owning.
           </h2>
           <p className="mx-auto mt-6 max-w-[52ch] text-[16px] leading-relaxed" style={{ color: "color-mix(in oklab, var(--color-cream) 78%, transparent)" }}>
-            Generate for free with any agent. When a piece is worth keeping, mint it with provenance and
+            Generate for free with any Aura. When a Relic is worth keeping, mint it with provenance and
             royalties on <ZeroG /> Galileo.
           </p>
 

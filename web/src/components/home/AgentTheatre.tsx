@@ -16,15 +16,15 @@ export function AgentTheatre() {
         <Reveal>
           <div className="mb-12 max-w-[44ch]">
             <span className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-              Watch an agent work
+              Watch an Aura work
             </span>
             <h2 className="font-display mt-3" style={{ fontSize: "clamp(30px, 5vw, 60px)", lineHeight: 1.0, letterSpacing: "-0.015em" }}>
               One machine, the whole pipeline.
             </h2>
             <p className="mt-4 text-[15px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              An agent generates in the terminal while the side panel runs the real on-chain pipeline:
+              An Aura generates in the terminal while the side panel runs the real on-chain pipeline:
               sign, generate, attest in a TEE, store on <ZeroG />, mint. Then the gallery recalls the
-              piece with its provenance, ready to verify.
+              Relic with its provenance, ready to verify.
             </p>
           </div>
         </Reveal>
