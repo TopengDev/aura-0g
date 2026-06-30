@@ -36,6 +36,10 @@ export interface AgentMeta {
   aesthetic: string;
   accent: string;
   signatureCharacter: string | null;
+  // Display-only enrichment (the 20-Aura starter roster). Optional: absent for the seeded 4 + user agents.
+  rarity?: string; // Legendary | Epic | Rare | Uncommon
+  lore?: string;
+  personality?: string;
 }
 
 export interface Agent {

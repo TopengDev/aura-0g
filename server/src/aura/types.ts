@@ -9,6 +9,11 @@ export interface AgentPublicMeta {
   model: string;
   accent: string; // hex color for UI theming
   sampleImages: string[];
+  // Display-only enrichment (the 20-Aura starter roster). OPTIONAL so the original seeded agents +
+  // user-created agents (which never set these) keep working unchanged. No on-chain dependency.
+  rarity?: string; // Legendary | Epic | Rare | Uncommon (rarityRoyaltyMap drives the on-chain royalty at mint)
+  lore?: string; // the Aura's origin myth (a few sentences)
+  personality?: string; // how the Aura speaks / behaves
 }
 
 export interface AgentSummary {

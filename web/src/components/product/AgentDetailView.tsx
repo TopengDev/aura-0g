@@ -44,6 +44,9 @@ export function AgentDetailView({
                 <div className="relative aspect-[16/10] w-full overflow-hidden">
                   <img src={portrait} alt={`${a.name} portrait`} className="h-full w-full object-cover" />
                   <span className="absolute left-4 top-4"><Chip tone="solid" accent={accent}>{a.style}</Chip></span>
+                  {a.meta.rarity ? (
+                    <span className="absolute right-4 top-4"><Chip tone="accent" accent={accent}>{a.meta.rarity}</Chip></span>
+                  ) : null}
                 </div>
               </div>
             </Reveal>
@@ -64,6 +67,32 @@ export function AgentDetailView({
                 {a.meta.aesthetic}
               </p>
             </Reveal>
+
+            {a.meta.lore ? (
+              <Reveal delay={0.09}>
+                <div className="mt-6">
+                  <div className="mb-1 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                    Lore
+                  </div>
+                  <p className="max-w-[64ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                    {a.meta.lore}
+                  </p>
+                </div>
+              </Reveal>
+            ) : null}
+
+            {a.meta.personality ? (
+              <Reveal delay={0.1}>
+                <div className="mt-5">
+                  <div className="mb-1 font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                    Personality
+                  </div>
+                  <p className="max-w-[64ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                    {a.meta.personality}
+                  </p>
+                </div>
+              </Reveal>
+            ) : null}
 
             {/* Identity / on-chain DNA */}
             <Reveal delay={0.1}>

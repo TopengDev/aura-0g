@@ -113,6 +113,10 @@ function shapeAgent(a: typeof schema.agents.$inferSelect, stats?: typeof schema.
       aesthetic: style.aesthetic,
       accent: style.accent,
       signatureCharacter: style.signatureCharacter,
+      // display-only enrichment (the 20-Aura roster); undefined for the seeded 4 + user agents
+      rarity: style.rarity,
+      lore: style.lore,
+      personality: style.personality,
     },
   };
 }
