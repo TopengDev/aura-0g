@@ -25,10 +25,13 @@ echo "[prewarm] base=$BASE concurrency=$CONC"
 tmp_urls="$(mktemp)"
 trap 'rm -f "$tmp_urls"' EXIT
 
-# 1. Collect every /images/... URL from the gallery pages.
+# 1. Collect every /images/... URL from the gallery pages. The HTML encodes "&" as "&amp;", so decode it
+#    back to "&" -- otherwise "?style=x&amp;w=700" parses as a param named "amp;w" and the real "w=700"
+#    variant (what the browser actually requests) is never warmed.
 for p in "${PAGES[@]}"; do
   curl -s --max-time 30 "$BASE$p" \
     | grep -oE '/images/[^"'"'"' \\<>]+' \
+    | sed 's/&amp;/\&/g' \
     >> "$tmp_urls" || true
 done
 
