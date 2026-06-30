@@ -20,7 +20,7 @@ import { brainByRoot, brainByAgentId } from "./store.js";
 import { decryptBrain } from "./brain.js";
 import { setStatus, setResult, setError, saveGeneratedImage } from "./jobs.js";
 import { genGuardRelease } from "./ratelimit.js";
-import { REPO_ROOT } from "./config.js";
+import { REPO_ROOT, ENFORCE_TEE_VERIFICATION } from "./config.js";
 
 export interface ResolvedGenConfig {
   baseBytes: Buffer;
@@ -37,6 +37,25 @@ export class BrainUnavailableError extends Error {
     super(message);
     this.name = "BrainUnavailableError";
   }
+}
+
+/**
+ * B-5: thrown when the TEE attestation did NOT verify (verified !== true: false / "n/a" / "err:...") and
+ * enforcement is on (the secure default). A generation that throws this is NEVER made mintable and NEVER
+ * produces a signing attestation, so on-chain "TEE-verified provenance" cannot be claimed for an output
+ * whose TEE proof did not actually pass. The real verdict is still surfaced in the message + the job error.
+ */
+export class TeeVerificationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TeeVerificationError";
+  }
+}
+
+/** A TEE verification "passes" ONLY when processResponse returned boolean true (matches the verify-e2e bar
+ *  `teeVerified === true`). Anything else - false, the "n/a" sentinel, an "err:..." string - is a failure. */
+export function teeVerifyPassed(verified: boolean | string): boolean {
+  return verified === true;
 }
 
 /**
@@ -136,6 +155,17 @@ export async function runGeneration(input: GenerateInput): Promise<void> {
     const svc = await imageService(broker);
 
     const g = await generate(broker, svc, cfg.baseBytes, cfg.prompt);
+
+    // B-5 (TEE enforced, not best-effort): if the hardware TEE attestation did not verify, REFUSE here -
+    // before saveGeneratedImage / store / the mintable result - so an unverified (or provider-faked)
+    // generation can never be made mintable nor get a signing attestation. The throw is caught below
+    // (setError records the verdict; the gen guard is released in finally). The secure default is
+    // enforce-on; AURA_ENFORCE_TEE=0 is a deliberate, logged testnet-only escape hatch.
+    if (ENFORCE_TEE_VERIFICATION && !teeVerifyPassed(g.verified)) {
+      throw new TeeVerificationError(
+        `TEE verification did not pass (verified=${JSON.stringify(g.verified)}) - refusing to attest/mint an unverified generation`,
+      );
+    }
 
     setStatus(jobId, "verifying", "TEE attestation processed");
     saveGeneratedImage(jobId, g.bytes);

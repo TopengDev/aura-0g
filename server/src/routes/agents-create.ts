@@ -6,7 +6,7 @@ import type { FastifyInstance } from "fastify";
 // Load @fastify/multipart's type declarations (adds isMultipart()/parts() to FastifyRequest).
 import "@fastify/multipart";
 import { createAgent, type CreateAgentInput } from "../aura/create-agent.js";
-import { rateLimit } from "../aura/ratelimit.js";
+import { rateLimit, createGuardAcquire, createGuardRelease, createGuardRefund } from "../aura/ratelimit.js";
 
 const MAX_IMAGE_BYTES = 12 * 1024 * 1024; // 12MB upload ceiling
 
@@ -70,11 +70,24 @@ export async function agentsCreateRoutes(app: FastifyInstance): Promise<void> {
       imageMime,
     };
 
-    const res = await createAgent(input);
-    if ("ok" in res && res.ok === false) {
-      return reply.code(res.status).send({ error: res.error });
+    // B-3: global cost guard - create-agent makes the SPONSOR pay for TWO 0G Storage uploads, so it needs a
+    // GLOBAL cap (not just the per-user window above), or Sybil wallets each upload on the sponsor's ledger.
+    const guard = createGuardAcquire(owner);
+    if (!guard.ok) {
+      return reply.code(503).send({ error: guard.reason ?? "create-agent temporarily unavailable" });
     }
-    return res;
+    try {
+      const res = await createAgent(input);
+      if ("ok" in res && res.ok === false) {
+        // validation failed BEFORE any sponsor-paid upload -> refund the lifetime slot so a cheap invalid
+        // request cannot burn the create budget (the concurrency slot is still released in finally).
+        createGuardRefund(owner);
+        return reply.code(res.status).send({ error: res.error });
+      }
+      return res;
+    } finally {
+      createGuardRelease();
+    }
   });
 
   // POST /agents/confirm-mint { encBrainRoot, agentId } - after the user submits mintAgent, promote the

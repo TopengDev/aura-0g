@@ -12,7 +12,7 @@
 import { privateKeyToAccount } from "viem/accounts";
 import { hashTypedData } from "viem";
 import { EIP712_DOMAIN } from "./config.js";
-import { sponsorPrivateKey } from "./config.js";
+import { attestorPrivateKey } from "./config.js";
 
 // The MintAuth type - field order + types MUST mirror the contract's MINTAUTH_TYPEHASH string:
 // "MintAuth(address to,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,uint256 nonce)"
@@ -42,11 +42,14 @@ export interface MintAuthParams {
 
 let _account: ReturnType<typeof privateKeyToAccount> | null = null;
 function attestorAccount() {
-  if (!_account) _account = privateKeyToAccount(sponsorPrivateKey() as `0x${string}`);
+  // B-6: the attestor key is now its OWN accessor (attestorPrivateKey()), which falls back to the sponsor
+  // key only when ATTESTOR_PRIVATE_KEY is unset. This account is SIGN-ONLY (signTypedData below) and is
+  // never used to send a tx, so the attestor key stays off the gas-spending path when split from sponsor.
+  if (!_account) _account = privateKeyToAccount(attestorPrivateKey() as `0x${string}`);
   return _account;
 }
 
-/** The attestor's address (== sponsor wallet == contract attestor). */
+/** The attestor's address (the contract attestor; defaults to the sponsor address until the key is split). */
 export function attestorAddress(): string {
   return attestorAccount().address;
 }
