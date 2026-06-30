@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { Reveal } from "@/components/Reveal";
-import { PageHeader, Panel, ProvLine, Chip, MetaRow, ActionButton } from "@/components/product/primitives";
+import { PageHeader, Panel, ProvLine, Chip, MetaRow, ActionButton, CopyValue } from "@/components/product/primitives";
 import { RarityBadge } from "@/components/product/RarityBadge";
 import { TradePanel } from "@/components/product/TradePanel";
 import { EXPLORER, STORAGE_SCAN } from "@/lib/chains";
@@ -132,7 +132,7 @@ export function OutputDetailView({
               </p>
               <div className="mt-5">
                 <dl>
-                  <MetaRow k="Seed" v={String(o.seed)} />
+                  <MetaRow k="Seed" v={<CopyValue full={String(o.seed)} display={shortHex(String(o.seed), 10, 8)} />} />
                   {agent?.model ? <MetaRow k="Model" v={agent.model} mono={false} /> : null}
                   <MetaRow k="Style" v={o.style} mono={false} />
                 </dl>
@@ -217,7 +217,7 @@ function ProvenanceBlock({
         {provenance?.agent.modelAttestation ? <MetaRow k="Model attestation" v={shortHex(provenance.agent.modelAttestation)} ok /> : agent?.modelAttestation ? <MetaRow k="Model attestation" v={shortHex(agent.modelAttestation)} ok /> : null}
         <MetaRow k="0G storage root" v={shortHex(o.imageRoot)} href={storageHref} />
         <MetaRow k="Provenance hash" v={shortHex(provHash)} />
-        <MetaRow k="Seed" v={String(o.seed)} />
+        <MetaRow k="Seed" v={<CopyValue full={String(o.seed)} display={shortHex(String(o.seed), 10, 8)} />} />
         {provenance?.agent.styleFingerprint ? <MetaRow k="Style DNA" v={shortHex(provenance.agent.styleFingerprint)} /> : null}
         <MetaRow k="Owner" v={shortHex(o.owner)} href={`${EXPLORER}/address/${o.owner}`} />
       </dl>

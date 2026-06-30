@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 // Shared product-page primitives. These apply the Technical Editorial system CONSISTENTLY (the per-
@@ -100,11 +101,11 @@ export function MetaRow({
   ok?: boolean;
   mono?: boolean;
 }) {
-  const valueClass = `flex items-center gap-1.5 ${mono ? "font-mono-x text-[12px]" : "text-[13px]"}`;
+  const valueClass = `flex min-w-0 items-center justify-end gap-1.5 ${mono ? "font-mono-x text-[12px]" : "text-[13px]"}`;
   const value = (
     <span className={valueClass} style={{ color: "var(--color-ink)" }}>
       {v}
-      {ok ? <span style={{ color: "var(--color-ok)" }}>✓</span> : null}
+      {ok ? <span className="shrink-0" style={{ color: "var(--color-ok)" }}>✓</span> : null}
     </span>
   );
   return (
@@ -112,7 +113,7 @@ export function MetaRow({
       <dt className="shrink-0 font-mono-x text-[10px] uppercase tracking-[0.1em]" style={{ color: "var(--color-ink-3)" }}>
         {k}
       </dt>
-      <dd className="text-right">
+      <dd className="min-w-0 text-right">
         {href ? (
           <a href={href} target="_blank" rel="noreferrer" className="underline-offset-4 hover:underline" style={{ color: "var(--color-accent)" }}>
             {value}
@@ -122,6 +123,55 @@ export function MetaRow({
         )}
       </dd>
     </div>
+  );
+}
+
+// A long provenance value (a full uint256 seed, a hash) shown truncated so it never overflows its row,
+// with a copy-to-clipboard control that yields the COMPLETE value. The full string stays recoverable
+// + verifiable (the seed is the Provable-Pulls recompute anchor) - we only shorten what is rendered.
+// `display` is the truncated label (e.g. shortHex(seed)); `full` is the untouched value that gets copied.
+export function CopyValue({
+  full,
+  display,
+}: {
+  full: string;
+  display?: ReactNode;
+}) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(full);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Clipboard unavailable (insecure context / denied) - the full value still lives in the title.
+    }
+  };
+  return (
+    <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="truncate" title={full}>
+        {display ?? full}
+      </span>
+      <button
+        type="button"
+        onClick={onCopy}
+        aria-label={copied ? "Copied" : "Copy full value"}
+        title={copied ? "Copied" : "Copy full value"}
+        className="inline-flex shrink-0 items-center justify-center rounded-md p-0.5 transition-opacity hover:opacity-100"
+        style={{ color: copied ? "var(--color-ok)" : "var(--color-ink-3)", opacity: 0.8 }}
+      >
+        {copied ? (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+        ) : (
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="9" y="9" width="11" height="11" rx="2" />
+            <path d="M5 15V5a2 2 0 0 1 2-2h10" />
+          </svg>
+        )}
+      </button>
+    </span>
   );
 }
 
