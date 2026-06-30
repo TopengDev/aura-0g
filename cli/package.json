@@ -1,0 +1,30 @@
+{
+  "name": "@aura/cli",
+  "version": "0.1.0",
+  "description": "AURA CLI - the composable, scriptable surface for the AURA verifiable creative-agent protocol. List agents and relics, and provably recompute a summon's rarity + provenance from the on-chain seed, in your terminal.",
+  "type": "module",
+  "bin": {
+    "aura": "./dist/index.js"
+  },
+  "files": [
+    "dist/index.js",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "build": "bun run build.ts",
+    "build:npx": "bun build src/index.ts --target=node --outfile dist/index.js --banner \"#!/usr/bin/env node\""
+  },
+  "keywords": ["aura", "0g", "nft", "gacha", "provenance", "cli", "web3"],
+  "license": "MIT",
+  "dependencies": {
+    "ethers": "6.13.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
