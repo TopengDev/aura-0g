@@ -504,6 +504,75 @@ export async function fetchMintArgs(token: string, jobId: string, to?: string): 
   });
 }
 
+// ── Chat-with-an-Aura (authed) ─────────────────────────────────────────────
+// POST /chat -> an in-character reply, the per-reply TEE attestation (only when 0G served it), any
+// command-surface tool the Aura invoked, and a jobId when it started creating a Relic. Confirmed against
+// server/src/routes/chat.ts. The relationship memory is owner-scoped (dual-wall) server-side.
+export interface ChatAttestation {
+  teeVerified: boolean | string; // true = the reply was hardware-attested in a 0G TEE (processResponse)
+  verifiability: string; // e.g. "TeeML"
+  teeSigner: string;
+  chatId: string | null;
+  model: string;
+}
+export interface ChatToolInvocation {
+  name: string;
+  args: Record<string, unknown>;
+  ok: boolean;
+  display: string;
+  job: { jobId: string; status: string; subject: string } | null;
+}
+export interface ChatReply {
+  agentId: number;
+  agentName: string;
+  reply: string;
+  provider: "zerog" | "anthropic"; // which provider served THIS reply
+  providerReason: string;
+  attestation: ChatAttestation | null; // null = the non-TEE fallback served it (labeled honestly)
+  teeAttested: boolean;
+  toolInvocations: ChatToolInvocation[];
+  jobId: string | null; // present when the Aura started creating a Relic (poll + mint via the existing flow)
+  latencyMs: number;
+}
+export interface ChatTurn {
+  ts: string;
+  ownerText: string;
+  auraText: string;
+  tools: string[];
+}
+export interface ChatHealth {
+  zerogHealthy: boolean;
+  zerogModel: string | null;
+  fallbackConfigured: boolean;
+  preferred: "zerog" | "anthropic";
+}
+
+// POST /chat { agentId, message } -> ChatReply. Owner-scoped (Bearer JWT).
+export async function sendChat(token: string, agentId: number, message: string): Promise<ChatReply> {
+  return authedJson("/chat", token, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ agentId, message }),
+  });
+}
+
+// GET /chat/:agentId/history -> the current owner's decrypted relationship history (dual-wall scoped).
+export async function fetchChatHistory(token: string, agentId: number): Promise<ChatTurn[]> {
+  const r = await authedJson<{ agentId: number; turns: ChatTurn[] }>(`/chat/${agentId}/history`, token);
+  return r.turns ?? [];
+}
+
+// GET /chat/health -> which provider would serve a reply right now (for the verifiable badge). Public.
+export async function fetchChatHealth(): Promise<ChatHealth | null> {
+  try {
+    const res = await fetch(`${API_BASE}/chat/health`, { cache: "no-store" });
+    if (!res.ok) return null;
+    return (await res.json()) as ChatHealth;
+  } catch {
+    return null;
+  }
+}
+
 // ── Create-agent flow (authed, multipart) ──────────────────────────────────
 // POST /agents/create (multipart: file `image` + text fields) -> the computed mintAgent args for the
 // USER to submit (mintAgent is permissionless + user-signed). Confirmed against server/src/routes/
