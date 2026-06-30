@@ -84,6 +84,13 @@ services:
       NODE_ENV: production
       # In-cluster backend address for SSR fetches + the Next /health,/api rewrites (NOT baked).
       AURA_API_INTERNAL: http://server:8787
+      # Persistent AVIF/WebP transcode cache dir -> the named volume below. Content-addressed, so the
+      # CPU-heavy encode is one-time and survives restarts (the cold-load perf fix). The volume MUST be
+      # writable by the container user (node = UID 1000): `docker run --rm -v aura_web-imgcache:/c alpine
+      # chown -R 1000:1000 /c` once before first start, else the cache silently degrades to encode-on-miss.
+      IMAGE_XCODE_CACHE_DIR: /app/.image-cache
+    volumes:
+      - web-imgcache:/app/.image-cache
     expose:
       - "3000"
     # Publish to LOOPBACK only; host nginx (aura.topengdev.com) is the sole ingress.
@@ -96,3 +103,4 @@ services:
 volumes:
   server-data:
   indexer-ponder:
+  web-imgcache:
