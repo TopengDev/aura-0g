@@ -1,7 +1,7 @@
 {
   "name": "@aura/cli",
-  "version": "0.1.0",
-  "description": "AURA CLI - the composable, scriptable surface for the AURA verifiable creative-agent protocol. List agents and relics, and provably recompute a summon's rarity + provenance from the on-chain seed, in your terminal.",
+  "version": "0.2.0",
+  "description": "AURA CLI - the composable, scriptable surface for the AURA verifiable creative-agent protocol. List agents and relics, provably recompute a summon's rarity + provenance from the on-chain seed, and chat with a TEE-attested Aura, in your terminal.",
   "type": "module",
   "bin": {
     "aura": "./dist/index.js"

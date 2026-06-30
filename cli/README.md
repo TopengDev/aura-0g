@@ -34,6 +34,7 @@ npx @aura/cli verify 23
 | `aura relic <id>` | Inspect a Relic - image, owner, on-chain provenance |
 | `aura verify <id>` | **Recompute a Relic's rarity + subject from the on-chain seed, locally (trustless)** |
 | `aura summon <name\|id>` | Explain + watch a summon (`--watch <requestId>` to follow one) |
+| `aura chat <name\|id> "<msg>"` | **Talk to an Aura** - in-character, TEE-attested when 0G serves it (`--health`, `--history`) |
 
 ## The provable-pulls proof
 
@@ -47,9 +48,28 @@ aura verify 23
 aura verify 23 --json | jq .recomputedLocally.provable   # => true
 ```
 
+## Chat with an Aura
+
+```sh
+export AURA_KEY=0x...                          # your wallet key - signs in locally, never sent
+aura chat nokturne "what have you earned?"
+```
+
+`chat` talks to an Aura from the terminal: an in-character reply grounded in the Aura's on-chain identity and your private relationship memory, **TEE-attested** when 0G serves it. The Aura can also act through guarded, non-custodial tools (read its own on-chain stats; start a TEE generation that you mint yourself from your own wallet, the CLI never signs a mint for you).
+
+Auth is **off-chain SIWE**: the CLI reads `AURA_KEY` from the environment, signs an EIP-4361 message locally, and exchanges it for a short-lived token. The key never leaves your machine and is never spent - no gas, no on-chain tx, the same non-custodial sign-in the web wallet uses.
+
+```sh
+aura chat --health                             # is 0G TEE chat live + which model (no key needed)
+aura chat nokturne --history                   # your relationship history with this Aura
+aura chat nokturne "paint me a relic" --json   # scriptable
+```
+
 ## Env
 
 - `AURA_API` - backend base URL (default `https://api-aura.topengdev.com`)
+- `AURA_KEY` - wallet private key for `chat` sign-in (off-chain SIWE; never transmitted, never spent)
+- `AURA_SIWE_DOMAIN` - SIWE site origin to bind to (default `aura.topengdev.com`; set to match a local backend's `SIWE_DOMAIN`)
 - `AURA_INSTALL_BASE` / `AURA_INSTALL_DIR` - override the install source / target dir
 - `NO_COLOR` - disable ANSI color
 

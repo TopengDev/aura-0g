@@ -8,7 +8,7 @@ import { PageHeader, Panel, ProvLine, Chip, ActionButton } from "@/components/pr
 // /cli - the docs + showcase surface for the AURA CLI. Authored in the existing Technical Editorial
 // system (PageHeader / Panel / ProvLine / Chip / ActionButton + the warm token palette + the prov-rule
 // motif). It documents the live, single-binary CLI - the composable, scriptable surface for AURA - with
-// the install one-liner front and center, the six commands, and the trustless `aura verify` recompute as
+// the install one-liner front and center, the seven commands, and the trustless `aura verify` recompute as
 // the highlight. All content is drawn verbatim from cli/README.md + cli/CLI-REPORT.md (nothing invented).
 
 const INSTALL = "curl -fsSL https://aura.topengdev.com/install.sh | sh";
@@ -22,7 +22,7 @@ type Command = {
   returns: string;
 };
 
-// The six commands, exactly as documented in cli/README.md + cli/CLI-REPORT.md. `returns` is the real
+// The seven commands, exactly as documented in cli/README.md + cli/CLI-REPORT.md. `returns` is the real
 // per-command response shape from the report's endpoint table - we show what each command yields rather
 // than fabricating sample output (the one real captured transcript is reserved for `verify` below).
 const COMMANDS: Command[] = [
@@ -61,6 +61,12 @@ const COMMANDS: Command[] = [
     example: "aura summon nokturne",
     blurb: "Explain + watch a summon (--watch <requestId> to follow one).",
     returns: "Explains the escrow tx + watches a summon through to mint.",
+  },
+  {
+    signature: 'aura chat <name|id> "<msg>"',
+    example: 'aura chat nokturne "what have you earned?"',
+    blurb: "Talk to an Aura - in-character, grounded in its on-chain identity, TEE-attested when 0G serves it.",
+    returns: "A reply (TEE-attested when 0G serves it) plus any guarded tool action. Signs in with AURA_KEY (off-chain SIWE); --health needs no key.",
   },
 ];
 
@@ -180,10 +186,11 @@ export function CliView() {
           <div className="mt-16 sm:mt-20">
             <SectionLabel marker="02">Commands</SectionLabel>
             <h2 className="font-display mt-4" style={{ fontSize: "clamp(28px,4vw,44px)", lineHeight: 1.02, letterSpacing: "-0.01em" }}>
-              Six commands.
+              Seven commands.
             </h2>
             <p className="mt-4 max-w-[60ch] text-[16px] leading-relaxed sm:text-[16px]" style={{ color: "var(--color-ink-2)" }}>
-              The same actions as the AURA app, driven from a terminal. Output is rarity-tinted, respects{" "}
+              The same actions as the AURA app - browse, verify a pull, summon, and chat with an Aura - driven from a
+              terminal. Output is rarity-tinted, respects{" "}
               <code className="font-mono-x" style={{ color: "var(--color-ink)" }}>NO_COLOR</code> and non-TTY pipes,
               and every command supports scripting.
             </p>

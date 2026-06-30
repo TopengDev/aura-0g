@@ -13,12 +13,46 @@ export class ApiError extends Error {
   }
 }
 
-async function get<T>(path: string, timeoutMs = 45_000): Promise<T> {
+async function get<T>(path: string, timeoutMs = 45_000, token?: string): Promise<T> {
   const ctl = new AbortController();
   const t = setTimeout(() => ctl.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_BASE}${path}`, {
-      headers: { accept: "application/json", "user-agent": "aura-cli/0.1" },
+      headers: { accept: "application/json", "user-agent": "aura-cli/0.2", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      signal: ctl.signal,
+    });
+    const text = await res.text();
+    if (!res.ok) throw new ApiError(res.status, path, text.slice(0, 300));
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      throw new ApiError(res.status, path, `non-JSON response: ${text.slice(0, 120)}`);
+    }
+  } catch (e) {
+    if (e instanceof ApiError) throw e;
+    if (e instanceof Error && e.name === "AbortError") throw new ApiError(0, path, `timed out after ${timeoutMs}ms`);
+    throw new ApiError(0, path, e instanceof Error ? e.message : "network error");
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// POST sibling of get(): JSON body in, JSON out, optional Bearer JWT (the authed chat surface). Same error
+// + timeout shape as get() so callers handle one ApiError type.
+async function post<T>(path: string, body: unknown, opts: { token?: string; timeoutMs?: number } = {}): Promise<T> {
+  const { token, timeoutMs = 60_000 } = opts;
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "content-type": "application/json",
+        "user-agent": "aura-cli/0.2",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
       signal: ctl.signal,
     });
     const text = await res.text();
@@ -150,6 +184,55 @@ export interface SummonStatus {
   error: string | null;
 }
 
+// ── chat-with-an-Aura (the SIWE-gated Living-Agents surface) ─────────────────────────────────────────────
+export interface AuthSession {
+  token: string;
+  address: string;
+  expiresIn: string;
+}
+export interface Attestation {
+  teeVerified?: boolean;
+  verifiability?: string; // e.g. "TeeML"
+  teeSigner?: string;
+  chatId?: string;
+  model?: string;
+}
+export interface ToolInvocation {
+  name: string;
+  args: Record<string, unknown>;
+  ok: boolean;
+  display: string; // a human one-liner of what the Aura did
+  job: { jobId: string; status: string; subject: string } | null; // present for generate_and_mint
+}
+export interface ChatReply {
+  agentId: number;
+  agentName: string;
+  reply: string;
+  provider: string; // "zerog" | "anthropic"
+  providerReason: string;
+  attestation: Attestation | null; // non-null only when 0G TEE served the final reply
+  teeAttested: boolean;
+  toolInvocations: ToolInvocation[];
+  jobId: string | null;
+  latencyMs: number;
+}
+export interface ChatHealth {
+  zerogHealthy: boolean;
+  zerogModel: string | null;
+  fallbackConfigured: boolean;
+  preferred: string;
+}
+export interface ChatTurn {
+  ts: string;
+  ownerText: string;
+  auraText: string;
+  tools: string[];
+}
+export interface ChatHistory {
+  agentId: number;
+  turns: ChatTurn[];
+}
+
 export const api = {
   agents: () => get<{ agents: Agent[] }>("/agents").then((r) => r.agents),
   agent: (id: number) => get<Agent>(`/agents/${id}`),
@@ -158,6 +241,12 @@ export const api = {
   summonProof: (id: number) => get<SummonProof>(`/summon/output/${id}/proof`, 60_000),
   summonAgent: (id: number) => get<SummonAgentInfo>(`/summon/agent/${id}`),
   summonStatus: (requestId: number) => get<SummonStatus>(`/summon/${requestId}/status`),
+  // auth + chat (the only authed calls the CLI makes; see siwe.ts for the non-custodial sign-in).
+  authNonce: () => get<{ nonce: string }>("/auth/nonce").then((r) => r.nonce),
+  authVerify: (message: string, signature: string) => post<AuthSession>("/auth/verify", { message, signature }),
+  chat: (token: string, agentId: number, message: string) => post<ChatReply>("/chat", { agentId, message }, { token }),
+  chatHistory: (token: string, agentId: number) => get<ChatHistory>(`/chat/${agentId}/history`, 45_000, token),
+  chatHealth: () => get<ChatHealth>("/chat/health"),
 };
 
 /** Resolve an agent ref that may be a numeric id OR a name (case-insensitive). Returns the matched agent. */

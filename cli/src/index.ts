@@ -11,8 +11,9 @@ import { cmdAura } from "./commands/aura.ts";
 import { cmdRelic } from "./commands/relic.ts";
 import { cmdVerify } from "./commands/verify.ts";
 import { cmdSummon } from "./commands/summon.ts";
+import { cmdChat } from "./commands/chat.ts";
 
-const VERSION = "0.1.0";
+const VERSION = "0.2.0";
 
 function help(): void {
   const b = (s: string) => c.bold(c.white(s));
@@ -30,14 +31,17 @@ ${c.bold("COMMANDS")}
   ${c.cyan("verify")} ${c.gray("<id>")}           ${c.white("recompute a Relic's rarity + subject from the on-chain seed")}
                         ${c.dim("locally (trustless) - the provable-pulls proof.  --json for scripts")}
   ${c.cyan("summon")} ${c.gray("<name|id>")}      explain + watch a summon  ${c.dim("(--watch <requestId> to follow one)")}
+  ${c.cyan("chat")} ${c.gray('<name|id> "<msg>"')}  ${c.white("talk to an Aura")} ${c.dim("- in-character, TEE-attested  (--health needs no key)")}
 
 ${c.bold("EXAMPLES")}
   ${c.dim("$")} aura explore
   ${c.dim("$")} aura verify 23                ${c.gray("# proves the RARE pull (roll 8054) yourself")}
   ${c.dim("$")} aura verify 23 --json | jq .recomputedLocally.provable
+  ${c.dim("$")} aura chat nokturne "what have you earned?"   ${c.gray("# in-character, TEE-attested")}
 
 ${c.bold("ENV")}
   ${c.gray("AURA_API")}   backend base URL   ${c.dim(`(default ${API_BASE})`)}
+  ${c.gray("AURA_KEY")}   wallet key for ${c.bold("chat")} sign-in   ${c.dim("(off-chain SIWE; never sent, never spent)")}
   ${c.gray("NO_COLOR")}   disable ANSI color
 `);
 }
@@ -78,6 +82,9 @@ async function main(): Promise<number> {
         break;
       case "summon":
         await cmdSummon(rest);
+        break;
+      case "chat":
+        await cmdChat(rest);
         break;
       default:
         process.stderr.write(`${c.red("unknown command")} "${cmd}". Run ${c.bold("aura help")}.\n`);

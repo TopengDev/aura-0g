@@ -18,6 +18,7 @@
 | `aura relic <id>` | `GET /outputs/:id` | Image URL, owner, seed, provenance, TEE attestation |
 | `aura verify <id>` | `GET /summon/output/:id/proof` + `GET /outputs/:id` | **Local trustless recompute** (`--json` for scripts) |
 | `aura summon <name\|id>` | `GET /summon/agent/:id` + `GET /summon/:req/status` | Explain + `--watch` to follow a summon to mint |
+| `aura chat <name\|id> "<msg>"` | `POST /chat` (+ `/auth/nonce`, `/auth/verify`; `GET /chat/health`, `/chat/:id/history`) | Talk to an Aura: in-character, TEE-attested. SIWE sign-in via `AURA_KEY`. `--health` (no key), `--history`, `--json` |
 
 Output: hand-rolled ANSI colors + Unicode box tables (no `chalk`/`cli-table` dependency, so cold-start stays fast). Respects `NO_COLOR` and non-TTY pipes. Rarity is tier-colored (Common gray, Rare cyan, Epic magenta, Legendary gold).
 
@@ -132,6 +133,14 @@ cli/
 ```
 
 Only runtime dependency: `ethers` (keccak/abi for the byte-exact recompute - the same version the server + web use). Everything else (colors, tables, arg parsing) is hand-rolled to keep it lean.
+
+## v0.2 - chat with an Aura (the Living-Agents surface)
+
+`aura chat <name|id> "<message>"` exposes AURA's chat-with-an-Aura moat on the scriptable surface: an in-character reply grounded in the Aura's on-chain identity + the caller's private relationship memory, **TEE-attested when 0G serves it** (the reply footer prints `provider`, the attestation `verifiability`/`teeSigner`/`model`, and an honest "not TEE-attested" when the anthropic fallback serves). The Aura can ACT through the same guarded, non-custodial tools as the app (`read_onchain`; `generate_and_mint`, which starts a real TEE generation but never signs a mint - the owner mints from their own wallet).
+
+- **Auth is off-chain SIWE, non-custodial.** The CLI reads `AURA_KEY` from the env ONLY (the env the summon command already anticipated for "a future signed path"), builds the EIP-4361 message, and signs it locally with ethers; only the message + signature reach `/auth/verify` for a ~1h JWT. The key never leaves the process, and chat is a sign-in signature only - **no gas, no on-chain tx, no spend** (distinct from summon, which is why summon stays explain-only). The SIWE message binds the SITE origin `aura.topengdev.com` (NOT the API host) + chainId 16602, matching the server's `SIWE_DOMAIN`; `AURA_SIWE_DOMAIN` overrides it for a local backend.
+- **Still zero new dependencies.** SIWE message construction is hand-rolled (canonical EIP-4361) and signed with the existing `ethers` dep - the runtime dependency set is unchanged (`ethers` only). The whole `/chat` round-trip was validated end-to-end against the live API (SIWE -> JWT -> `POST /chat` returns a `zerog` reply with `teeAttested: true`).
+- **Sub-modes:** `--health` (PUBLIC, no key - is 0G TEE chat live + which model), `--history` (the caller's decrypted relationship history), `--json` (scriptable).
 
 ## Honest limitations
 
