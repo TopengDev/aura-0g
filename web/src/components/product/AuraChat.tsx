@@ -56,7 +56,26 @@ function useAuraChat(agentId: number) {
     fetchChatHealth().then(setHealth);
   }, []);
 
-  // load the owner-scoped relationship history once signed in
+  // Clear the transcript when the Aura changes. The /chat thread is keyed by agentId so it REMOUNTS
+  // (this is a no-op there: a fresh mount inits agentRef to the current agentId). It matters only for the
+  // embedded inline surface, which does NOT remount on an agentId change - without this, the non-
+  // destructive seed below would keep the previous Aura's transcript instead of loading the new one.
+  const agentRef = useRef(agentId);
+  useEffect(() => {
+    if (agentRef.current !== agentId) {
+      agentRef.current = agentId;
+      setTurns([]);
+    }
+  }, [agentId]);
+
+  // Load the owner-scoped relationship history once signed in. NON-DESTRUCTIVE: it only fills an EMPTY
+  // transcript, so it can never wipe a live/optimistic one. Critical because signing in during the first
+  // send flips `token` null->JWT, which re-fires this effect; for a brand-new relationship the server
+  // history is still empty (the turn is not persisted until sendChat completes), so an unconditional
+  // setTurns() would erase the just-added optimistic owner + pending-reply bubbles - and then the reply-
+  // replace loop in send() would find no pending bubble and drop the reply too. Guarding on prev.length
+  // defeats BOTH race orderings (history-resolves-before-reply and reply-before-history). A genuine Aura
+  // switch still reseeds, because by then the transcript is empty (thread remounted / inline cleared above).
   useEffect(() => {
     if (!token) return;
     let alive = true;
@@ -68,7 +87,7 @@ function useAuraChat(agentId: number) {
           if (t.ownerText) seeded.push({ role: "owner", text: t.ownerText });
           if (t.auraText) seeded.push({ role: "aura", text: t.auraText });
         }
-        setTurns(seeded);
+        setTurns((prev) => (prev.length ? prev : seeded));
       })
       .catch(() => {});
     return () => {
@@ -83,18 +102,26 @@ function useAuraChat(agentId: number) {
   const send = useCallback(async () => {
     const message = input.trim();
     if (!message || sending) return;
+    // Show the owner message + a pending reply IMMEDIATELY - even when this first send must SIWE sign-in,
+    // so the transcript never waits on the wallet. The optimistic bubbles go in BEFORE awaiting the
+    // signature; if sign-in is cancelled or throws, roll them back cleanly and restore the input.
+    setError(null);
+    setInput("");
+    setSending(true);
+    setTurns((prev) => [...prev, { role: "owner", text: message }, { role: "aura", text: "", pending: true }]);
+
     let t = token;
     if (!t) {
       try {
         t = await signIn();
       } catch {
+        setTurns((prev) => prev.slice(0, -2)); // remove the optimistic owner + pending we just added
+        setInput(message);
+        setSending(false);
         return;
       }
     }
-    setError(null);
-    setInput("");
-    setSending(true);
-    setTurns((prev) => [...prev, { role: "owner", text: message }, { role: "aura", text: "", pending: true }]);
+
     try {
       const r = await sendChat(t, agentId, message);
       setTurns((prev) => {
