@@ -6,7 +6,6 @@ import { ZeroG } from "@/components/atoms/ZeroG";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, StatFigure, ActionButton } from "@/components/product/primitives";
 import { TradePanel } from "@/components/product/TradePanel";
 import { SummonPanel } from "@/components/product/SummonPanel";
-import { AuraChat } from "@/components/product/AuraChat";
 import { EXPLORER } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
 import { agentPortraitUrl, shortHex, type AgentDetail, type MarketListing, type Output } from "@/lib/api";
@@ -114,9 +113,32 @@ export function AgentDetailView({
               </Panel>
             </Reveal>
 
-            {/* Living-Agents core: chat with THIS Aura (in character, remembers you, can create + act) */}
+            {/* Living-Agents core: chat with THIS Aura lives on the dedicated /chat surface (Claude-AI
+                style, a thread per Aura). The detail page links into it, preselecting this Aura. */}
             <Reveal delay={0.12}>
-              <AuraChat agentId={a.agentId} agentName={a.name} accent={accent} />
+              <Panel className="mt-7 overflow-hidden p-0">
+                <div
+                  className="border-b px-5 py-4"
+                  style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}
+                >
+                  <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+                    Talk to the Aura
+                  </div>
+                  <div className="font-display" style={{ fontSize: "22px", lineHeight: 1.1 }}>
+                    Chat with {a.name}
+                  </div>
+                </div>
+                <div className="px-5 py-5">
+                  <p className="max-w-[60ch] text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                    {a.name} stays in character, remembers your past conversations, knows its own on-chain record, and
+                    can create a Relic on request, which you mint non-custodially in your own wallet. Replies served by
+                    0G run inside a TEE and are attested per reply.
+                  </p>
+                  <div className="mt-5 max-w-[280px]">
+                    <ActionButton href={`/chat?agent=${a.agentId}`}>Chat with {a.name} -&gt;</ActionButton>
+                  </div>
+                </div>
+              </Panel>
             </Reveal>
           </div>
 

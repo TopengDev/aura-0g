@@ -4,6 +4,12 @@
 // on-chain identity + your private owner-relationship memory, every reply is TEE-attested when 0G serves
 // it (honestly labeled, never overclaimed), and it can ACT - reading its own on-chain stats or creating a
 // new Relic, which you mint NON-CUSTODIALLY by signing in your own wallet. SIWE-gated (owner-scoped).
+//
+// Two surfaces share ONE engine (the useAuraChat hook + the bubble/badge/tool/mint renderers):
+//   - AuraChat       : the inline Panel (kept for any embedded use).
+//   - AuraChatThread : the full-height column the dedicated /chat page mounts in its main area
+//                      (Claude-AI style: header + flex-1 transcript + composer). Same rendering, no
+//                      fixed max-height, so it fills the page.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Panel, Chip, ActionButton } from "@/components/product/primitives";
 import { useAuth } from "@/components/web3/AuthProvider";
@@ -31,7 +37,11 @@ type Turn = {
   pending?: boolean;
 };
 
-export function AuraChat({ agentId, agentName, accent }: { agentId: number; agentName: string; accent: string }) {
+// ── The shared chat engine ────────────────────────────────────────────────
+// All state + effects + the send loop for ONE Aura, owner-scoped. Both surfaces consume this so the
+// rendering and behavior never drift. The history effect is keyed on (token, agentId), so switching
+// Auras re-seeds the transcript; the /chat page also remounts per Aura (key=agentId) for a clean reset.
+function useAuraChat(agentId: number) {
   const { token, address, status, signIn } = useAuth();
   const [turns, setTurns] = useState<Turn[]>([]);
   const [input, setInput] = useState("");
@@ -104,6 +114,13 @@ export function AuraChat({ agentId, agentName, accent }: { agentId: number; agen
     }
   }, [input, sending, token, signIn, agentId]);
 
+  return { token, address: address ?? null, status, turns, input, setInput, sending, error, health, scrollRef, send };
+}
+
+type ChatEngine = ReturnType<typeof useAuraChat>;
+
+// The honest provenance badge for the header (which provider would serve a reply right now).
+function HealthBadge({ health, accent }: { health: ChatHealth | null; accent: string }) {
   const badge = health
     ? health.zerogHealthy
       ? { label: "0G TEE-attested", tone: "ok" as const, hint: `replies run in a TEE on ${health.zerogModel ?? "0G"}` }
@@ -111,7 +128,78 @@ export function AuraChat({ agentId, agentName, accent }: { agentId: number; agen
         ? { label: "Fallback active", tone: "muted" as const, hint: "0G is unreachable; replies are served by a fallback model and are NOT TEE-attested" }
         : { label: "0G", tone: "muted" as const, hint: "" }
     : null;
+  if (!badge) return null;
+  return (
+    <span title={badge.hint}>
+      <Chip tone={badge.tone === "ok" ? "accent" : "default"} accent={accent}>
+        {badge.label}
+      </Chip>
+    </span>
+  );
+}
 
+// The empty-state prompt shown before the first turn.
+function ChatEmpty({ agentName }: { agentName: string }) {
+  return (
+    <div className="m-auto max-w-[40ch] text-center">
+      <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+        {agentName} remembers your conversations, knows its own on-chain record, and can create a Relic on request. Ask who it is, what it has made, or tell it to paint something.
+      </p>
+    </div>
+  );
+}
+
+// The transcript body (no scroll container - each surface supplies its own so the height policy differs).
+function ChatBody({ c, agentName, accent }: { c: ChatEngine; agentName: string; accent: string }) {
+  if (c.turns.length === 0) return <ChatEmpty agentName={agentName} />;
+  return (
+    <>
+      {c.turns.map((t, i) => (
+        <ChatBubble key={i} turn={t} agentName={agentName} accent={accent} token={c.token} address={c.address} />
+      ))}
+    </>
+  );
+}
+
+// The honest framing footnote (verifiable scope of a turn).
+function HonestFraming() {
+  return (
+    <p className="text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+      Replies served by 0G run inside a TEE and are hardware-attested per reply. Your relationship memory is private and owner-scoped (it re-seals on resale). A full turn is not a single proof: any on-chain action is separately verifiable, and your private memory is yours alone.
+    </p>
+  );
+}
+
+// The shared composer (textarea + send/sign-in). Enter sends, Shift+Enter newlines.
+function ChatComposer({ c, agentName }: { c: ChatEngine; agentName: string }) {
+  return (
+    <div className="flex items-end gap-2 border-t px-5 py-4" style={{ borderColor: "var(--color-border)" }}>
+      <textarea
+        value={c.input}
+        onChange={(e) => c.setInput(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            void c.send();
+          }
+        }}
+        rows={1}
+        placeholder={c.token ? `Message ${agentName}...` : `Sign in to talk to ${agentName}`}
+        className="min-h-[44px] flex-1 resize-none rounded-[14px] border bg-transparent px-3 py-3 text-[14px] outline-none"
+        style={{ borderColor: "var(--color-border)", color: "var(--color-ink)" }}
+      />
+      <div className="w-[120px]">
+        <ActionButton onClick={() => void c.send()} disabled={c.sending || c.status === "signing"}>
+          {c.sending ? "..." : !c.token ? "Sign in" : "Send"}
+        </ActionButton>
+      </div>
+    </div>
+  );
+}
+
+// ── Surface 1: the inline Panel (embeddable) ───────────────────────────────
+export function AuraChat({ agentId, agentName, accent }: { agentId: number; agentName: string; accent: string }) {
+  const c = useAuraChat(agentId);
   return (
     <Panel className="mt-7 overflow-hidden p-0">
       {/* header */}
@@ -124,65 +212,69 @@ export function AuraChat({ agentId, agentName, accent }: { agentId: number; agen
             {agentName}
           </div>
         </div>
-        {badge ? (
-          <span title={badge.hint}>
-            <Chip tone={badge.tone === "ok" ? "accent" : "default"} accent={accent}>
-              {badge.label}
-            </Chip>
-          </span>
-        ) : null}
+        <HealthBadge health={c.health} accent={accent} />
       </div>
 
       {/* transcript */}
-      <div ref={scrollRef} className="flex max-h-[440px] min-h-[220px] flex-col gap-4 overflow-y-auto px-5 py-5">
-        {turns.length === 0 ? (
-          <div className="m-auto max-w-[40ch] text-center">
-            <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              {agentName} remembers your conversations, knows its own on-chain record, and can create a Relic on request. Ask who it is, what it has made, or tell it to paint something.
-            </p>
-          </div>
-        ) : (
-          turns.map((t, i) => (
-            <ChatBubble key={i} turn={t} agentName={agentName} accent={accent} token={token} address={address ?? null} />
-          ))
-        )}
+      <div ref={c.scrollRef} className="flex max-h-[440px] min-h-[220px] flex-col gap-4 overflow-y-auto px-5 py-5">
+        <ChatBody c={c} agentName={agentName} accent={accent} />
       </div>
 
       {/* honest framing */}
       <div className="border-t px-5 py-3" style={{ borderColor: "var(--color-border)" }}>
-        <p className="text-[11px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
-          Replies served by 0G run inside a TEE and are hardware-attested per reply. Your relationship memory is private and owner-scoped (it re-seals on resale). A full turn is not a single proof: any on-chain action is separately verifiable, and your private memory is yours alone.
-        </p>
+        <HonestFraming />
       </div>
 
       {/* composer */}
-      <div className="flex items-end gap-2 border-t px-5 py-4" style={{ borderColor: "var(--color-border)" }}>
-        <textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              void send();
-            }
-          }}
-          rows={1}
-          placeholder={token ? `Message ${agentName}...` : `Sign in to talk to ${agentName}`}
-          className="min-h-[44px] flex-1 resize-none rounded-[14px] border bg-transparent px-3 py-3 text-[14px] outline-none"
-          style={{ borderColor: "var(--color-border)", color: "var(--color-ink)" }}
-        />
-        <div className="w-[120px]">
-          <ActionButton onClick={() => void send()} disabled={sending || status === "signing"}>
-            {sending ? "..." : !token ? "Sign in" : "Send"}
-          </ActionButton>
-        </div>
-      </div>
-      {error ? (
+      <ChatComposer c={c} agentName={agentName} />
+      {c.error ? (
         <p className="px-5 pb-4 font-mono-x text-[11px]" style={{ color: "#c0392b" }}>
-          {error}
+          {c.error}
         </p>
       ) : null}
     </Panel>
+  );
+}
+
+// ── Surface 2: the full-height thread (the /chat page main area) ───────────
+// Same engine + same renderers, laid out to FILL its container (Claude-AI style): a header, a flex-1
+// scrolling transcript, the honest framing, and the composer pinned to the bottom. The parent supplies a
+// bounded-height container so the transcript scrolls; mount it keyed by agentId for a clean per-Aura reset.
+export function AuraChatThread({ agentId, agentName, accent }: { agentId: number; agentName: string; accent: string }) {
+  const c = useAuraChat(agentId);
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {/* header */}
+      <div className="flex items-center justify-between gap-3 border-b px-5 py-4 sm:px-6" style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}>
+        <div>
+          <div className="font-mono-x text-[11px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+            Talk to the Aura
+          </div>
+          <div className="font-display" style={{ fontSize: "22px", lineHeight: 1.1 }}>
+            {agentName}
+          </div>
+        </div>
+        <HealthBadge health={c.health} accent={accent} />
+      </div>
+
+      {/* transcript (fills the available height) */}
+      <div ref={c.scrollRef} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-6 sm:px-6">
+        <ChatBody c={c} agentName={agentName} accent={accent} />
+      </div>
+
+      {/* honest framing */}
+      <div className="border-t px-5 py-3 sm:px-6" style={{ borderColor: "var(--color-border)" }}>
+        <HonestFraming />
+      </div>
+
+      {/* composer */}
+      <ChatComposer c={c} agentName={agentName} />
+      {c.error ? (
+        <p className="px-5 pb-4 font-mono-x text-[11px]" style={{ color: "#c0392b" }}>
+          {c.error}
+        </p>
+      ) : null}
+    </div>
   );
 }
 
