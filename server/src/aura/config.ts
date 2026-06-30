@@ -91,9 +91,8 @@ export function sponsorPrivateKey(): string {
 //     a tx (see wallet.ts: only sponsorSigner() ever calls .sendTransaction / .fulfill). Set ATTESTOR_PRIVATE_KEY
 //     to a key held offline/HSM, and point the on-chain OutputNFT.attestor at its address, to keep the
 //     attestor key OFF the gas-spending path entirely.
-//   - oraclePrivateKey(): the de-mock sealed-key re-encryption oracle. INTEGRATION FOLLOW-UP: oracle.ts is
-//     on the v2/de-mock branch (not feat/live-summon); change its `ORACLE_PRIVATE_KEY || sponsorPrivateKey()`
-//     line to call this accessor (require the dedicated key) when that branch lands.
+//   - oraclePrivateKey(): the ERC-7857 de-mock sealed-key re-encryption oracle key (oracle.ts). Dedicated
+//     ORACLE_PRIVATE_KEY, falling back to the sponsor key only for local/dev convenience.
 export function attestorPrivateKey(): string {
   const pk = process.env.ATTESTOR_PRIVATE_KEY;
   return pk ? normalizePk(pk) : sponsorPrivateKey();

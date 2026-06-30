@@ -7,7 +7,7 @@
 // B-6 (split the hot key): the EIP-712 MintAuth ATTESTOR is now a DISTINCT key (config.attestorPrivateKey(),
 // used SIGN-ONLY in attestation.ts via viem - never put on an ethers signer that sends a tx). It falls back
 // to the sponsor key only when ATTESTOR_PRIVATE_KEY is unset, so the current single-key testnet deploy is
-// unchanged. `attestorWalletForCheck()` below is a read-only convenience for verification/health to confirm
+// unchanged. `attestorWalletAddress()` below is a read-only convenience for verification/health to confirm
 // the split; it is NEVER connected to a provider and never sends a tx (keeps the attestor key off the gas path).
 import { ethers } from "ethers";
 import { readProvider } from "./contracts.js";

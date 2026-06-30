@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import { ethers } from "ethers";
 import { encryptBrain, decryptBrain, type BrainPlain } from "./brain.js";
 import { sealKeyToPubkey } from "./sealing.js";
-import { sponsorPrivateKey } from "./config.js";
+import { oraclePrivateKey } from "./config.js";
 
 /** sha256 of the on-storage envelope = the contract's dataHash (matches the PoC + AuraINFT). */
 export function dataHashOf(envelope: Buffer): `0x${string}` {
@@ -23,10 +23,10 @@ export function dataHashOf(envelope: Buffer): `0x${string}` {
 
 let _oracle: ethers.Wallet | null = null;
 function oracleWallet(): ethers.Wallet {
-  if (!_oracle) {
-    const pk = process.env.ORACLE_PRIVATE_KEY || sponsorPrivateKey();
-    _oracle = new ethers.Wallet(pk.startsWith("0x") ? pk : `0x${pk}`);
-  }
+  // B-6: use the dedicated ORACLE accessor (oraclePrivateKey()), which falls back to the sponsor key only
+  // when ORACLE_PRIVATE_KEY is unset. Splitting it keeps the de-mock re-encryption signer off the shared
+  // attestor/sponsor key so a single leak cannot forge transfer proofs AND mint attestations AND drain gas.
+  if (!_oracle) _oracle = new ethers.Wallet(oraclePrivateKey());
   return _oracle;
 }
 
