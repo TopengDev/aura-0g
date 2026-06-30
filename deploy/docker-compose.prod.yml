@@ -50,6 +50,9 @@ services:
       # the global create cap + per-address gen quota still bound real sponsor spend.
       AURA_PER_ADDRESS_CREATE_QUOTA: "30"
       AURA_MAX_CREATES: "60"
+      # Same platform-seeding allowance for the 20 Relic gens (per-address gen quota default is 10).
+      # TRANSIENT - reverted to the tight defaults after seeding (before the final push).
+      AURA_PER_ADDRESS_GEN_QUOTA: "30"
     volumes:
       # Funded keys: read-only, never in an image layer. (~/apps/aura/.env -> /app/.env)
       - ../.env:/app/.env:ro
