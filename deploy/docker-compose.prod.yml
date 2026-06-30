@@ -45,14 +45,9 @@ services:
       SUMMON_WATCHER: "1"
       SUMMON_START_BLOCK: "41491166"
       SUMMON_POLL_MS: "5000"
-      # Platform seeding allowance: the deployer/platform mints the 20-Aura starter roster from ONE address,
-      # which exceeds the default anti-Sybil per-address create quota (5). Raised for the single-tenant demo;
-      # the global create cap + per-address gen quota still bound real sponsor spend.
-      AURA_PER_ADDRESS_CREATE_QUOTA: "30"
-      AURA_MAX_CREATES: "60"
-      # Same platform-seeding allowance for the 20 Relic gens (per-address gen quota default is 10).
-      # TRANSIENT - reverted to the tight defaults after seeding (before the final push).
-      AURA_PER_ADDRESS_GEN_QUOTA: "30"
+      # NOTE: the 20-Aura roster + 20 Relics were seeded with the per-address create/gen quotas + global
+      # create cap transiently raised; they are now back to the tight code defaults (create 5 / gen 10 /
+      # global create 40) so prod runs the full anti-Sybil hardening.
     volumes:
       # Funded keys: read-only, never in an image layer. (~/apps/aura/.env -> /app/.env)
       - ../.env:/app/.env:ro
