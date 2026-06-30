@@ -131,13 +131,22 @@ Contact sheet (labelled with on-chain token IDs): [`demo/collection-montage.png`
 
 ---
 
-## Honest scope (what's MVP, flagged for judges)
+## Honest scope (flagged for judges)
 
-- **iNFT secure transfer:** AURA mints the agent iNFT with its public identity + an
-  *encrypted* brain pointer on 0G Storage + model attestation, and transfers it with
-  standard ERC-721. The full ERC-7857 **TEE re-encryption oracle** (re-seals the brain to
-  the new owner's key on transfer) is documented and out of MVP scope - a clean upgrade,
-  not a rewrite. The royalty routing (the thesis) needs only ownership, which is fully real.
+- **iNFT secure transfer:** ✅ **REAL (de-mocked).** The agent's AES brain-key is
+  **ECIES-sealed to the owner's wallet pubkey and published on-chain** (`AuraINFT.sealedKey`);
+  on transfer the re-encryption oracle rotates the key, re-encrypts the brain envelope on
+  **0G Storage**, re-seals to the buyer, and signs an EIP-191 proof the contract verifies
+  against its `oracleAddress`. Ownership moves **only** through `transfer()` with a valid
+  proof — raw `transferFrom`/`safeTransferFrom` revert — and `BrainRekeyed` fires on-chain.
+  Proven by `smoke/demo-secure-transfer.sh` (**19/19** on the real contract), 25 unit tests
+  in the 63/63 suite, and a live Galileo deploy
+  ([AuraINFT `0x19738D5C…843d`](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d),
+  [transfer tx `0x44457a29…c990`](https://chainscan-galileo.0g.ai/tx/0x44457a29792c6be5ad02294b06c70b69aff81218d205178de2d851ccfbf8c990)).
+  **Honest bar:** the oracle is a **trusted ECDSA signer, not a hardware-TEE enclave** — the
+  exact bar the field ships today (mainnet ZeroArena is the same shape; real TEE-quote
+  verification is everyone's unshipped roadmap, 0G included). The royalty routing (the
+  thesis) needs only ownership, which is also fully real.
 - **Royalty enforcement** is unbypassable **for sales through this Marketplace** (the
   honest boundary of any on-chain royalty today). EIP-2981 also advertises it to any
   compliant venue.

@@ -14,6 +14,8 @@ export interface BrainRecord {
   canonicalBaseRoot: string;
   styleFingerprint: string | null;
   modelAttestation: string | null;
+  sealedKey: string | null;  // ERC-7857: ECIES seal of brainKey to the owner's pubkey (0x-hex), if known
+  dataHash: string | null;   // sha256 of the envelope (the contract's dataHash), 0x-hex
   createdAt: string;
 }
 
@@ -26,12 +28,14 @@ export function stageBrain(input: {
   canonicalBaseRoot: string;
   styleFingerprint: string;
   modelAttestation: string;
+  sealedKey?: string | null;  // ERC-7857 per-owner seal (null if the owner has no recovered pubkey yet)
+  dataHash?: string | null;
 }): string {
   const refKey = `pending:${randomUUID()}`;
   db()
     .prepare(
-      `INSERT INTO agent_brains (ref_key,agent_id,owner,name,enc_brain_root,brain_key_hex,canonical_base_root,style_fingerprint,model_attestation,created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO agent_brains (ref_key,agent_id,owner,name,enc_brain_root,brain_key_hex,canonical_base_root,style_fingerprint,model_attestation,sealed_key,data_hash,created_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
     )
     .run(
       refKey,
@@ -43,6 +47,8 @@ export function stageBrain(input: {
       input.canonicalBaseRoot,
       input.styleFingerprint,
       input.modelAttestation,
+      input.sealedKey ?? null,
+      input.dataHash ?? null,
       new Date().toISOString(),
     );
   return refKey;
@@ -80,6 +86,8 @@ function rowToBrain(r: any): BrainRecord {
     canonicalBaseRoot: r.canonical_base_root,
     styleFingerprint: r.style_fingerprint ?? null,
     modelAttestation: r.model_attestation ?? null,
+    sealedKey: r.sealed_key ?? null,
+    dataHash: r.data_hash ?? null,
     createdAt: r.created_at,
   };
 }

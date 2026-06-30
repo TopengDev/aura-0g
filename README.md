@@ -160,6 +160,32 @@ One signature character, **Fennic** the risograph fox, minted as the canonical p
 
 ---
 
+## ERC-7857 secure transfer (de-mocked) — and why it only works on 0G
+
+ERC-7857 is **0G Labs' own iNFT standard**: an NFT whose valuable data stays **encrypted off-chain on 0G Storage**, with only a hash and a **sealed key** on-chain, **re-encryptable to a new owner on transfer**. AURA's secure transfer is built directly on that 0G primitive — it is not a generic NFT bolted onto 0G:
+
+- **0G Storage holds the secret.** The agent's style-DNA "brain" is AES-256-GCM-encrypted and lives as an envelope on 0G Storage. The transfer **re-encrypts** that envelope (fresh key) and re-uploads it — there is no plaintext brain on any server to copy.
+- **0G Chain carries the sealed key + verifies the proof.** The AES data-key is **ECIES-sealed to the owner's secp256k1 wallet pubkey** (the same curve 0G's fine-tuning flow uses) and published on-chain as `AuraINFT.sealedKey`. On transfer the contract recovers the oracle's EIP-191 proof, enforces the sealed key **and** data hash actually rotated, flips ownership, and emits `BrainRekeyed` + `SealedKeyDelivered`. Raw transfers revert.
+- **Take 0G away and it collapses.** On a normal NFT the brain is either public or sits on a deletable server, and there is no native re-encryptable-metadata standard to transfer it. The encrypted-blob-on-0G-Storage + rotating-sealed-key-on-0G-Chain pair is exactly what 0G's ERC-7857 stack provides; this is the standard's home chain.
+
+**Honest trust bar (unchanged everywhere in code + copy):** the re-encryption oracle is a **trusted ECDSA signer, not a hardware-TEE enclave.** The contract verifies the oracle's signature; it cannot itself attest the off-chain re-encryption ran in an enclave. This is the exact bar the field actually ships (mainnet ZeroArena's `ReencryptionOracle` is the same trusted-ECDSA shape; genuine TEE-quote verification is everyone's unshipped roadmap, 0G included).
+
+**Proven, on the real contract:**
+
+- **Runnable demo — `smoke/demo-secure-transfer.sh` → 19/19 assertions** against the REAL `AuraINFT` (deploys it, mints + seals to owner A, oracle re-encrypts + signs, on-chain `transfer()` to B, B decrypts the new envelope, A is locked out, a forged proof is rejected on-chain, the consumed proof can't replay). Driven by AURA's actual backend crypto (`server/src/aura/{sealing,pubkey,oracle}.ts`).
+- **63/63 Foundry tests** (25 new `AuraINFT` cases: forged / tampered / expired / replayed / non-rotated / non-owner / cross-contract proofs all revert).
+- **Live on 0G Galileo (chainId 16602):** an isolated `AuraINFT` deployed and the real secure transfer driven on-chain (buyer + oracle were fresh throwaway keys; no live contract touched).
+
+| Item | On-chain |
+|---|---|
+| AuraINFT (deployed) | [`0x19738D5C…843d`](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d) |
+| Mint (sealed to owner) | [`0xd040f143…d9b6`](https://chainscan-galileo.0g.ai/tx/0xd040f14312261a79f6d8233650ef3e5bc83284ab3fd73da58d37cda20e82d9b6) |
+| Secure transfer (oracle proof, `BrainRekeyed`) | [`0x44457a29…c990`](https://chainscan-galileo.0g.ai/tx/0x44457a29792c6be5ad02294b06c70b69aff81218d205178de2d851ccfbf8c990) |
+
+Source: [`contracts/src/AuraINFT.sol`](./contracts/src/AuraINFT.sol) · [`contracts/test/AuraINFT.t.sol`](./contracts/test/AuraINFT.t.sol) · [`server/src/aura/oracle.ts`](./server/src/aura/oracle.ts) · [`server/src/scripts/demo-secure-transfer.ts`](./server/src/scripts/demo-secure-transfer.ts).
+
+---
+
 ## Run it yourself
 
 **Prerequisites:** Node 22+, [pnpm](https://pnpm.io), and a funded Galileo testnet wallet (faucet: https://faucet.0g.ai, ~0.5 0G per claim; the full run spends ~0.1 0G).
@@ -193,7 +219,7 @@ We win on depth: one sharp loop, fully real. Here is exactly what is live and wh
 | Royalty follows the agent | ✅ **REAL** | Proven on-chain: transferring the agent re-routes the same artwork's `royaltyInfo()` to the new owner. |
 | Enforced royalty split | ✅ **REAL** | Paid inside `buy()` before the seller; measured balance delta == on-chain `Sold` event. Unbypassable for sales through this Marketplace (the honest boundary of any on-chain royalty today; EIP-2981 advertises it to other compliant venues). |
 | PFP collection (1 character, N traits) | ✅ **REAL** | 7 OutputNFTs (#5 to #11) minted under agent #2, each TEE-verified and stored on 0G. |
-| ERC-7857 secure-transfer oracle | ⚠️ **MVP-scoped** | AURA mints the agent iNFT with its public identity + an *encrypted* brain pointer on 0G Storage + model attestation, and transfers it with standard ERC-721. The full TEE re-encryption oracle (re-seals the brain to the new owner's key on transfer) is documented and out of MVP scope. The royalty thesis needs only ownership, which is fully real. A clean upgrade, not a rewrite. |
+| ERC-7857 secure transfer (sealed-key re-encryption) | ✅ **REAL** | De-mocked. The agent's AES data-key is **ECIES-sealed to the owner's wallet pubkey and published on-chain** (`AuraINFT.sealedKey`); on transfer the re-encryption oracle generates a fresh key, re-encrypts the brain envelope, re-seals to the buyer, and signs an EIP-191 proof that the contract recovers against its `oracleAddress`. Ownership moves **only** through `transfer()` with a valid proof (raw `transferFrom`/`safeTransferFrom` revert); the sealed key + data hash rotate on-chain and `BrainRekeyed` fires. Proven by a runnable demo on the real contract: **19/19 assertions** (`smoke/demo-secure-transfer.sh`), 25 unit tests in the 63/63 suite, and a live **Galileo deploy** (see *ERC-7857 secure transfer* below). **Honest bar:** the oracle is a **trusted ECDSA signer, NOT a hardware-TEE enclave** — exactly what the field ships today (mainnet ZeroArena's oracle is the same shape; genuine TEE-quote verification is everyone's unshipped roadmap, 0G included). |
 | Image model | ℹ️ **note** | `qwen-image-edit-2511` is edit-only: generation is conditioned on a base image, which is exactly what locks character identity across the collection. |
 | Network | ℹ️ **testnet** | Galileo, chainId **16602** (the live RPC is authoritative; some docs say 16601). |
 
