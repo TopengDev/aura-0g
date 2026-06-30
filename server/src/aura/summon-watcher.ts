@@ -194,23 +194,21 @@ export class SummonWatcher {
         return "expired";
       }
 
-      // B-4 (regen amplifier): cap how many full sponsor-paid TEE generations one request can trigger.
-      // Each prior generation bumped `attempts` (line below), so once we've hit the ceiling, mark the
-      // request TERMINAL ('abandoned', not in the reprocess set) instead of regenerating again. The buyer
-      // can still refund after the deadline (their lever); we just stop burning the sponsor on a loop.
-      if (row.attempts >= MAX_SUMMON_ATTEMPTS) {
+      // B-4 (regen amplifier): decide whether to regenerate, back off, or give up. ABANDON once attempts
+      // hit the ceiling (each prior generation bumped `attempts`) -> mark TERMINAL ('abandoned', not in the
+      // reprocess set) instead of regenerating on every poll. BACKOFF a recently-'failed' request so it is
+      // not re-generated (sponsor-paid) on a tight loop. The buyer's refund lever is unaffected either way.
+      const decision = summonRetryDecision({
+        attempts: row.attempts,
+        status: row.status,
+        updatedAtMs: Date.parse(row.updated_at),
+        nowMs: Date.now(),
+      });
+      if (decision === "abandon") {
         this.abandon(id, `max fulfill attempts (${MAX_SUMMON_ATTEMPTS}) reached; not regenerating (buyer may refund)`);
         return "abandoned";
       }
-
-      // B-4 backoff: a 'failed' request is not retried every single poll - wait out the backoff window so a
-      // persistently-reverting request does not re-generate (sponsor-paid) on a tight loop.
-      if (row.status === "failed") {
-        const lastMs = Date.parse(row.updated_at);
-        if (Number.isFinite(lastMs) && Date.now() - lastMs < SUMMON_RETRY_BACKOFF_MS) {
-          return "deferred";
-        }
-      }
+      if (decision === "backoff") return "deferred";
 
       // shared cost guard (protects the funded sponsor wallet). If no slot, leave 'pending' + retry later.
       // Attribute the per-address quota to the buyer (B-2); summons are paid on-chain so this is extra
@@ -439,9 +437,31 @@ function errMsg(e: unknown): string {
 // already-settled guard (SummonEscrow.fulfill `require(!r.settled, "already settled")`). Substring +
 // case-insensitive because ethers wraps it (e.g. "execution reverted: already settled"). A "bad
 // attestation" revert is deliberately NOT terminal - a fresh regeneration produces a fresh valid sig.
-function isTerminalRevert(msg: string): boolean {
+export function isTerminalRevert(msg: string): boolean {
   const m = msg.toLowerCase();
   return m.includes("nonce used") || m.includes("already settled");
+}
+
+export type RetryDecision = "proceed" | "backoff" | "abandon";
+
+// B-4 (pure, unit-testable): given a request's attempt count + status + last-update time, decide whether to
+// regenerate now ("proceed"), wait out the backoff window ("backoff"), or give up permanently ("abandon").
+// processRequest() calls this BEFORE running the sponsor-paid TEE generation, so it bounds the regen loop.
+export function summonRetryDecision(args: {
+  attempts: number;
+  status: string;
+  updatedAtMs: number;
+  nowMs: number;
+  maxAttempts?: number;
+  backoffMs?: number;
+}): RetryDecision {
+  const maxAttempts = args.maxAttempts ?? MAX_SUMMON_ATTEMPTS;
+  const backoffMs = args.backoffMs ?? SUMMON_RETRY_BACKOFF_MS;
+  if (args.attempts >= maxAttempts) return "abandon";
+  if (args.status === "failed" && Number.isFinite(args.updatedAtMs) && args.nowMs - args.updatedAtMs < backoffMs) {
+    return "backoff";
+  }
+  return "proceed";
 }
 
 let _singleton: SummonWatcher | null = null;
