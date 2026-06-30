@@ -23,7 +23,17 @@ import { signSettlementMintAuth, type MintAuthParams } from "./attestation.js";
 import { generateAndProve, type GenProof } from "./generate.js";
 import { rawAgent } from "./agents.js";
 import { genGuardAcquire, genGuardRelease } from "./ratelimit.js";
-import { CONTRACTS, GAS, GALILEO, DEPLOYED, SUMMON_POLL_MS, SUMMON_START_BLOCK, SUMMON_PROMPT } from "./config.js";
+import {
+  CONTRACTS,
+  GAS,
+  GALILEO,
+  DEPLOYED,
+  SUMMON_POLL_MS,
+  SUMMON_START_BLOCK,
+  SUMMON_PROMPT,
+  MAX_SUMMON_ATTEMPTS,
+  SUMMON_RETRY_BACKOFF_MS,
+} from "./config.js";
 
 /** The gen function the watcher uses. Injectable so the e2e can swap in a fast deterministic stub. */
 export type SummonGenFn = (args: {
@@ -41,7 +51,7 @@ function seedLabel(): string {
   return new Date().toISOString().replace(/[^0-9]/g, "").slice(0, 17);
 }
 
-type ProcessResult = "fulfilled" | "failed" | "settled" | "expired" | "deferred";
+type ProcessResult = "fulfilled" | "failed" | "settled" | "expired" | "deferred" | "abandoned";
 
 interface SummonRow {
   request_id: number;
@@ -53,6 +63,7 @@ interface SummonRow {
   status: string;
   token_id: number | null;
   attempts: number;
+  updated_at: string;
 }
 
 export interface PollResult {
@@ -156,7 +167,7 @@ export class SummonWatcher {
       processed++;
       const r = await this.processRequest(row);
       if (r === "fulfilled") fulfilled++;
-      else if (r === "failed") failed++;
+      else if (r === "failed" || r === "abandoned") failed++;
       else skipped++;
     }
     return { scanned, processed, fulfilled, failed, skipped };
@@ -183,8 +194,28 @@ export class SummonWatcher {
         return "expired";
       }
 
+      // B-4 (regen amplifier): cap how many full sponsor-paid TEE generations one request can trigger.
+      // Each prior generation bumped `attempts` (line below), so once we've hit the ceiling, mark the
+      // request TERMINAL ('abandoned', not in the reprocess set) instead of regenerating again. The buyer
+      // can still refund after the deadline (their lever); we just stop burning the sponsor on a loop.
+      if (row.attempts >= MAX_SUMMON_ATTEMPTS) {
+        this.abandon(id, `max fulfill attempts (${MAX_SUMMON_ATTEMPTS}) reached; not regenerating (buyer may refund)`);
+        return "abandoned";
+      }
+
+      // B-4 backoff: a 'failed' request is not retried every single poll - wait out the backoff window so a
+      // persistently-reverting request does not re-generate (sponsor-paid) on a tight loop.
+      if (row.status === "failed") {
+        const lastMs = Date.parse(row.updated_at);
+        if (Number.isFinite(lastMs) && Date.now() - lastMs < SUMMON_RETRY_BACKOFF_MS) {
+          return "deferred";
+        }
+      }
+
       // shared cost guard (protects the funded sponsor wallet). If no slot, leave 'pending' + retry later.
-      const guard = genGuardAcquire();
+      // Attribute the per-address quota to the buyer (B-2); summons are paid on-chain so this is extra
+      // defense-in-depth on top of the global cap.
+      const guard = genGuardAcquire(row.buyer);
       if (!guard.ok) {
         this.setStatus(id, "pending", `awaiting a gen slot: ${guard.reason ?? "busy"}`);
         return "deferred";
@@ -248,8 +279,23 @@ export class SummonWatcher {
       this.log(`summon #${id} fulfilled -> output #${tokenId ?? "?"} tx ${rcpt.hash}`);
       return "fulfilled";
     } catch (e: unknown) {
-      // transient/forged failure: mark 'failed' (retried next poll until the deadline) WITHOUT settling.
-      this.fail(id, errMsg(e));
+      const msg = errMsg(e);
+      // B-4: a settled-elsewhere / nonce-already-used revert is NOT transient - regenerating can never
+      // succeed (the request is or will be settled), so mark it TERMINAL instead of looping. The H-1 fix
+      // already prevents an attacker from pre-consuming the SETTLEMENT nonce, so this mainly catches a
+      // genuine concurrent/own settle; either way, stop burning the sponsor.
+      if (isTerminalRevert(msg)) {
+        this.abandon(id, `terminal revert, not regenerating: ${msg}`);
+        return "abandoned";
+      }
+      // otherwise transient: mark 'failed'. It is retried (after backoff, up to MAX_SUMMON_ATTEMPTS) WITHOUT
+      // settling. If this attempt already pushed attempts to the ceiling, mark terminal now so we don't make
+      // one more pointless generation next poll.
+      this.fail(id, msg);
+      if (this.attemptsOf(id) >= MAX_SUMMON_ATTEMPTS) {
+        this.abandon(id, `max fulfill attempts (${MAX_SUMMON_ATTEMPTS}) reached after error: ${msg}`);
+        return "abandoned";
+      }
       return "failed";
     } finally {
       if (acquired) genGuardRelease();
@@ -359,6 +405,24 @@ export class SummonWatcher {
       .prepare(`UPDATE summon_requests SET status = 'failed', error = ?, updated_at = ? WHERE request_id = ?`)
       .run(error.slice(0, 280), nowIso(), id);
   }
+
+  // B-4: TERMINAL give-up. 'abandoned' is NOT in the reprocess set, so the request is never re-generated.
+  // Does not clobber a row already 'fulfilled'. The buyer's refund lever (after the deadline) is unaffected.
+  private abandon(id: number, error: string): void {
+    db()
+      .prepare(
+        `UPDATE summon_requests SET status = 'abandoned', error = ?, updated_at = ?
+         WHERE request_id = ? AND status NOT IN ('fulfilled')`,
+      )
+      .run(error.slice(0, 280), nowIso(), id);
+  }
+
+  private attemptsOf(id: number): number {
+    const row = db().prepare(`SELECT attempts FROM summon_requests WHERE request_id = ?`).get(id) as
+      | { attempts: number }
+      | undefined;
+    return row?.attempts ?? 0;
+  }
 }
 
 function nowIso(): string {
@@ -367,6 +431,17 @@ function nowIso(): string {
 function errMsg(e: unknown): string {
   if (e instanceof Error) return e.message;
   return String(e);
+}
+
+// B-4: a revert that means "this request is or will be settled, regenerating can never help" -> terminal.
+// Matches the real escrow/NFT revert strings (verified): the NFT's consumed settlement nonce
+// (OutputNFT.mintForSettlement `require(!usedSettlementNonce[nonce], "nonce used")`) and the escrow's
+// already-settled guard (SummonEscrow.fulfill `require(!r.settled, "already settled")`). Substring +
+// case-insensitive because ethers wraps it (e.g. "execution reverted: already settled"). A "bad
+// attestation" revert is deliberately NOT terminal - a fresh regeneration produces a fresh valid sig.
+function isTerminalRevert(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return m.includes("nonce used") || m.includes("already settled");
 }
 
 let _singleton: SummonWatcher | null = null;

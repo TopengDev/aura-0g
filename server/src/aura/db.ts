@@ -47,6 +47,17 @@ function migrate(d: Database.Database): void {
       reset_at    INTEGER NOT NULL              -- epoch ms
     );
 
+    -- B-2/B-3: PERSISTED lifetime cost counters (the sponsor-spend budget), scope-keyed:
+    --   'gen:global'            -> total lifetime generations (bounds sponsor compute spend)
+    --   'gen:addr:<address>'    -> per-address lifetime generations (anti-Sybil on the shared gen cap)
+    --   'create:global'         -> total lifetime create-agents (bounds sponsor 0G-storage spend)
+    --   'create:addr:<address>' -> per-address lifetime create-agents (anti-Sybil on the create cap)
+    -- Persisted (not in-process) so a restart is NOT a reset-and-replay of the spend budget.
+    CREATE TABLE IF NOT EXISTS cost_counters (
+      scope  TEXT PRIMARY KEY,
+      count  INTEGER NOT NULL DEFAULT 0
+    );
+
     CREATE TABLE IF NOT EXISTS siwe_nonces (
       nonce       TEXT PRIMARY KEY,
       created_at  INTEGER NOT NULL,             -- epoch ms

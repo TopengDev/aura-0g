@@ -71,18 +71,80 @@ export const EIP712_DOMAIN = {
 // Galileo min tip is 2 gwei -> use 5 gwei for all writes the SPONSOR signs (gen funding etc).
 export const GAS = { gasPrice: 5_000_000_000n } as const;
 
-// ── SPONSOR key (the funded .env wallet). Pays 0G Compute + Storage for generation ONLY, and signs
-// the EIP-712 mint attestation (it IS the contract's attestor). It NEVER signs user mint/list/buy. ──
+function normalizePk(pk: string): string {
+  return pk.startsWith("0x") ? pk : `0x${pk}`;
+}
+
+// ── SPONSOR key (the funded .env wallet). Pays 0G Compute + Storage for generation (gas/float). Keep its
+// balance LOW + refillable: it is the only key on the tx-sending path. It NEVER signs user mint/list/buy. ──
 export function sponsorPrivateKey(): string {
   const pk = process.env.SPONSOR_PRIVATE_KEY || process.env.PRIVATE_KEY || process.env.DEMO_PRIVATE_KEY;
   if (!pk) throw new Error("SPONSOR_PRIVATE_KEY (or PRIVATE_KEY) missing - set the funded sponsor/attestor wallet in .env");
-  return pk.startsWith("0x") ? pk : `0x${pk}`;
+  return normalizePk(pk);
+}
+
+// ── B-6 (split the hot key): distinct ATTESTOR / SPONSOR / ORACLE accessors so the three roles are no
+// longer forced to be the same key. Each FALLS BACK to the sponsor key when its dedicated env is unset,
+// so the current single-key testnet deploy is unchanged (zero regression) while production CAN split them.
+//
+//   - attestorPrivateKey(): the EIP-712 MintAuth signer. SIGN-ONLY - it is never put on a signer that sends
+//     a tx (see wallet.ts: only sponsorSigner() ever calls .sendTransaction / .fulfill). Set ATTESTOR_PRIVATE_KEY
+//     to a key held offline/HSM, and point the on-chain OutputNFT.attestor at its address, to keep the
+//     attestor key OFF the gas-spending path entirely.
+//   - oraclePrivateKey(): the de-mock sealed-key re-encryption oracle. INTEGRATION FOLLOW-UP: oracle.ts is
+//     on the v2/de-mock branch (not feat/live-summon); change its `ORACLE_PRIVATE_KEY || sponsorPrivateKey()`
+//     line to call this accessor (require the dedicated key) when that branch lands.
+export function attestorPrivateKey(): string {
+  const pk = process.env.ATTESTOR_PRIVATE_KEY;
+  return pk ? normalizePk(pk) : sponsorPrivateKey();
+}
+
+export function oraclePrivateKey(): string {
+  const pk = process.env.ORACLE_PRIVATE_KEY;
+  return pk ? normalizePk(pk) : sponsorPrivateKey();
+}
+
+/** True when the dedicated attestor key is split off the sponsor (gas) key - the pre-mainnet target. */
+export function attestorIsSplitFromSponsor(): boolean {
+  return attestorPrivateKey().toLowerCase() !== sponsorPrivateKey().toLowerCase();
 }
 
 // ── runtime knobs ──
 export const PORT = Number(process.env.PORT ?? 8787);
 export const HOST = process.env.HOST ?? "0.0.0.0";
-export const JWT_SECRET = process.env.JWT_SECRET ?? "dev-only-insecure-secret-change-in-prod";
+
+// B-1 (fail-closed JWT): the app must NEVER sign/verify JWTs with the publicly-known dev default in
+// production - a known HS256 secret is trivially forgeable (forge {address:<victim>} => impersonate any
+// wallet, including their /mint-args attestations). docker-compose.prod.yml is already fail-closed, but
+// the APP LAYER must enforce it too so a bypass path (a bare `npm start`, a future compose edit) cannot
+// silently boot with the forgeable default. In production: THROW on boot if JWT_SECRET is unset/blank or
+// equals the default. In dev/test: fall back to the default (convenience), as before.
+const DEV_DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-in-prod";
+export const IS_PRODUCTION = (process.env.NODE_ENV ?? "").toLowerCase() === "production";
+
+/** Resolve the JWT secret, fail-closed in production. Pure (takes env) so it is unit-testable. */
+export function resolveJwtSecret(env: NodeJS.ProcessEnv = process.env): string {
+  const isProd = (env.NODE_ENV ?? "").toLowerCase() === "production";
+  const fromEnv = env.JWT_SECRET;
+  if (isProd) {
+    if (!fromEnv || fromEnv.trim().length === 0) {
+      throw new Error(
+        "JWT_SECRET is unset/blank in production - refusing to boot with the forgeable dev default (B-1 fail-closed). Set JWT_SECRET to a strong random value (e.g. `openssl rand -hex 32`).",
+      );
+    }
+    if (fromEnv === DEV_DEFAULT_JWT_SECRET) {
+      throw new Error(
+        "JWT_SECRET equals the public dev default in production - refusing to boot (B-1 fail-closed). Set JWT_SECRET to a strong random value (e.g. `openssl rand -hex 32`).",
+      );
+    }
+    return fromEnv;
+  }
+  return fromEnv && fromEnv.length > 0 ? fromEnv : DEV_DEFAULT_JWT_SECRET;
+}
+
+// Evaluated at module load = on boot. In production with a missing/default secret this THROWS, aborting
+// startup (fail-closed) before any route can verify a forged token.
+export const JWT_SECRET = resolveJwtSecret();
 export const JWT_TTL = process.env.JWT_TTL ?? "1h";
 // Explicit CORS origin (NOT "*", because we use a Bearer token; still pin it). Comma-separated list ok.
 export const CORS_ORIGINS = (process.env.CORS_ORIGIN ?? "http://localhost:3000").split(",").map((s) => s.trim());
@@ -94,6 +156,33 @@ export const SIWE_URI = process.env.SIWE_URI ?? "http://localhost:3000";
 // cost guards (protect the funded sponsor wallet)
 export const GLOBAL_GEN_CAP = Number(process.env.AURA_MAX_GENERATIONS ?? 40);
 export const MAX_CONCURRENT_GEN = Number(process.env.AURA_MAX_CONCURRENT_GEN ?? 2);
+// B-2 (Sybil gen-cap DoS): a per-address LIFETIME generation quota so a single Sybil swarm cannot drain
+// the shared GLOBAL_GEN_CAP - draining the global pool now requires ceil(cap/quota) distinct SIWE
+// addresses instead of one. The global counter is ALSO persisted (ratelimit.ts) so a restart is not a
+// reset-and-replay. Default quota = 10 (knob).
+export const PER_ADDRESS_GEN_QUOTA = Number(process.env.AURA_PER_ADDRESS_GEN_QUOTA ?? 10);
+
+// B-3 (create-agent sponsor drain): create-agent makes the SPONSOR pay for TWO 0G Storage uploads but was
+// guarded ONLY per-user (no global cap). Give it its own global LIFETIME cost cap + per-address lifetime
+// quota + a concurrency ceiling, analogous to the generation guard. Defaults are knobs.
+export const GLOBAL_CREATE_CAP = Number(process.env.AURA_MAX_CREATES ?? 40);
+export const PER_ADDRESS_CREATE_QUOTA = Number(process.env.AURA_PER_ADDRESS_CREATE_QUOTA ?? 5);
+export const MAX_CONCURRENT_CREATE = Number(process.env.AURA_MAX_CONCURRENT_CREATE ?? 2);
+
+// B-4 (watcher regen amplifier): cap how many times the Summon watcher will run a full sponsor-paid TEE
+// generation for one request before giving up (it used to retry every poll forever until the deadline).
+// On a persistent settled-elsewhere / "nonce used" revert the request is marked TERMINAL instead. Default 3.
+export const MAX_SUMMON_ATTEMPTS = Number(process.env.AURA_MAX_SUMMON_ATTEMPTS ?? 3);
+// Min backoff (ms) before a 'failed' summon request is retried, so a reverting request is not re-generated
+// every single poll. Default 60s.
+export const SUMMON_RETRY_BACKOFF_MS = Number(process.env.AURA_SUMMON_RETRY_BACKOFF_MS ?? 60_000);
+
+// B-5 (TEE best-effort -> enforced): when ON (the secure default), a generation whose TEE verification did
+// not pass (verified !== true: false / "n/a" / "err:...") is a HARD error - the image is NOT made mintable
+// and NO signing attestation is produced, so "verifiable TEE provenance" is true and not best-effort. The
+// real verdict is still recorded in provenance. Set AURA_ENFORCE_TEE=0 only as a deliberate, logged escape
+// hatch for a known-flaky testnet TEE; it MUST be on for mainnet / real value.
+export const ENFORCE_TEE_VERIFICATION = (process.env.AURA_ENFORCE_TEE ?? "1") !== "0";
 
 // ── Summon fulfillment watcher (CP2) ── OFF by default; the real entrypoint opts in via SUMMON_WATCHER=1.
 // (buildApp() never starts it, so app.inject() verification scripts don't spawn a poller.)

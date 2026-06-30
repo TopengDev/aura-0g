@@ -36,8 +36,10 @@ export async function generateRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(404).send({ error: `agent #${agentId} not found on-chain` });
       }
 
-      // global cost guard (protects the funded sponsor wallet). Acquire BEFORE creating the job.
-      const guard = genGuardAcquire();
+      // global cost guard (protects the funded sponsor wallet). Acquire BEFORE creating the job. Pass the
+      // owner so the per-address LIFETIME quota applies (B-2: a single Sybil address cannot drain the
+      // shared global cap, and the global counter is persisted so a restart is not a reset-and-replay).
+      const guard = genGuardAcquire(owner);
       if (!guard.ok) {
         return reply.code(503).send({ error: guard.reason ?? "generation temporarily unavailable" });
       }
