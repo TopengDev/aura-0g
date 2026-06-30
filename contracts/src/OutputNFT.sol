@@ -37,12 +37,24 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
 
     uint256 public nextTokenId = 1;
     mapping(uint256 => Provenance) private _prov;
-    /// @notice Replay guard: each attestation nonce may be consumed exactly once.
+    /// @notice Replay guard for the PERMISSIONLESS direct mint (mintOutput). One nonce, one mint.
     mapping(bytes32 => bool) public usedNonce;
+    /// @notice SEPARATE replay guard for the escrow SETTLEMENT mint (mintForSettlement). A distinct
+    ///         namespace from `usedNonce` so the two mint paths can never cross-consume a nonce - this
+    ///         is half of the H-1 fix (the other half is binding the settler into the signed payload).
+    mapping(bytes32 => bool) public usedSettlementNonce;
 
-    // EIP-712 typed struct the backend attestor signs.
+    // EIP-712 typed struct the backend attestor signs for the DIRECT mint (mintOutput).
     bytes32 private constant MINTAUTH_TYPEHASH = keccak256(
         "MintAuth(address to,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,uint256 nonce)"
+    );
+    // EIP-712 typed struct for the SETTLEMENT mint (mintForSettlement). DISTINCT from MINTAUTH_TYPEHASH
+    // (different digest) AND it binds `settler` = the authorized caller (the SummonEscrow). The attestor
+    // signs settler = the escrow address, so only the escrow's own call (msg.sender == settler) settles;
+    // a mempool front-runner calling directly has msg.sender != settler -> the sig fails to recover the
+    // attestor -> "bad attestation". This is what closes finding H-1.
+    bytes32 private constant SETTLEMENT_MINTAUTH_TYPEHASH = keccak256(
+        "SettlementMintAuth(address to,address settler,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,uint256 nonce)"
     );
 
     event OutputMinted(
@@ -106,6 +118,55 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         emit OutputMinted(tokenId, creatorAgentId, to, imageRoot, provenanceHash, teeAttestation, seed);
     }
 
+    /// @notice Settlement mint - the ONLY mint path the SummonEscrow uses to settle a paid summon.
+    ///         Reachable in practice only by the escrow because the attestation binds `settler` to the
+    ///         caller (msg.sender): the backend attestor signs settler = the escrow's address, so a
+    ///         mempool front-runner who replays the leaked sig via a DIRECT call has msg.sender != the
+    ///         signed settler -> recovered signer != attestor -> revert "bad attestation". It also can NOT
+    ///         be replayed through the permissionless `mintOutput` (different EIP-712 type => different
+    ///         digest) and consumes a SEPARATE nonce namespace (`usedSettlementNonce`), so the settlement
+    ///         nonce can never be pre-consumed out-of-band. Closes finding H-1 (front-run-fulfill griefing)
+    ///         WITHOUT touching the legitimate permissionless `mintOutput` direct-mint flow.
+    /// @param to              recipient (the summon buyer; the escrow forwards r.buyer)
+    /// @param attestationSig  attestor's EIP-712 SettlementMintAuth signature, signed with settler == msg.sender
+    function mintForSettlement(
+        address to,
+        uint256 creatorAgentId,
+        string calldata imageRoot,
+        bytes32 provenanceHash,
+        bytes32 teeAttestation,
+        uint256 seed,
+        bytes32 nonce,
+        bytes calldata attestationSig
+    ) external returns (uint256 tokenId) {
+        require(!usedSettlementNonce[nonce], "nonce used");
+        // creatorAgentId must reference a real agent (its owner is the dynamic royalty target).
+        registry.ownerOf(creatorAgentId); // reverts if agent doesn't exist
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                SETTLEMENT_MINTAUTH_TYPEHASH,
+                to,
+                msg.sender, // settler: the caller is folded into the signed payload (must be the escrow)
+                creatorAgentId,
+                keccak256(bytes(imageRoot)),
+                provenanceHash,
+                teeAttestation,
+                seed,
+                nonce
+            )
+        );
+        bytes32 digest = _hashTypedDataV4(structHash);
+        address recovered = digest.recover(attestationSig); // reverts on malformed signature
+        require(recovered == attestor, "bad attestation");
+
+        usedSettlementNonce[nonce] = true;
+        tokenId = nextTokenId++;
+        _prov[tokenId] = Provenance(creatorAgentId, imageRoot, provenanceHash, teeAttestation, seed);
+        _safeMint(to, tokenId);
+        emit OutputMinted(tokenId, creatorAgentId, to, imageRoot, provenanceHash, teeAttestation, seed);
+    }
+
     /// @notice Compute the EIP-712 digest the attestor must sign for a given mint (for backend/tests).
     function authDigest(
         address to,
@@ -120,6 +181,35 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
             abi.encode(
                 MINTAUTH_TYPEHASH,
                 to,
+                creatorAgentId,
+                keccak256(bytes(imageRoot)),
+                provenanceHash,
+                teeAttestation,
+                seed,
+                nonce
+            )
+        );
+        return _hashTypedDataV4(structHash);
+    }
+
+    /// @notice Compute the EIP-712 SettlementMintAuth digest the attestor must sign for an escrow
+    ///         settlement (for the backend/tests). `settler` MUST be the escrow address that will call
+    ///         mintForSettlement (i.e. the caller's msg.sender at settle time).
+    function settlementAuthDigest(
+        address to,
+        address settler,
+        uint256 creatorAgentId,
+        string calldata imageRoot,
+        bytes32 provenanceHash,
+        bytes32 teeAttestation,
+        uint256 seed,
+        bytes32 nonce
+    ) external view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                SETTLEMENT_MINTAUTH_TYPEHASH,
+                to,
+                settler,
                 creatorAgentId,
                 keccak256(bytes(imageRoot)),
                 provenanceHash,

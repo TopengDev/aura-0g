@@ -19,7 +19,7 @@ import { ethers } from "ethers";
 import { db } from "./db.js";
 import { summonRead, summonWrite, readProvider } from "./contracts.js";
 import { sponsorSigner } from "./wallet.js";
-import { signMintAuth, type MintAuthParams } from "./attestation.js";
+import { signSettlementMintAuth, type MintAuthParams } from "./attestation.js";
 import { generateAndProve, type GenProof } from "./generate.js";
 import { rawAgent } from "./agents.js";
 import { genGuardAcquire, genGuardRelease } from "./ratelimit.js";
@@ -206,7 +206,9 @@ export class SummonWatcher {
         prompt: this.prompt,
       });
 
-      // fresh single-use nonce; sign the attestor MintAuth binding the BUYER + agent + the gen proof.
+      // fresh single-use nonce; sign the attestor SettlementMintAuth binding the BUYER + agent + the gen
+      // proof + the SETTLER (this escrow). Binding the settler is the H-1 fix: the sig only validates when
+      // the escrow itself calls mintForSettlement, so a leaked sig can't be front-run via a direct call.
       const nonce = ethers.hexlify(ethers.randomBytes(32)) as `0x${string}`;
       const params: MintAuthParams = {
         to: ethers.getAddress(row.buyer) as `0x${string}`,
@@ -217,7 +219,7 @@ export class SummonWatcher {
         seed: BigInt(proof.seed),
         nonce,
       };
-      const sig = await signMintAuth(params);
+      const sig = await signSettlementMintAuth(params, ethers.getAddress(CONTRACTS.summonEscrow) as `0x${string}`);
       this.recordProof(id, proof, nonce, agent.name);
 
       // re-check settled RIGHT before sending (covers a concurrent fulfill or a prior crashed-but-landed tx).

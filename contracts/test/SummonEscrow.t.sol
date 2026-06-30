@@ -62,9 +62,10 @@ abstract contract SummonBase is Test {
         requestId = escrow.summon{value: value}(agentId, maxPrice);
     }
 
-    // --- attestation signing (over the EXACT fields fulfill forwards: to,agentId,IMG,PROV,TEE,seed,nonce) ---
+    // --- SETTLEMENT attestation signing (the escrow settles via mintForSettlement, which binds
+    //     settler == the escrow). Signs over (to, settler=escrow, agentId, IMG, PROV, TEE, seed, nonce). ---
     function _sig(uint256 pk, address to, uint256 agentId, uint256 seed, bytes32 nonce) internal view returns (bytes memory) {
-        bytes32 digest = outNft.authDigest(to, agentId, IMG, PROV, TEE, seed, nonce);
+        bytes32 digest = outNft.settlementAuthDigest(to, address(escrow), agentId, IMG, PROV, TEE, seed, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(pk, digest);
         return abi.encodePacked(r, s, v);
     }
@@ -482,7 +483,8 @@ contract SummonFeeMathTest is SummonBase {
         vm.prank(buyer);
         uint256 id = z.summon{value: PRICE}(agentId, PRICE);
         bytes32 nonce = keccak256("z");
-        bytes32 digest = outNft.authDigest(buyer, agentId, IMG, PROV, TEE, SEED, nonce);
+        // settler must be THIS escrow (z), since z.fulfill -> mintForSettlement binds settler == msg.sender
+        bytes32 digest = outNft.settlementAuthDigest(buyer, address(z), agentId, IMG, PROV, TEE, SEED, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorPk, digest);
         vm.prank(attestor);
         z.fulfill(id, IMG, PROV, TEE, SEED, nonce, abi.encodePacked(r, s, v));
@@ -654,6 +656,99 @@ contract SummonWithdrawTest is SummonBase {
         vm.prank(buyer);
         escrow.withdraw();
         assertEq(buyer.balance - bb, 0.15 ether, "single withdraw pays both");
+    }
+}
+
+// ============================================================================
+//  H-1 REGRESSION - front-run-fulfill griefing is now CLOSED (escrow-only settlement mint)
+//  Audit finding H-1 (HIGH): mintOutput was permissionless + shared the settlement nonce, so a
+//  mempool front-runner could call mintOutput directly with the runner's leaked sig, consume the
+//  nonce, force fulfill() to revert "nonce used", and let the buyer refund after the deadline -
+//  buyer keeps the art AND the money, owner+platform earn 0. The fix routes settlement through
+//  mintForSettlement (settler==msg.sender bound in the sig, SEPARATE nonce namespace, DISTINCT
+//  EIP-712 type). These tests assert every front-run variant now REVERTS and fulfill still settles.
+// ============================================================================
+contract SummonH1FrontRunRegressionTest is SummonBase {
+    uint256 agentId;
+
+    function setUp() public override {
+        super.setUp();
+        agentId = _mintAgentTo(owner1, 700);
+        _setPrice(owner1, agentId, PRICE);
+    }
+
+    /// The EXACT H-1 exploit: a third-party griefer (or the buyer) takes the runner's settlement sig
+    /// from the mempool and calls mintForSettlement DIRECTLY to consume the nonce. It must REVERT
+    /// (settler binding: their msg.sender != the signed escrow), the settlement nonce must stay UNUSED,
+    /// and the legitimate fulfill() must then still settle + pay the owner and platform.
+    function test_H1_DirectFrontRunOfSettlementMint_Reverts_FulfillStillSettles() public {
+        uint256 id = _summon(buyer, agentId, PRICE, PRICE);
+        bytes32 nonce = keccak256("h1-frontrun");
+        // the runner's settlement sig (bound to settler == address(escrow)); leaked in the public mempool.
+        bytes memory runnerSig = _sig(attestorPk, buyer, agentId, SEED, nonce);
+
+        // (a) third-party griefer front-runs by calling mintForSettlement directly -> settler=other != escrow.
+        vm.prank(other);
+        vm.expectRevert(bytes("bad attestation"));
+        outNft.mintForSettlement(buyer, agentId, IMG, PROV, TEE, SEED, nonce, runnerSig);
+
+        // (b) the buyer themselves tries the same self-grief -> also reverts.
+        vm.prank(buyer);
+        vm.expectRevert(bytes("bad attestation"));
+        outNft.mintForSettlement(buyer, agentId, IMG, PROV, TEE, SEED, nonce, runnerSig);
+
+        // the settlement nonce was NEVER consumed by the failed front-runs.
+        assertFalse(outNft.usedSettlementNonce(nonce), "settlement nonce NOT pre-consumed by a front-run");
+
+        // the legitimate runner now settles: art -> buyer, fee split -> owner + platform (H-1's broken promise restored).
+        uint256 tokenId = _fulfill(attestor, id, buyer, agentId, SEED, nonce, attestorPk);
+        assertEq(outNft.ownerOf(tokenId), buyer, "output minted to buyer via the gated settle path");
+        assertEq(escrow.pendingWithdrawals(owner1), 0.0975 ether, "owner PAID 97.5% (was stiffed under H-1)");
+        assertEq(escrow.pendingWithdrawals(platform), 0.0025 ether, "platform PAID 2.5%");
+        assertTrue(outNft.usedSettlementNonce(nonce), "settlement nonce consumed exactly once, by fulfill");
+        (, , , , bool settled) = _req(id);
+        assertTrue(settled, "request settled");
+    }
+
+    /// The settlement sig cannot be re-routed through the still-permissionless mintOutput (direct-mint
+    /// flow): different EIP-712 type => different digest => "bad attestation". The direct-mint nonce
+    /// namespace (usedNonce) is also never touched, so it can't pre-consume the settlement.
+    function test_H1_SettlementSigCannotRouteThroughPermissionlessMintOutput_Reverts() public {
+        uint256 id = _summon(buyer, agentId, PRICE, PRICE);
+        bytes32 nonce = keccak256("h1-crosspath");
+        bytes memory runnerSig = _sig(attestorPk, buyer, agentId, SEED, nonce);
+
+        // feed the SETTLEMENT sig into the permissionless mintOutput -> rejected (wrong typehash/digest).
+        vm.prank(other);
+        vm.expectRevert(bytes("bad attestation"));
+        outNft.mintOutput(buyer, agentId, IMG, PROV, TEE, SEED, nonce, runnerSig);
+
+        // neither nonce namespace was consumed; fulfill still works.
+        assertFalse(outNft.usedNonce(nonce), "direct-mint nonce namespace untouched");
+        assertFalse(outNft.usedSettlementNonce(nonce), "settlement nonce namespace untouched");
+        uint256 tokenId = _fulfill(attestor, id, buyer, agentId, SEED, nonce, attestorPk);
+        assertEq(outNft.ownerOf(tokenId), buyer, "fulfill settles after the cross-path attempt failed");
+        assertEq(escrow.pendingWithdrawals(owner1), 0.0975 ether, "owner paid");
+    }
+
+    /// The reverse direction stays isolated too: a legitimate DIRECT mintOutput (the public README's
+    /// non-escrow flow) using nonce N does NOT block a settlement that happens to reuse value N, because
+    /// the namespaces are separate. Proves the fix did not break the direct flow nor over-couple the two.
+    function test_H1_DirectMintNonce_DoesNotBlockSettlement_SameNonceValue() public {
+        bytes32 nonce = keccak256("shared-value");
+
+        // a normal direct mint (the legitimate flow) consumes `nonce` in the DIRECT namespace.
+        bytes32 dDigest = outNft.authDigest(collector, agentId, IMG, PROV, TEE, SEED, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorPk, dDigest);
+        vm.prank(collector);
+        outNft.mintOutput(collector, agentId, IMG, PROV, TEE, SEED, nonce, abi.encodePacked(r, s, v));
+        assertTrue(outNft.usedNonce(nonce), "direct nonce consumed");
+
+        // a summon settlement reusing the SAME nonce VALUE still settles (separate namespace).
+        uint256 id = _summon(buyer, agentId, PRICE, PRICE);
+        uint256 tokenId = _fulfill(attestor, id, buyer, agentId, SEED, nonce, attestorPk);
+        assertEq(outNft.ownerOf(tokenId), buyer, "settlement unaffected by the direct-mint nonce");
+        assertEq(escrow.pendingWithdrawals(owner1), 0.0975 ether, "owner paid on settlement");
     }
 }
 

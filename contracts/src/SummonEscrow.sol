@@ -42,7 +42,10 @@ interface IAgentRegistry {
 }
 
 interface IOutputNFT {
-    function mintOutput(
+    /// @dev Escrow settles via mintForSettlement (NOT the permissionless mintOutput): the attestation
+    ///      binds settler == msg.sender, so only THIS escrow's call can consume the settlement nonce.
+    ///      Closes H-1 (a mempool front-run of the settlement sig reverts on the settler binding).
+    function mintForSettlement(
         address to,
         uint256 creatorAgentId,
         string calldata imageRoot,
@@ -171,10 +174,13 @@ contract SummonEscrow is Ownable2Step, Pausable, ReentrancyGuardTransient {
 
         r.settled = true; // EFFECTS before the external mint (CEI)
 
-        // INTERACTION: mint the output to the buyer. OutputNFT verifies the attestor sig over
-        // (r.buyer, r.agentId, imageRoot, provenanceHash, teeAttestation, seed, nonce) + the nonce replay
-        // guard; a forged or replayed attestation reverts here, unwinding r.settled (buyer can still refund).
-        tokenId = outputNFT.mintOutput(r.buyer, r.agentId, imageRoot, provenanceHash, teeAttestation, seed, nonce, attestationSig);
+        // INTERACTION: settle-mint the output to the buyer via the escrow-gated path. OutputNFT verifies
+        // the attestor sig over (r.buyer, settler=THIS escrow, r.agentId, imageRoot, provenanceHash,
+        // teeAttestation, seed, nonce) against a SEPARATE settlement-nonce namespace; binding settler ==
+        // msg.sender means a mempool front-run of this sig via a direct call cannot consume the nonce
+        // (closes H-1). A forged/replayed attestation reverts here, unwinding r.settled (buyer can refund).
+        tokenId =
+            outputNFT.mintForSettlement(r.buyer, r.agentId, imageRoot, provenanceHash, teeAttestation, seed, nonce, attestationSig);
 
         // SPLIT the escrowed fee: platform cut + owner remainder, credited as pull balances. The remainder
         // absorbs the rounding, so ownerCut + platformFee == fee exactly (value is conserved).

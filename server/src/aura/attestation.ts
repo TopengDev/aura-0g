@@ -30,6 +30,27 @@ export const MINT_AUTH_TYPES = {
 
 export const MINT_AUTH_PRIMARY = "MintAuth" as const;
 
+// The SettlementMintAuth type - what the SummonEscrow's mintForSettlement verifies. DISTINCT from
+// MintAuth (different digest) + it binds `settler` = the escrow address (the on-chain mintForSettlement
+// folds msg.sender into this slot). The attestor signs settler = the escrow, so only the escrow's own
+// call settles; a mempool front-run via a direct call has msg.sender != settler -> bad attestation.
+// Field order + types MUST mirror the contract's SETTLEMENT_MINTAUTH_TYPEHASH string:
+// "SettlementMintAuth(address to,address settler,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,uint256 nonce)"
+export const SETTLEMENT_MINT_AUTH_TYPES = {
+  SettlementMintAuth: [
+    { name: "to", type: "address" },
+    { name: "settler", type: "address" },
+    { name: "creatorAgentId", type: "uint256" },
+    { name: "imageRoot", type: "string" },
+    { name: "provenanceHash", type: "bytes32" },
+    { name: "teeAttestation", type: "bytes32" },
+    { name: "seed", type: "uint256" },
+    { name: "nonce", type: "uint256" },
+  ],
+} as const;
+
+export const SETTLEMENT_MINT_AUTH_PRIMARY = "SettlementMintAuth" as const;
+
 export interface MintAuthParams {
   to: `0x${string}`;
   creatorAgentId: bigint;
@@ -63,13 +84,31 @@ function toMessage(p: MintAuthParams) {
   };
 }
 
-/** Sign MintAuth -> a signature the deployed OutputNFT.mintOutput will accept. */
+/** Sign MintAuth -> a signature the deployed OutputNFT.mintOutput will accept (DIRECT mint flow). */
 export async function signMintAuth(p: MintAuthParams): Promise<`0x${string}`> {
   return attestorAccount().signTypedData({
     domain: EIP712_DOMAIN,
     types: MINT_AUTH_TYPES,
     primaryType: MINT_AUTH_PRIMARY,
     message: toMessage(p),
+  });
+}
+
+/**
+ * Sign SettlementMintAuth -> a signature OutputNFT.mintForSettlement (via SummonEscrow.fulfill) accepts.
+ * `settler` MUST be the SummonEscrow address: the contract folds msg.sender into the digest, so the sig
+ * only ever validates when the escrow itself calls. Binding the settler is what closes finding H-1 - a
+ * leaked settlement sig cannot be replayed by a mempool front-runner calling mintForSettlement directly.
+ */
+export async function signSettlementMintAuth(
+  p: MintAuthParams,
+  settler: `0x${string}`,
+): Promise<`0x${string}`> {
+  return attestorAccount().signTypedData({
+    domain: EIP712_DOMAIN,
+    types: SETTLEMENT_MINT_AUTH_TYPES,
+    primaryType: SETTLEMENT_MINT_AUTH_PRIMARY,
+    message: { settler, ...toMessage(p) },
   });
 }
 
