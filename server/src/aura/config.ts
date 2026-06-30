@@ -25,6 +25,7 @@ interface DeployedV2 {
   agentRegistry: string;
   outputNFT: string;
   marketplace: string;
+  summonEscrow: string; // integrated deploy: the demand-pull commissioning escrow ("" if not deployed)
   attestor: string;
   platform: string;
   platformBps: number;
@@ -39,6 +40,7 @@ function loadDeployed(): DeployedV2 {
     agentRegistry: j.agentRegistry,
     outputNFT: j.outputNFT,
     marketplace: j.marketplace,
+    summonEscrow: j.summonEscrow ?? "",
     attestor: j.attestor,
     platform: j.platform,
     platformBps: Number(j.platformBps),
@@ -54,9 +56,9 @@ export const CONTRACTS = {
   agentRegistry: process.env.AGENT_REGISTRY_ADDR ?? DEPLOYED.agentRegistry,
   outputNFT: process.env.OUTPUT_NFT_ADDR ?? DEPLOYED.outputNFT,
   marketplace: process.env.MARKETPLACE_ADDR ?? DEPLOYED.marketplace,
-  // net-new Summon escrow. NOT in the live deployed-v2.json yet -> set via SUMMON_ESCROW_ADDR (or a
-  // future deployed-v2.json `summonEscrow` field). Empty string => the Summon watcher stays OFF.
-  summonEscrow: process.env.SUMMON_ESCROW_ADDR ?? (DEPLOYED as { summonEscrow?: string }).summonEscrow ?? "",
+  // Summon escrow: from deployed-v2.json (the integrated deploy populates it), env-overridable for local
+  // anvil e2e. Empty string => the Summon feature/watcher stays OFF (graceful).
+  summonEscrow: process.env.SUMMON_ESCROW_ADDR ?? DEPLOYED.summonEscrow ?? "",
 } as const;
 
 // EIP-712 domain the deployed OutputNFT verifies: EIP712("AuraOutputNFT","1") + chainId + verifyingContract.
