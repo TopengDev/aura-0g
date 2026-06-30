@@ -16,6 +16,7 @@ const LINKS: NavLink[] = [
   { href: "/explore", label: "Explore" },
   { href: "/generate", label: "Generate" },
   { href: "/create", label: "Create" },
+  { href: "/cli", label: "CLI" },
   { href: "/dashboard", label: "Dashboard", connectedOnly: true },
 ];
 
