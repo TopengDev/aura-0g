@@ -1,23 +1,29 @@
 {
+  "_note": "INTEGRATED redeploy 2026-06-30: AgentRegistry KEPT (0xb596, all agents). OutputNFT + Marketplace RE-DEPLOYED with H-1; new SummonEscrow makes every existing agent summonable (income-follows native). Old OutputNFT outputs (tokenIds 1-17 on 0xc73a) are abandoned demo data; the new OutputNFT starts empty (re-seed showpieces via re-gen).",
   "agentRegistry": "0xb5960cc08caa5195095cfb8aa270f122be09ba0a",
-  "outputNFT": "0xc73a63726f5365646fdeb052164b18db836030d7",
-  "marketplace": "0xc57d182fec6555a946795821b2e58be9a6385e18",
+  "outputNFT": "0xEecED1e6965f00a5f7cA459631370c886FAEFd3b",
+  "marketplace": "0x815115Eb39987d3fAdb3b373f89fa0096433f228",
+  "summonEscrow": "0xa5CeFBc097d84beE09b12fc1569B6CcA56992838",
   "attestor": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+  "platform": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+  "platformBps": 250,
   "deployBlock": 40164233,
+  "outputNftDeployBlock": 41491166,
+  "summonStartBlock": 41491166,
+  "summonPriceWei": "10000000000000000",
+  "summonPrice": "0.01",
   "chainId": 16602,
   "rpcUrl": "https://evmrpc-testnet.0g.ai",
-  "platformBps": 250,
-  "platform": "0x253727ac3cE3Bc06C164A253Ad5CDF118cdD5540",
+  "_previous": {
+    "_note": "Pre-integrated addresses, for rollback. Registry was unchanged.",
+    "outputNFT": "0xc73a63726f5365646fdeb052164b18db836030d7",
+    "marketplace": "0xc57d182fec6555a946795821b2e58be9a6385e18"
+  },
   "seededAgents": [
     { "id": 1, "name": "NOKTURNE",    "royaltyBps": 700, "creatorResaleBps": 1000 },
     { "id": 2, "name": "MIRAI",       "royaltyBps": 800, "creatorResaleBps": 1000 },
     { "id": 3, "name": "RISO",        "royaltyBps": 600, "creatorResaleBps": 750 },
     { "id": 4, "name": "SCRIPTORIUM", "royaltyBps": 900, "creatorResaleBps": 1200 }
   ],
-  "seededOutputs": [
-    { "tokenId": 1, "creatorAgentId": 1 },
-    { "tokenId": 2, "creatorAgentId": 2 },
-    { "tokenId": 3, "creatorAgentId": 3 },
-    { "tokenId": 4, "creatorAgentId": 4 }
-  ]
+  "seededOutputs": []
 }
