@@ -21,6 +21,7 @@ import { decryptBrain } from "./brain.js";
 import { setStatus, setResult, setError, saveGeneratedImage } from "./jobs.js";
 import { genGuardRelease } from "./ratelimit.js";
 import { REPO_ROOT, ENFORCE_TEE_VERIFICATION } from "./config.js";
+import { metaForName } from "./catalog.js";
 import type { JobStatus } from "./types.js";
 
 export interface ResolvedGenConfig {
@@ -28,6 +29,21 @@ export interface ResolvedGenConfig {
   prompt: string;
   usedBrain: boolean;
   agentName: string;
+}
+
+/**
+ * Build the gacha PULL-MODE prompt (the prototype-VALIDATED L2 template). It locks STYLE to the agent but
+ * does NOT subject-lock - it explicitly forbids reproducing the reference's subject/composition so the
+ * varied per-pull subject actually renders (the identityLock "keep the EXACT same subject" is what made
+ * every summon look identical; this replaces it ON THE SUMMON PATH ONLY). styleDescriptor + negative stay
+ * the agent's; {subject} is the deterministic hash-into-pools subject. Used verbatim from the GREEN proto.
+ */
+function pullModePrompt(agentName: string, styleDescriptor: string, subject: string, negative: string): string {
+  return (
+    `In the EXACT signature style of ${agentName}: ${styleDescriptor} New original scene: ${subject}. ` +
+    `Do NOT reproduce the reference image's composition or subject - invent a brand-new scene with ${subject} ` +
+    `as the clear focal subject. Avoid: ${negative}.`
+  );
 }
 
 const ZERO32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -88,8 +104,17 @@ async function loadBytesByRoot(root: string, source: string): Promise<Buffer | n
  *   - Brain-less SEEDED agent (the 4 on-chain catalog seeds, no stored key): catalog base + prompt
  *     (intended, zero-regression path).
  */
-export async function resolveGenConfig(agentId: number, agentName: string, encBrainRoot: string, userPrompt: string): Promise<ResolvedGenConfig> {
+export async function resolveGenConfig(
+  agentId: number,
+  agentName: string,
+  encBrainRoot: string,
+  userPrompt: string,
+  opts: { pullSubject?: string } = {},
+): Promise<ResolvedGenConfig> {
   const clean = userPrompt.trim();
+  // SUMMON PULL mode: a deterministic hash-into-pools subject + the validated style-lock-only template.
+  // Distinct from the "edit my avatar" HTTP path (which legitimately subject-locks via identityLock).
+  const pullSubject = opts.pullSubject?.trim();
 
   // does this agent have a brain we are expected to use? (on-chain root + a server-custody AES key)
   const hasBrainRoot = !!encBrainRoot && encBrainRoot.length > 0 && encBrainRoot !== ZERO32;
@@ -115,7 +140,11 @@ export async function resolveGenConfig(agentId: number, agentName: string, encBr
         `agent #${agentId} (${agentName}) reference image unavailable (root ${brain.canonicalBaseRoot.slice(0, 14)}... not in local cache or 0G). Re-create the agent to re-persist its reference image.`,
       );
     }
-    const prompt = `${brain.identityLock} Change only this: ${clean}. ${brain.styleDescriptor}. Avoid: ${brain.negative}.`;
+    // PULL: style-lock-only (NO identityLock) so the per-pull subject renders; else the legacy "change only
+    // this" template (avatar-edit use case). The avatar stays the edit base either way (style/palette anchor).
+    const prompt = pullSubject
+      ? pullModePrompt(agentName, brain.styleDescriptor, pullSubject, brain.negative)
+      : `${brain.identityLock} Change only this: ${clean}. ${brain.styleDescriptor}. Avoid: ${brain.negative}.`;
     return { baseBytes, prompt, usedBrain: true, agentName };
   }
 
@@ -128,7 +157,15 @@ export async function resolveGenConfig(agentId: number, agentName: string, encBr
   const baseRel = baseForSeededAgent(agentName);
   const basePath = path.join(REPO_ROOT, baseRel);
   const baseBytes = readFileSync(basePath);
-  const prompt = fallbackPrompt(agentName, clean);
+  // PULL: style-lock-only template built from the agent's catalog aesthetic (parity with the brain path,
+  // so summons of a brain-less seeded agent also get a unique per-pull subject). Else the legacy fallback.
+  let prompt: string;
+  if (pullSubject) {
+    const aesthetic = metaForName(agentName)?.aesthetic ?? `${agentName} signature style.`;
+    prompt = pullModePrompt(agentName, aesthetic, pullSubject, "no photorealism if stylized, no unwanted artifacts, no watermark");
+  } else {
+    prompt = fallbackPrompt(agentName, clean);
+  }
   return { baseBytes, prompt, usedBrain: false, agentName };
 }
 
@@ -141,7 +178,8 @@ export interface GenProof {
   imageRoot: string;
   provenanceHash: string; // keccak of the provenance record (committed on-chain)
   teeAttestation: string; // keccak of the TeeML|... attestation string (committed on-chain)
-  seed: number;
+  seed: bigint; // uint256 committed in Provenance.seed. SUMMON path: the keccak seedRoot (provability
+  // anchor). HTTP/catalog path: a small decorative random (< 2^30) -> reads as Common rarity.
   model: string;
   teeSigner: string;
   verified: boolean | string;
@@ -160,6 +198,11 @@ export interface GenerateCoreInput {
   encBrainRoot: string;
   userPrompt: string;
   label?: string; // 0G-storage object name (default `gen-<seed>`)
+  // SUMMON gacha PULL (additive, summon path only). When present: `seedRoot` is the deterministic
+  // on-chain-anchored uint256 that becomes Provenance.seed (the provability anchor), and `subjectProse` is
+  // the hash-into-pools subject that drives the style-lock-only render prompt. Absent on the HTTP/catalog
+  // path, which keeps its small decorative random seed (-> Common rarity, no behavior change).
+  pull?: { seedRoot: bigint; subjectProse: string };
 }
 
 export interface GenerateHooks {
@@ -175,7 +218,9 @@ export interface GenerateHooks {
 export async function generateAndProve(input: GenerateCoreInput, hooks: GenerateHooks = {}): Promise<GenProof> {
   const { agentId, agentName, encBrainRoot, userPrompt } = input;
   hooks.onStage?.("generating", "resolving gen config + connecting to 0G Compute");
-  const cfg = await resolveGenConfig(agentId, agentName, encBrainRoot, userPrompt);
+  const cfg = await resolveGenConfig(agentId, agentName, encBrainRoot, userPrompt, {
+    pullSubject: input.pull?.subjectProse,
+  });
 
   hooks.onStage?.("generating", `generating inside the TEE (~45s) [${cfg.usedBrain ? "brain" : "catalog"}]`);
   const signer = sponsorSigner();
@@ -198,7 +243,9 @@ export async function generateAndProve(input: GenerateCoreInput, hooks: Generate
   hooks.onImageReady?.(g.bytes);
 
   hooks.onStage?.("storing", "uploading the image to 0G Storage");
-  const seed = Math.floor(Math.random() * 1_000_000_000);
+  // SUMMON PULL: the deterministic on-chain-anchored seedRoot IS the seed (the provability anchor that a
+  // juror recomputes). HTTP/catalog path: the legacy small decorative random (< 2^30 -> reads as Common).
+  const seed: bigint = input.pull ? input.pull.seedRoot : BigInt(Math.floor(Math.random() * 1_000_000_000));
   const img = await store(signer, g.bytes, input.label ?? `gen-${seed}`);
   // Persist the output bytes in the durable local cache keyed by its 0G root, so the image-by-root
   // endpoint can serve REAL art even after 0G Storage testnet evicts the blob (verified to happen).
@@ -210,7 +257,7 @@ export async function generateAndProve(input: GenerateCoreInput, hooks: Generate
     agentName,
     model: g.model,
     prompt: cfg.prompt,
-    seed,
+    seed: seed.toString(), // uint256 as a decimal string (bigint is not JSON-serializable; stays truthful)
     teeSigner: g.teeSigner,
     teeVerifiability: g.verifiability,
     teeVerified: g.verified,
@@ -278,7 +325,7 @@ export async function runGeneration(input: GenerateInput): Promise<void> {
         verifiability: proof.verifiability,
         chatId: proof.chatId,
         latencyMs: proof.latencyMs,
-        seed: proof.seed,
+        seed: proof.seed.toString(), // uint256 as a decimal string (JSON/bigint-safe)
         mintable: true,
         usedBrain: proof.usedBrain,
       },

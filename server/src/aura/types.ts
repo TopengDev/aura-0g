@@ -56,7 +56,8 @@ export interface OutputSummary {
   imageRoot: string;
   imageUrl: string;
   storageScanUrl: string;
-  seed: number;
+  seed: string; // uint256 as a decimal string (a SUMMON pull seed is a full keccak; precision-safe)
+  rarity: string; // Common | Rare | Epic | Legendary (derived from seed; absent/legacy seed -> Common)
   teeAttestation: string;
   provenanceHash: string;
   royalty: RoyaltyBlock;
@@ -70,8 +71,11 @@ export interface ProvenanceResponse {
     imageRoot: string;
     provenanceHash: string;
     teeAttestation: string;
-    seed: number;
+    seed: string; // uint256 as a decimal string (precision-safe for full-keccak summon seeds)
   };
+  // Provable-pull rarity, derived from the on-chain seed (Common when the seed is legacy/non-pull). The
+  // `verify` block carries the recompute inputs so a juror can re-derive it client-side from public data.
+  rarity: string; // Common | Rare | Epic | Legendary
   agent: {
     agentId: number;
     name: string;
@@ -116,7 +120,7 @@ export interface GenerateJobResult {
   verifiability: string;
   chatId: string | null;
   latencyMs: number;
-  seed: number;
+  seed: string; // uint256 as a decimal string (JSON/bigint-safe)
   mintable: boolean;
   usedBrain: boolean; // true if the gen used the agent's decrypted brain (not the catalog fallback)
 }

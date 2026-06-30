@@ -70,6 +70,9 @@ export interface Output {
   imageUrl: string;
   storageScanUrl: string;
   seed: string;
+  // Provable-pull rarity, derived from the on-chain seed (Common for legacy/non-summon outputs). Optional
+  // so an older API response (pre-cutover indexer) degrades cleanly to "no badge".
+  rarity?: string; // Common | Rare | Epic | Legendary
   provenanceHash: string;
   teeAttestation: string;
   mintedAt: number;
@@ -173,8 +176,9 @@ export interface Provenance {
     imageRoot: string;
     provenanceHash: string;
     teeAttestation: string;
-    seed: number;
+    seed: string; // uint256 as a decimal string (precision-safe for full-keccak summon seeds)
   };
+  rarity?: string; // Common | Rare | Epic | Legendary (derived from the on-chain seed)
   agent: {
     agentId: number;
     name: string;
@@ -340,6 +344,7 @@ export async function fetchOutputById(id: number | string): Promise<Output | nul
     imageUrl: `/images/${encodeURIComponent(p.onChain.imageRoot)}`,
     storageScanUrl: p.links.storageScan,
     seed: String(p.onChain.seed),
+    rarity: p.rarity,
     provenanceHash: p.onChain.provenanceHash,
     teeAttestation: p.onChain.teeAttestation,
     mintedAt: 0,
@@ -800,6 +805,21 @@ export async function fetchSummonStatus(requestId: number | string): Promise<Sum
 // GET /summon/output/:tokenId/proof -> the jury-verifiable ECONOMIC proof, read from the on-chain
 // Fulfilled event: was this output minted by a paid summon, and how did the fee split to the agent owner
 // + platform. isSummon=false for a normally-minted (non-summoned) output.
+// The provable-pull recompute block (gacha-depth). All fields are derived from PUBLIC on-chain data, so a
+// juror can re-derive them independently (the web verify panel ALSO recomputes the seedRoot client-side
+// from `seedPreimage` to confirm `seedMatches` without trusting the server).
+export interface SummonRoll {
+  provable: boolean; // seedRoot recomputes from public preimage AND is a real pull seed
+  seedMatches: boolean; // recomputedSeedRoot == on-chain Provenance.seed
+  rarity: string; // Common | Rare | Epic | Legendary
+  rarityRoll: number | null; // 0..9999 (null for a non-pull seed)
+  subject: Record<string, string>; // the 12-dimension subject tuple
+  subjectProse: string;
+  onChainSeed: string; // uint256 decimal
+  recomputedSeedRoot: string; // uint256 decimal
+  seedPreimage: { domain: string; requestId: number; buyer: string; agentId: number; summonBlockHash: string };
+}
+
 export interface SummonProof {
   tokenId: number;
   isSummon: boolean;
@@ -816,6 +836,7 @@ export interface SummonProof {
   feeWei?: string;
   fulfillTx?: string;
   escrow?: string;
+  roll?: SummonRoll | null; // present for a SUMMON output; carries the provable subject + rarity recompute
 }
 
 export async function fetchSummonProof(tokenId: number | string): Promise<SummonProof | null> {

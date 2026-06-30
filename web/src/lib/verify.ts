@@ -5,6 +5,7 @@
 // present, the provenance hash matches its expected value, and the royalty still resolves to the
 // current agent owner. Fail-soft: a missing provenance read returns a not-found result, never throws.
 
+import { keccak256, encodeAbiParameters, stringToHex, getAddress } from "viem";
 import {
   fetchProvenance,
   fetchRoyalty,
@@ -12,7 +13,38 @@ import {
   type Provenance,
   type Royalty,
   type SummonProof,
+  type SummonRoll,
 } from "@/lib/api";
+
+// ── Client-side, TRUSTLESS recompute of the provable-pull seed (gacha-depth) ────────────────────────────
+// Mirrors the server's server/src/aura/gacha.ts pullSeedRoot EXACTLY (same domain tag + abi.encode shape),
+// so the BROWSER independently re-derives the seedRoot from the public on-chain preimage and confirms it
+// equals the committed Provenance.seed - no trust in our API. This is the heart of "provably unrigged".
+const DOMAIN_PULL = keccak256(stringToHex("AURA-PULL-v1"));
+
+/** Recompute uint256 seedRoot from the public preimage. Returns the decimal string (matches onChainSeed). */
+export function recomputePullSeedRoot(preimage: SummonRoll["seedPreimage"]): string {
+  const encoded = encodeAbiParameters(
+    [{ type: "bytes32" }, { type: "uint256" }, { type: "address" }, { type: "uint256" }, { type: "bytes32" }],
+    [
+      DOMAIN_PULL,
+      BigInt(preimage.requestId),
+      getAddress(preimage.buyer),
+      BigInt(preimage.agentId),
+      preimage.summonBlockHash as `0x${string}`, // already a 32-byte hex (the Summoned event's block hash)
+    ],
+  );
+  return BigInt(keccak256(encoded)).toString();
+}
+
+/** True when the browser-recomputed seedRoot matches the on-chain seed the roll claims (rig-proof check). */
+export function clientVerifyRoll(roll: SummonRoll): boolean {
+  try {
+    return recomputePullSeedRoot(roll.seedPreimage) === roll.onChainSeed;
+  } catch {
+    return false;
+  }
+}
 
 export interface VerifyCheck {
   label: string;

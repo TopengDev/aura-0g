@@ -4,6 +4,7 @@
 // indexer enrichment is Phase 3).
 import { ethers } from "ethers";
 import { outputRead, registryRead, storageScanUrl } from "./contracts.js";
+import { deriveRarity } from "./gacha.js";
 import type { ProvenanceResponse } from "./types.js";
 
 const ZERO32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
@@ -45,6 +46,12 @@ export async function getProvenance(tokenId: number): Promise<ProvenanceResponse
       ? `Verified: ${agentName} · TEE-attested on 0G. Royalty -> ${royaltyReceiver}.`
       : "Partial: see verification.";
 
+  // p.seed is the on-chain uint256 (ethers bigint). Keep FULL precision as a decimal string (a summon pull
+  // seed is a full keccak that overflows JS number) and derive the provable rarity from it (legacy/small
+  // seeds -> Common, no migration).
+  const seedBig: bigint = typeof p.seed === "bigint" ? p.seed : BigInt(p.seed);
+  const rarity = deriveRarity(seedBig);
+
   return {
     tokenId,
     onChain: {
@@ -52,8 +59,9 @@ export async function getProvenance(tokenId: number): Promise<ProvenanceResponse
       imageRoot: p.imageRoot,
       provenanceHash: p.provenanceHash,
       teeAttestation: p.teeAttestation,
-      seed: Number(p.seed),
+      seed: seedBig.toString(),
     },
+    rarity,
     agent: { agentId: creatorAgentId, name: agentName, owner: agentOwner, modelAttestation, styleFingerprint },
     verification: {
       agentExists,

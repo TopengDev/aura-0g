@@ -4,10 +4,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, ActionButton } from "@/components/product/primitives";
+import { RarityBadge } from "@/components/product/RarityBadge";
 import { TradePanel } from "@/components/product/TradePanel";
 import { EXPLORER, STORAGE_SCAN } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
-import { runVerification } from "@/lib/verify";
+import { runVerification, clientVerifyRoll } from "@/lib/verify";
 import {
   agentPortraitUrl,
   shortHex,
@@ -16,6 +17,7 @@ import {
   type Output,
   type Provenance,
   type Royalty,
+  type SummonRoll,
 } from "@/lib/api";
 
 // One output. The artwork, its creator agent (linked), the generative direction, the provenance block
@@ -74,6 +76,14 @@ export function OutputDetailView({
                 marker={`#${o.tokenId}`}
                 title={<>{o.agentName} <span style={{ color: "var(--color-ink-3)" }}>#{o.tokenId}</span></>}
               />
+              {o.rarity ? (
+                <div className="mt-3 flex items-center gap-2">
+                  <RarityBadge rarity={o.rarity} />
+                  <span className="font-mono-x text-[11px]" style={{ color: "var(--color-ink-3)" }}>
+                    provably rolled from the on-chain seed
+                  </span>
+                </div>
+              ) : null}
             </Reveal>
 
             {/* Creator agent */}
@@ -170,7 +180,7 @@ function ProvenanceBlock({
   type VerifyState =
     | { phase: "idle" }
     | { phase: "checking" }
-    | { phase: "done"; ok: boolean; checks: { label: string; ok: boolean }[]; summary: string }
+    | { phase: "done"; ok: boolean; checks: { label: string; ok: boolean }[]; summary: string; roll: SummonRoll | null }
     | { phase: "error"; message: string };
   const [verify, setVerify] = useState<VerifyState>({ phase: "idle" });
 
@@ -184,7 +194,7 @@ function ProvenanceBlock({
         setVerify({ phase: "error", message: "Could not read provenance from chain." });
         return;
       }
-      setVerify({ phase: "done", ok: result.ok, checks: result.checks, summary: result.summary });
+      setVerify({ phase: "done", ok: result.ok, checks: result.checks, summary: result.summary, roll: result.summon?.roll ?? null });
     } catch (e) {
       setVerify({ phase: "error", message: e instanceof Error ? e.message : "Verification failed." });
     }
@@ -232,6 +242,7 @@ function ProvenanceBlock({
             ))}
           </ul>
           <p className="mt-3 text-[12px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>{verify.summary}</p>
+          {verify.roll ? <ProvablePullPanel roll={verify.roll} /> : null}
         </div>
       ) : null}
       {verify.phase === "error" ? (
@@ -240,6 +251,61 @@ function ProvenanceBlock({
         </div>
       ) : null}
     </Panel>
+  );
+}
+
+// The PROVABLE-PULL panel: shows that this Relic's subject + rarity were rolled deterministically from the
+// on-chain seed, and re-derives the seedRoot from the PUBLIC preimage IN THE BROWSER (clientVerifyRoll) to
+// prove it equals the committed Provenance.seed - so the pull is recomputable + unrigged, not a hidden DB
+// value. Subject dimensions are listed so a viewer sees the exact gacha roll that produced the art.
+function ProvablePullPanel({ roll }: { roll: SummonRoll }) {
+  const clientOk = clientVerifyRoll(roll);
+  const dims = Object.entries(roll.subject);
+  return (
+    <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--color-border)", background: "var(--color-cream-warm)" }}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="font-mono-x text-[11px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
+          Provable pull
+        </div>
+        <RarityBadge rarity={roll.rarity} />
+      </div>
+
+      {/* the rig-proof: the browser recomputed seedRoot == on-chain seed */}
+      <div className="mt-3 flex items-start gap-2 font-mono-x text-[11px]" style={{ color: clientOk ? "var(--color-ok)" : "var(--color-warn)" }}>
+        <span>{clientOk ? "✓" : "✕"}</span>
+        <span>
+          {clientOk
+            ? "seedRoot recomputed in your browser matches the on-chain seed - the roll cannot be rigged."
+            : roll.provable
+              ? "seed recompute pending / unavailable."
+              : "Standard relic (no provable pull seed) - reads as Common."}
+        </span>
+      </div>
+
+      {roll.rarityRoll !== null ? (
+        <dl className="mt-3">
+          <MetaRow k="Rarity roll" v={`${roll.rarityRoll} / 9999`} />
+          <MetaRow k="On-chain seed" v={shortHex(roll.onChainSeed, 8, 6)} />
+          <MetaRow k="Request id" v={String(roll.seedPreimage.requestId)} mono />
+          <MetaRow k="Summon block hash" v={shortHex(roll.seedPreimage.summonBlockHash)} />
+        </dl>
+      ) : null}
+
+      {dims.length ? (
+        <>
+          <div className="mt-4 mb-2 font-mono-x text-[10px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
+            Rolled subject ({dims.length} dimensions)
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {dims.map(([k, v]) => (
+              <span key={k} className="rounded-full border px-2 py-0.5 font-mono-x text-[10px]" style={{ borderColor: "var(--color-border)", color: "var(--color-ink-2)" }} title={k}>
+                {v}
+              </span>
+            ))}
+          </div>
+        </>
+      ) : null}
+    </div>
   );
 }
 

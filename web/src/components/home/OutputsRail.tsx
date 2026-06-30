@@ -6,6 +6,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Link from "next/link";
 import type { Output } from "@/lib/api";
 import { imageUrl, shortHex } from "@/lib/api";
+import { RarityBadge } from "@/components/product/RarityBadge";
 import { ZeroG } from "@/components/atoms/ZeroG";
 
 if (typeof window !== "undefined") {
@@ -135,6 +136,10 @@ function OutputCard({ output: o }: { output: Output }) {
         <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
         <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)" }}>
           {o.style}
+        </span>
+        {/* rarer pulls get a corner badge (Common stays clean) - the gacha payoff at a glance */}
+        <span className="absolute right-3 top-3">
+          <RarityBadge rarity={o.rarity} size="sm" hideCommon />
         </span>
       </div>
       <div className="p-4">

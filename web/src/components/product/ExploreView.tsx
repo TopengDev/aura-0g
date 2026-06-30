@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { ActivityTicker } from "@/components/home/ActivityTicker";
 import { PageHeader, Panel, ProvLine, Chip } from "@/components/product/primitives";
+import { RarityBadge } from "@/components/product/RarityBadge";
 import { Pager, paginate, OUTPUTS_PAGE_SIZE } from "@/components/product/Pager";
 import { ZeroG } from "@/components/atoms/ZeroG";
 import { EXPLORER } from "@/lib/chains";
@@ -302,6 +303,7 @@ function OutputCard({ output: o, big = false }: { output: Output; big?: boolean 
           <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 82%, transparent)", color: "var(--color-cream)" }}>
             {o.style}
           </span>
+          <span className="absolute right-3 top-3"><RarityBadge rarity={o.rarity} size="sm" hideCommon /></span>
           <div className="absolute inset-x-0 bottom-0 flex items-end justify-between gap-3 px-4 pb-4 pt-14" style={{ background: "linear-gradient(to top, color-mix(in oklab, var(--color-ink) 78%, transparent), transparent)" }}>
             <div>
               <div className="font-display text-[clamp(24px,2.6vw,34px)] leading-none" style={{ color: "var(--color-cream)" }}>{o.agentName}</div>
@@ -324,6 +326,7 @@ function OutputCard({ output: o, big = false }: { output: Output; big?: boolean 
         <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)" }}>
           {o.style}
         </span>
+        <span className="absolute right-3 top-3"><RarityBadge rarity={o.rarity} size="sm" hideCommon /></span>
       </div>
       <div className="p-4">
         <div className="flex items-baseline justify-between">

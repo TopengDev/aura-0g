@@ -25,6 +25,7 @@ import { Hono } from "hono";
 import { and, asc, client, count, desc, eq, graphql, gte, lt, sql } from "ponder";
 import { formatEther, getAddress } from "viem";
 import { styleForName, isHiddenAgent } from "../catalog";
+import { deriveRarity } from "../gacha";
 
 const app = new Hono();
 
@@ -131,6 +132,9 @@ function shapeOutput(o: typeof schema.outputs.$inferSelect, agentName?: string |
     imageUrl: imageUrl(o.imageRoot),
     storageScanUrl: storageScanUrl(o.imageRoot),
     seed: o.seed.toString(),
+    // provable-pull rarity, derived at QUERY time from the on-chain seed (no schema migration, no backfill;
+    // legacy/non-pull seeds -> Common). Same derivation as the server's per-token /provenance read.
+    rarity: deriveRarity(o.seed),
     provenanceHash: o.provenanceHash,
     teeAttestation: o.teeAttestation,
     mintedAt: Number(o.mintedAt),

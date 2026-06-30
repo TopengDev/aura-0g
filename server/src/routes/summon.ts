@@ -6,8 +6,9 @@
 import type { FastifyInstance } from "fastify";
 import { ethers } from "ethers";
 import { db } from "../aura/db.js";
-import { summonRead, readProvider } from "../aura/contracts.js";
+import { summonRead, readProvider, outputRead } from "../aura/contracts.js";
 import { CONTRACTS, SUMMON_START_BLOCK, DEPLOYED } from "../aura/config.js";
+import { pullSeedRoot, mapSubject, deriveRarity, rarityRoll, isProvablePullSeed, ZERO_BYTES32 } from "../aura/gacha.js";
 
 interface SummonRow {
   request_id: number;
@@ -118,13 +119,53 @@ export async function summonRoutes(app: FastifyInstance): Promise<void> {
       const ownerCut = a.ownerCut as bigint;
       const platformFee = a.platformFee as bigint;
       const fee = ownerCut + platformFee;
+      const requestId = Number(a.requestId);
+      const agentId = Number(a.agentId);
+      const buyer = a.buyer as string;
+
+      // ── PROVABLE PULL recompute (gacha-depth) ───────────────────────────────────────────────────────
+      // Reconstruct the deterministic seed from PUBLIC on-chain preimage and prove it equals the committed
+      // Provenance.seed, then recompute the subject + rarity. All inputs are public + immutable, so a juror
+      // trusts the chain, not us. For a pre-cutover / legacy summon (seed not derived this way) the seed
+      // won't match and rarity reads Common (honest backward-compat).
+      let roll: unknown = null;
+      try {
+        // summonBlockHash = the hash of the block the Summoned(requestId) event landed in (requestId is an
+        // indexed topic, so this filtered query returns exactly that one event - cheap).
+        let summonBlockHash = ZERO_BYTES32;
+        const sevs = (await esc.queryFilter(esc.filters.Summoned(requestId), start, latest)) as ethers.EventLog[];
+        if (sevs[0]?.blockHash) summonBlockHash = sevs[0].blockHash;
+
+        const seedRoot = pullSeedRoot({ requestId, buyer, agentId, summonBlockHash });
+        const onChainSeed: bigint = (await outputRead().provenanceOf(tokenId)).seed;
+        const seedMatches = seedRoot === onChainSeed;
+        const provable = seedMatches && isProvablePullSeed(onChainSeed);
+        const subject = mapSubject(onChainSeed);
+        const rarity = deriveRarity(onChainSeed);
+
+        roll = {
+          provable, // true => the seed recomputes from public preimage AND is a real pull seed
+          seedMatches, // seedRoot (recomputed) == on-chain Provenance.seed
+          rarity, // Common | Rare | Epic | Legendary (Common when not a provable pull)
+          rarityRoll: isProvablePullSeed(onChainSeed) ? rarityRoll(onChainSeed) : null, // 0..9999
+          subject: subject.tuple, // the 12-dimension subject the model rendered
+          subjectProse: subject.prose,
+          onChainSeed: onChainSeed.toString(),
+          recomputedSeedRoot: seedRoot.toString(),
+          // the EXACT public preimage a juror re-hashes (keccak256(abi.encode(DOMAIN, ...))). See verify.ts.
+          seedPreimage: { domain: "AURA-PULL-v1", requestId, buyer, agentId, summonBlockHash },
+        };
+      } catch {
+        roll = null; // recompute is best-effort; the economic proof above still stands on its own.
+      }
+
       return {
         tokenId,
         isSummon: true,
         enabled: true,
-        requestId: Number(a.requestId),
-        agentId: Number(a.agentId),
-        buyer: a.buyer as string,
+        requestId,
+        agentId,
+        buyer,
         agentOwner: a.agentOwner as string,
         ownerCutWei: ownerCut.toString(),
         ownerCut: ethers.formatEther(ownerCut),
@@ -134,6 +175,7 @@ export async function summonRoutes(app: FastifyInstance): Promise<void> {
         fee: ethers.formatEther(fee),
         fulfillTx: match.transactionHash,
         escrow: CONTRACTS.summonEscrow,
+        roll,
       };
     } catch (e: unknown) {
       return reply.code(502).send({ error: `chain read failed: ${e instanceof Error ? e.message.slice(0, 120) : "unknown"}` });

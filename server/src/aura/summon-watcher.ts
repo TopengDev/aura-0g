@@ -21,6 +21,7 @@ import { summonRead, summonWrite, readProvider } from "./contracts.js";
 import { sponsorSigner } from "./wallet.js";
 import { signSettlementMintAuth, type MintAuthParams } from "./attestation.js";
 import { generateAndProve, type GenProof } from "./generate.js";
+import { pullSeedRoot, mapSubject, ZERO_BYTES32 } from "./gacha.js";
 import { rawAgent } from "./agents.js";
 import { genGuardAcquire, genGuardRelease } from "./ratelimit.js";
 import {
@@ -35,16 +36,19 @@ import {
   SUMMON_RETRY_BACKOFF_MS,
 } from "./config.js";
 
-/** The gen function the watcher uses. Injectable so the e2e can swap in a fast deterministic stub. */
+/** The gen function the watcher uses. Injectable so the e2e can swap in a fast deterministic stub.
+ *  `pull` carries the deterministic gacha seedRoot + the hash-into-pools subject for THIS summon (the
+ *  watcher computes them from the on-chain preimage before calling). */
 export type SummonGenFn = (args: {
   agentId: number;
   agentName: string;
   encBrainRoot: string;
   prompt: string;
+  pull?: { seedRoot: bigint; subjectProse: string };
 }) => Promise<GenProof>;
 
-const defaultGenFn: SummonGenFn = ({ agentId, agentName, encBrainRoot, prompt }) =>
-  generateAndProve({ agentId, agentName, encBrainRoot, userPrompt: prompt, label: `summon-${agentId}-${seedLabel()}` });
+const defaultGenFn: SummonGenFn = ({ agentId, agentName, encBrainRoot, prompt, pull }) =>
+  generateAndProve({ agentId, agentName, encBrainRoot, userPrompt: prompt, label: `summon-${agentId}-${seedLabel()}`, pull });
 
 // time-based label without Date.now() typing fuss; only used as a 0G object name.
 function seedLabel(): string {
@@ -64,6 +68,7 @@ interface SummonRow {
   token_id: number | null;
   attempts: number;
   updated_at: string;
+  summon_block: number | null; // block the Summoned event landed in (for the deterministic pull seed)
 }
 
 export interface PollResult {
@@ -140,6 +145,7 @@ export class SummonWatcher {
             buyer: String(a.buyer),
             fee: a.fee.toString(),
             deadline: Number(a.deadline),
+            summonBlock: (ev as ethers.EventLog).blockNumber, // root of the deterministic pull seed
           });
           scanned++;
         }
@@ -226,6 +232,25 @@ export class SummonWatcher {
         return "failed";
       }
 
+      // gacha-depth: root the deterministic, operator-un-grindable PULL seed in the on-chain preimage.
+      // requestId is UNIQUE per summon (nextRequestId++) -> a distinct seed per pull (literal enforcement);
+      // summonBlockHash (the hash of the block the summon landed in) is unknown to BOTH parties until after
+      // commitment, closing buyer-side grinding. The same seed roots both the subject + the rarity. A
+      // getBlock failure throws -> the request is retried (NOT fulfilled with a non-gacha relic).
+      let summonBlockHash = ZERO_BYTES32;
+      if (row.summon_block != null) {
+        const blk = await readProvider().getBlock(row.summon_block);
+        if (!blk?.hash) throw new Error(`summon block ${row.summon_block} hash unavailable (transient) - will retry`);
+        summonBlockHash = blk.hash;
+      }
+      const seedRoot = pullSeedRoot({
+        requestId: row.request_id,
+        buyer: row.buyer,
+        agentId: row.agent_id,
+        summonBlockHash,
+      });
+      const pull = { seedRoot, subjectProse: mapSubject(seedRoot).prose };
+
       this.setStatus(id, "generating", "generating the commissioned output inside the TEE (~42s)");
       this.bumpAttempts(id);
       const proof = await this.genFn({
@@ -233,6 +258,7 @@ export class SummonWatcher {
         agentName: agent.name,
         encBrainRoot: agent.encBrainRoot,
         prompt: this.prompt,
+        pull,
       });
 
       // fresh single-use nonce; sign the attestor SettlementMintAuth binding the BUYER + agent + the gen
@@ -348,15 +374,15 @@ export class SummonWatcher {
   }
 
   // ── journal writes ──
-  private upsertRequest(r: { requestId: number; agentId: number; buyer: string; fee: string; deadline: number }): void {
+  private upsertRequest(r: { requestId: number; agentId: number; buyer: string; fee: string; deadline: number; summonBlock: number }): void {
     const now = nowIso();
     db()
       .prepare(
-        `INSERT INTO summon_requests (request_id, agent_id, buyer, fee, deadline, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
-         ON CONFLICT(request_id) DO NOTHING`,
+        `INSERT INTO summon_requests (request_id, agent_id, buyer, fee, deadline, summon_block, status, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
+         ON CONFLICT(request_id) DO UPDATE SET summon_block = COALESCE(summon_requests.summon_block, excluded.summon_block)`,
       )
-      .run(r.requestId, r.agentId, r.buyer.toLowerCase(), r.fee, r.deadline, now, now);
+      .run(r.requestId, r.agentId, r.buyer.toLowerCase(), r.fee, r.deadline, r.summonBlock, now, now);
   }
 
   private setStatus(id: number, status: string, _detail: string): void {

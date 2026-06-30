@@ -141,6 +141,11 @@ function migrate(d: Database.Database): void {
   // ALTER so existing DBs upgrade in place (CREATE TABLE IF NOT EXISTS won't add columns).
   addColumnIfMissing(d, "agent_brains", "sealed_key", "TEXT");  // ECIES seal of the AES key to the owner
   addColumnIfMissing(d, "agent_brains", "data_hash", "TEXT");   // sha256 of the envelope (contract dataHash)
+
+  // gacha-depth: the BLOCK NUMBER the Summoned event landed in (captured at scan-time from the event).
+  // The watcher fetches that block's hash at gen-time to root the deterministic pull seed (closes buyer
+  // grinding). Nullable so a pre-cutover row (no captured block) cleanly falls back. Idempotent ALTER.
+  addColumnIfMissing(d, "summon_requests", "summon_block", "INTEGER");
 }
 
 /** Idempotently add a column (better-sqlite3 ALTER throws if it already exists). */
