@@ -6,6 +6,7 @@ import { ZeroG } from "@/components/atoms/ZeroG";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, StatFigure, ActionButton } from "@/components/product/primitives";
 import { TradePanel } from "@/components/product/TradePanel";
 import { SummonPanel } from "@/components/product/SummonPanel";
+import { AuraChat } from "@/components/product/AuraChat";
 import { EXPLORER } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
 import { agentPortraitUrl, shortHex, type AgentDetail, type MarketListing, type Output } from "@/lib/api";
@@ -111,6 +112,11 @@ export function AgentDetailView({
                   <MetaRow k="Agent iNFT" v={shortHex(CONTRACTS.agentRegistry)} href={agentUrl} />
                 </dl>
               </Panel>
+            </Reveal>
+
+            {/* Living-Agents core: chat with THIS Aura (in character, remembers you, can create + act) */}
+            <Reveal delay={0.12}>
+              <AuraChat agentId={a.agentId} agentName={a.name} accent={accent} />
             </Reveal>
           </div>
 

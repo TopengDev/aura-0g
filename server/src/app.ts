@@ -19,6 +19,7 @@ import { imageRoutes } from "./routes/image.js";
 import { readsRoutes } from "./routes/reads.js";
 import { indexerRoutes } from "./routes/indexer.js";
 import { summonRoutes } from "./routes/summon.js";
+import { chatRoutes } from "./routes/chat.js";
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -63,6 +64,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(indexerRoutes);
   await app.register(readsRoutes);
   await app.register(summonRoutes); // public Summon reads (agent price + request status)
+  await app.register(chatRoutes); // chat-with-an-Aura: 0G TEE chat + command-surface tools + L2 memory
 
   // boot housekeeping: any job left mid-flight by a previous process can never finish -> mark failed.
   const reaped = reapOrphanJobs();
