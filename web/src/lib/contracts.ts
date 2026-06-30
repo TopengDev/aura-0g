@@ -5,15 +5,18 @@
 // + operator-approval calls (present on BOTH the registry and the output NFT).
 
 export const CONTRACTS = {
+  // Defaults = the INTEGRATED redeploy set (2026-06-30), mirroring contracts/deployed-v2.json. AgentRegistry
+  // is KEPT (all agents); OutputNFT + Marketplace are the re-deployed (H-1) addresses; SummonEscrow is live.
   agentRegistry: (process.env.NEXT_PUBLIC_AGENT_REGISTRY ??
     "0xb5960cc08caa5195095cfb8aa270f122be09ba0a") as `0x${string}`,
   outputNFT: (process.env.NEXT_PUBLIC_OUTPUT_NFT ??
-    "0xc73a63726f5365646fdeb052164b18db836030d7") as `0x${string}`,
+    "0xEecED1e6965f00a5f7cA459631370c886FAEFd3b") as `0x${string}`,
   marketplace: (process.env.NEXT_PUBLIC_MARKETPLACE ??
-    "0xc57d182fec6555a946795821b2e58be9a6385e18") as `0x${string}`,
-  // SummonEscrow (the net-new demand-pull contract). No live default yet -> set NEXT_PUBLIC_SUMMON_ESCROW
-  // when deployed. Empty => the Summon UI shows a disabled "not available" state (graceful).
-  summonEscrow: (process.env.NEXT_PUBLIC_SUMMON_ESCROW ?? "") as `0x${string}` | "",
+    "0x815115Eb39987d3fAdb3b373f89fa0096433f228") as `0x${string}`,
+  // SummonEscrow (demand-pull commissioning) - live as of the integrated deploy. Override via
+  // NEXT_PUBLIC_SUMMON_ESCROW; empty => the Summon UI shows a disabled "not available" state (graceful).
+  summonEscrow: (process.env.NEXT_PUBLIC_SUMMON_ESCROW ??
+    "0xa5CeFBc097d84beE09b12fc1569B6CcA56992838") as `0x${string}` | "",
 } as const;
 
 /** Is the Summon feature wired (the escrow address is configured)? */
