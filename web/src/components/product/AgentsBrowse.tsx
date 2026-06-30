@@ -178,7 +178,9 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
 function AgentCard({ row }: { row: AgentRow }) {
   const { agent: a, listing } = row;
   const accent = a.meta.accent;
-  const portrait = agentPortraitUrl(a);
+  // Display-width hint: the card art renders at ~360 CSS px in a 4/3 grid cell, so 700 covers retina (2x)
+  // without encoding/shipping the full 1024^2 source -- cuts both the AVIF encode cost and the bytes.
+  const portrait = agentPortraitUrl(a, 700);
 
   return (
     <Link
@@ -187,7 +189,7 @@ function AgentCard({ row }: { row: AgentRow }) {
       style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
-        <img src={portrait} alt={`${a.name} portrait`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
+        <img src={portrait} alt={`${a.name} portrait`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
         <span className="absolute left-3 top-3">
           <Chip tone="solid" accent={accent}>{a.style}</Chip>
         </span>

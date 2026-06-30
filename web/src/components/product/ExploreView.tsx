@@ -248,7 +248,8 @@ function EmptyRow({ label }: { label: string }) {
 // ── trending agent card (ranked; reuses the catalog card vocabulary) ─────────
 function TrendingCard({ rank, item, agent }: { rank: number; item: TrendingItem; agent: Agent }) {
   const accent = agent.meta.accent;
-  const portrait = agentPortraitUrl(agent);
+  // 700px covers the 4/3 card at retina without the full-res source (see AgentsBrowse).
+  const portrait = agentPortraitUrl(agent, 700);
   const w = item.window;
   return (
     <Link
@@ -257,7 +258,7 @@ function TrendingCard({ rank, item, agent }: { rank: number; item: TrendingItem;
       style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}
     >
       <div className="relative aspect-[4/3] w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
-        <img src={portrait} alt={`${agent.name} portrait`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
+        <img src={portrait} alt={`${agent.name} portrait`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
         <span className="absolute left-3 top-3 flex h-7 w-7 items-center justify-center rounded-full font-mono-x text-[11px]" style={{ background: "var(--color-ink)", color: "var(--color-cream)" }}>
           {rank}
         </span>
@@ -286,7 +287,9 @@ function TrendingCard({ rank, item, agent }: { rank: number; item: TrendingItem;
 // `big` is the featured-showpiece emphasis: a 2x cell whose art carries an overlaid caption (the lead
 // pieces read as a gallery wall), vs the compact tile for the rest of the feed.
 function OutputCard({ output: o, big = false }: { output: Output; big?: boolean }) {
-  const imgSrc = imageUrl(o.imageRoot, o.style);
+  // The compact relic tile renders ~260-300 CSS px (square); the `big` showpiece is a 2x cell. Request a
+  // retina-appropriate width per case rather than the full 1024^2 source -- smaller encode + fewer bytes.
+  const imgSrc = imageUrl(o.imageRoot, o.style, big ? 900 : 600);
   if (big) {
     return (
       <Link
@@ -295,7 +298,7 @@ function OutputCard({ output: o, big = false }: { output: Output; big?: boolean 
         style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
       >
         <div className="relative w-full flex-1 overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
-          <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
+          <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]" />
           <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 82%, transparent)", color: "var(--color-cream)" }}>
             {o.style}
           </span>
@@ -317,7 +320,7 @@ function OutputCard({ output: o, big = false }: { output: Output; big?: boolean 
       style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
     >
       <div className="relative aspect-square w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
-        <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
+        <img src={imgSrc} alt={`${o.agentName} #${o.tokenId}`} loading="lazy" decoding="async" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
         <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 font-mono-x text-[9px] uppercase tracking-[0.1em]" style={{ background: "color-mix(in oklab, var(--color-ink) 80%, transparent)", color: "var(--color-cream)" }}>
           {o.style}
         </span>

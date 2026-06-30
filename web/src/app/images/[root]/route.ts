@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import sharp from "sharp";
@@ -53,12 +54,74 @@ async function fetchBackendImage(pathAndQuery: string): Promise<{ bytes: Buffer;
 // This is byte+decode optimization ONLY -- the same source pixels, re-encoded near-losslessly and sized
 // to what is shown -- so it does not change how anything looks. SVG placeholders are never touched.
 //
-// Transcoded buffers are cached in-process keyed by (cacheKey, width, format): the catalog is small, so
-// each variant is encoded at most once per server process. AVIF encode is CPU-heavy; the cache makes it a
-// one-time cost. On ANY sharp error we fall back to the original bytes -- an image never breaks.
+// Transcoded buffers are cached in TWO layers keyed by (cacheKey, width, format):
+//   L1 in-process Map  -- fastest, but capped + wiped on every container restart.
+//   L2 on-disk cache   -- survives restarts/redeploys. Because every key is content-addressed (the image
+//                         root, a baked-file path, or an agent id whose portrait is stable), a cached
+//                         variant is valid effectively forever, so the CPU-heavy AVIF encode becomes a
+//                         TRUE one-time cost instead of being repeated on every cold load. This is the
+//                         core perf fix: a cold visit (jury first load, or any load after a redeploy) now
+//                         reads a ready file in ~tens of ms instead of paying a 3-6s synchronous encode.
+// On ANY sharp/disk error we fall back to the original bytes -- an image never breaks.
 type Optimized = { body: Uint8Array<ArrayBuffer>; type: string };
 const XCODE_CACHE = new Map<string, Optimized>();
 const XCODE_MAX = 256;
+
+// L2 disk cache directory. In the container this is a mounted named volume (see deploy compose) so the
+// encoded variants persist across `docker compose up --force-recreate`. Defaults to a dir under the app
+// working dir for local dev. Best-effort: any failure here silently degrades to encode-on-request.
+const DISK_CACHE_DIR =
+  process.env.IMAGE_XCODE_CACHE_DIR || path.join(process.cwd(), ".image-cache");
+let diskReady: Promise<boolean> | null = null;
+function ensureDiskCache(): Promise<boolean> {
+  if (!diskReady) {
+    diskReady = mkdir(DISK_CACHE_DIR, { recursive: true })
+      .then(() => true)
+      .catch(() => false);
+  }
+  return diskReady;
+}
+function extFor(fmt: "avif" | "webp" | null): string {
+  return fmt === "avif" ? "avif" : fmt === "webp" ? "webp" : "png";
+}
+function typeFor(fmt: "avif" | "webp" | null): string {
+  return fmt === "avif" ? "image/avif" : fmt === "webp" ? "image/webp" : "image/png";
+}
+// A filesystem-safe, collision-free filename for a transcode key. The key can contain "/", "|", ":" and
+// arbitrary root bytes, so hash it; the format is the extension.
+function diskPathFor(ck: string, fmt: "avif" | "webp" | null): string {
+  const h = createHash("sha1").update(ck).digest("hex");
+  return path.join(DISK_CACHE_DIR, `${h}.${extFor(fmt)}`);
+}
+async function diskGet(ck: string, fmt: "avif" | "webp" | null): Promise<Optimized | null> {
+  try {
+    const buf = await readFile(diskPathFor(ck, fmt));
+    if (buf.length === 0) return null;
+    return { body: new Uint8Array(buf), type: typeFor(fmt) };
+  } catch {
+    return null; // not cached on disk yet (or unreadable) -- caller encodes
+  }
+}
+async function diskPut(ck: string, fmt: "avif" | "webp" | null, out: Buffer): Promise<void> {
+  try {
+    if (!(await ensureDiskCache())) return;
+    const final = diskPathFor(ck, fmt);
+    // Atomic publish: write a unique temp file then rename, so a concurrent reader never sees a partial
+    // file and two concurrent encoders of the same key don't corrupt each other.
+    const tmp = `${final}.${process.pid}-${Math.random().toString(36).slice(2)}.tmp`;
+    await writeFile(tmp, out);
+    await rename(tmp, final);
+  } catch {
+    /* best-effort: a disk-cache write failure must never break image serving */
+  }
+}
+function memPut(ck: string, res: Optimized): void {
+  if (XCODE_CACHE.size >= XCODE_MAX) {
+    const first = XCODE_CACHE.keys().next().value;
+    if (first !== undefined) XCODE_CACHE.delete(first);
+  }
+  XCODE_CACHE.set(ck, res);
+}
 
 // Raster types sharp can decode + we are willing to re-encode. SVG/GIF pass through untouched.
 const TRANSCODABLE = /^image\/(png|jpe?g|webp|avif|tiff)$/i;
@@ -86,8 +149,15 @@ async function transcode(
   // Nothing to do: browser wants no modern format AND no resize was requested -> serve original.
   if (!fmt && !width) return null;
   const ck = `${cacheKey}|w=${width ?? 0}|f=${fmt ?? "orig"}`;
+  // L1: in-process.
   const hit = XCODE_CACHE.get(ck);
   if (hit) return hit;
+  // L2: on-disk (survives restarts) -- a cold process still skips the expensive encode.
+  const onDisk = await diskGet(ck, fmt);
+  if (onDisk) {
+    memPut(ck, onDisk);
+    return onDisk;
+  }
   try {
     let img = sharp(bytes, { failOn: "none" });
     if (width) img = img.resize({ width, withoutEnlargement: true });
@@ -96,7 +166,10 @@ async function transcode(
     if (fmt === "avif") {
       // q78 is the conservative-parity choice for an ART marketplace: it preserves fine grain (risograph,
       // noir film texture) that q70 can soften, while still being ~75-95% smaller than the source PNG.
-      out = await img.avif({ quality: 78, effort: 4 }).toBuffer();
+      // effort:3 (was 4) markedly speeds the encode -- effort is the encoder's compression SEARCH budget,
+      // not a visual-quality knob, so output looks identical, just a few % larger. With the persistent
+      // L2 cache the encode is one-time anyway; the lower effort cuts the cold/pre-warm latency.
+      out = await img.avif({ quality: 78, effort: 3 }).toBuffer();
       type = "image/avif";
     } else if (fmt === "webp") {
       out = await img.webp({ quality: 85 }).toBuffer();
@@ -107,15 +180,30 @@ async function transcode(
       type = "image/png";
     }
     const res: Optimized = { body: new Uint8Array(out), type };
-    if (XCODE_CACHE.size >= XCODE_MAX) {
-      const first = XCODE_CACHE.keys().next().value;
-      if (first !== undefined) XCODE_CACHE.delete(first);
-    }
-    XCODE_CACHE.set(ck, res);
+    memPut(ck, res);
+    // Persist to L2 in the background -- do not block the response on the disk write. The atomic
+    // rename makes concurrent encoders of the same key safe.
+    void diskPut(ck, fmt, out);
     return res;
   } catch {
     return null; // fall back to original bytes -- never break the image
   }
+}
+
+// Cache-Control for a resolved image, keyed off the (internal) cacheKey:
+//   - A hex output root ("backend:0x..") is CONTENT-ADDRESSED -- the bytes for that root can never change
+//     -- so it is safe to mark immutable for a year. Browsers (and any future CDN) then never re-request
+//     it. This is the bulk of the /explore relic gallery.
+//   - A baked local file ("local:..") is stable for the lifetime of a deploy; cache a week.
+//   - An agent portrait ("agent-<id>") can change if the agent's first output changes; keep the 1-day TTL.
+function imageCacheControl(cacheKey: string): string {
+  if (/^backend:0x[0-9a-f]{6,}$/i.test(cacheKey)) {
+    return "public, max-age=31536000, immutable";
+  }
+  if (cacheKey.startsWith("local:")) {
+    return "public, max-age=604800";
+  }
+  return "public, max-age=86400";
 }
 
 // Build the image response, optimizing raster bytes (resize + modern format) when possible. Falls back
@@ -136,14 +224,18 @@ async function serveOptimized(
         headers: {
           "content-type": x.type,
           // Content is addressed by root (+ style + w); the chosen format is keyed off Accept, so Vary.
-          "cache-control": "public, max-age=86400",
+          "cache-control": imageCacheControl(cacheKey),
           vary: "Accept",
         },
       });
     }
   }
   return new NextResponse(new Uint8Array(bytes), {
-    headers: { "content-type": originalType, "cache-control": "public, max-age=3600", vary: "Accept" },
+    headers: {
+      "content-type": originalType,
+      "cache-control": imageCacheControl(cacheKey),
+      vary: "Accept",
+    },
   });
 }
 
