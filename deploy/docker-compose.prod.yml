@@ -45,6 +45,11 @@ services:
       SUMMON_WATCHER: "1"
       SUMMON_START_BLOCK: "41491166"
       SUMMON_POLL_MS: "5000"
+      # Platform seeding allowance: the deployer/platform mints the 20-Aura starter roster from ONE address,
+      # which exceeds the default anti-Sybil per-address create quota (5). Raised for the single-tenant demo;
+      # the global create cap + per-address gen quota still bound real sponsor spend.
+      AURA_PER_ADDRESS_CREATE_QUOTA: "30"
+      AURA_MAX_CREATES: "60"
     volumes:
       # Funded keys: read-only, never in an image layer. (~/apps/aura/.env -> /app/.env)
       - ../.env:/app/.env:ro
