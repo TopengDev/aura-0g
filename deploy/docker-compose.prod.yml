@@ -40,6 +40,11 @@ services:
       # Runtime data dir (SQLite + generated cache) -> the named volume below.
       SQLITE_PATH: /app/server/data/aura.db
       GEN_DIR: /app/server/data/generated
+      # Summon fulfillment watcher (integrated deploy). Contract addresses come from deployed-v2.json;
+      # these flags enable the watcher + pin its scan start to the SummonEscrow deploy block. Not secrets.
+      SUMMON_WATCHER: "1"
+      SUMMON_START_BLOCK: "41491166"
+      SUMMON_POLL_MS: "5000"
     volumes:
       # Funded keys: read-only, never in an image layer. (~/apps/aura/.env -> /app/.env)
       - ../.env:/app/.env:ro
