@@ -265,3 +265,14 @@ export function styleForName(name: string | null | undefined): AgentStyle {
   if (!name) return FALLBACK;
   return CATALOG[name.toUpperCase()] ?? FALLBACK;
 }
+
+// Display curation: test/junk agents hidden from the jury-facing read APIs (agents grid, explore gallery,
+// activity feed, marketplace). Name-based + reversible (toggle by editing this list). The 4 seeded catalog
+// agents + the 20-Aura roster never match. Hides: the e2e-proof agents (TESTAGENT*/BRAINTEST*) + the two
+// demo CHILLDAWGs. They still exist on-chain + in the raw indexer tables; this only curates the DISPLAY.
+const HIDDEN_NAME_RE = /^(TESTAGENT|BRAINTEST)/i;
+export function isHiddenAgent(name: string | null | undefined): boolean {
+  if (!name) return false;
+  const n = name.toUpperCase();
+  return HIDDEN_NAME_RE.test(n) || n === "CHILLDAWG";
+}

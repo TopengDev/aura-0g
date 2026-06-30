@@ -24,7 +24,7 @@ import schema from "ponder:schema";
 import { Hono } from "hono";
 import { and, asc, client, count, desc, eq, graphql, gte, lt, sql } from "ponder";
 import { formatEther, getAddress } from "viem";
-import { styleForName } from "../catalog";
+import { styleForName, isHiddenAgent } from "../catalog";
 
 const app = new Hono();
 
@@ -156,7 +156,8 @@ app.get("/_indexer", async (c) => {
 // ─────────────────────── re-backed list endpoints ───────────────────────
 // GET /agents - indexer-backed replacement for the Phase-2 chain scan.
 app.get("/agents", async (c) => {
-  const rows = await db.select().from(schema.agents).orderBy(asc(schema.agents.agentId));
+  const allRows = await db.select().from(schema.agents).orderBy(asc(schema.agents.agentId));
+  const rows = allRows.filter((r) => !isHiddenAgent(r.name)); // display curation (test/junk agents hidden)
   const ids = rows.map((r) => r.agentId);
   const [statsRows, earnRows] = await Promise.all([
     ids.length ? db.select().from(schema.agentStats) : Promise.resolve([]),
@@ -197,7 +198,9 @@ app.get("/outputs", async (c) => {
     .limit(limit + 1);
   const page = rows.slice(0, limit);
   const nameBy = await agentNameMap(page.map((o) => o.creatorAgentId));
-  const outputs = page.map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId)));
+  const outputs = page
+    .map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId)))
+    .filter((o) => !isHiddenAgent(o.agentName)); // display curation (outputs by test/junk agents hidden)
   const nextCursor = rows.length > limit ? page[page.length - 1]!.orderKey.toString() : null;
   return c.json({ outputs, nextCursor, source: "indexer" });
 });
@@ -495,7 +498,8 @@ app.get("/activity", async (c) => {
     };
   });
   return c.json({
-    items,
+    // display curation: drop events attributed to a hidden (test/junk) agent; non-agent events stay.
+    items: items.filter((it) => !isHiddenAgent(it.agentName)),
     nextCursor: rows.length > limit ? page[page.length - 1]!.orderKey.toString() : null,
     source: "indexer",
   });
@@ -527,7 +531,8 @@ app.get("/marketplace", async (c) => {
       imageRoot: out?.imageRoot ?? null,
       imageUrl: out ? imageUrl(out.imageRoot) : null,
     };
-  });
+  // display curation: hide output listings created by a hidden (test/junk) agent.
+  }).filter((l) => !isHiddenAgent(l.agentName));
   return c.json({ activeListings, count: activeListings.length, source: "indexer" });
 });
 
