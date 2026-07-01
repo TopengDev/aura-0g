@@ -110,6 +110,38 @@ export function attestorIsSplitFromSponsor(): boolean {
   return attestorPrivateKey().toLowerCase() !== sponsorPrivateKey().toLowerCase();
 }
 
+// ── CHAT dual-network (mainnet GLM-5.1) ─────────────────────────────────────────────────────────────
+// The CHAT inference path can run on 0G MAINNET (chainId 16661) while EVERYTHING ELSE (image generation,
+// the deployed v2 contracts, the Summon watcher, mint, the indexer) stays on 0G TESTNET Galileo (16602).
+// This is a DELIBERATE split: 0G MAINNET serves a genuinely stronger in-enclave TeeML chat model (GLM-5.1,
+// validated live 2026-07-01: verified=true 4/4, a large quality jump over testnet qwen2.5-omni-7b), while
+// the on-chain economy is not yet mainnet. The mainnet chat broker is built from a DEDICATED key + RPC
+// (chat-compute.ts chatSigner()), fully ISOLATED from the testnet sponsor/image broker (different key,
+// provider, chain). Toggle with AURA_CHAT_MAINNET=1. UNSET (default) => today's EXACT testnet-qwen behavior,
+// so enabling/disabling mainnet chat is a pure env flip - no code change, fully reversible. The toggle is
+// read LIVE per-request in chat-compute.ts chatNetwork() (not frozen at boot), so it is unit-observable and,
+// because the brokers/services/models caches are network-keyed, a flip is safe. RPC/chainId below are
+// deploy-time and read only when a mainnet broker is built.
+export const CHAT_MAINNET_RPC = process.env.AURA_CHAT_MAINNET_RPC ?? "https://evmrpc.0g.ai";
+export const CHAT_MAINNET_CHAIN_ID = Number(process.env.AURA_CHAT_MAINNET_CHAIN_ID ?? 16661);
+
+// The dedicated MAINNET chat signer key. It pays ONLY the mainnet chat compute ledger (isolated from the
+// testnet SPONSOR key that funds image gen / storage). It is ENV-INJECTED AT DEPLOY - NEVER hardcoded,
+// NEVER read from a file in shipped code. Consulted ONLY when AURA_CHAT_MAINNET=1. If the toggle is on but
+// the key is missing it THROWS rather than build a mainnet broker without a key - so the chat path can never
+// SILENTLY run on the wrong network. The runtime seam (chat-llm.ts) catches that throw and degrades to the
+// HONEST testnet qwen rung (served model + /chat/health both truthfully report testnet, never mislabeling
+// qwen as mainnet GLM). When the toggle is off this is never called, so a testnet deploy needs no mainnet key.
+export function chatMainnetKey(): string {
+  const pk = process.env.AURA_CHAT_MAINNET_KEY;
+  if (!pk || !pk.trim()) {
+    throw new Error(
+      "AURA_CHAT_MAINNET=1 but AURA_CHAT_MAINNET_KEY is unset - set the dedicated mainnet chat signer key in the deploy env (injected at deploy, never committed).",
+    );
+  }
+  return normalizePk(pk);
+}
+
 // ── runtime knobs ──
 export const PORT = Number(process.env.PORT ?? 8787);
 export const HOST = process.env.HOST ?? "0.0.0.0";

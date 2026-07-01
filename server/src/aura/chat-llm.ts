@@ -8,8 +8,8 @@
 // The route calls pickProvider() (a cheap 0G health probe) and falls back to anthropic on health-fail OR a
 // hard call error, recording WHICH provider served each reply. The Anthropic key is server-side only
 // (AURA_CHAT_ANTHROPIC_KEY) - NEVER NEXT_PUBLIC, never logged, never returned to the client.
-import type { ChatMessage, ChatTool, ChatService } from "./chat-compute.js";
-import { chatCompletion, getChatBroker, getChatBrokerAndService, chatServiceFor, serviceOnline, chatComputeHealthy, resetChatCache } from "./chat-compute.js";
+import type { ChatMessage, ChatTool, ChatService, ChatNetwork } from "./chat-compute.js";
+import { chatCompletion, getChatBroker, getChatBrokerAndService, chatServiceFor, serviceOnline, chatComputeHealthy, resetChatCache, chatNetwork } from "./chat-compute.js";
 
 export type ChatProvider = "zerog" | "anthropic";
 
@@ -59,25 +59,28 @@ function parseArgs(raw: string): Record<string, unknown> {
 }
 
 // ── 0G (zerog) ────────────────────────────────────────────────────────────────────────────────────
-// When `modelId` is set, route to THAT model iff it resolves to an acknowledged + TEE-attested + online
-// service (chatServiceFor enforces the acknowledged + TeeML moat; we additionally require it be reachable
-// right now). Otherwise fall back to the auto-picked TEE model and flag `modelFallback` so the UI is honest.
-// A missing/invalid/offline pick can therefore never silently downgrade the reply off a verified provider.
+// Runs on ONE network (mainnet GLM-5.1 or testnet qwen). When `modelId` is set, route to THAT model iff it
+// resolves to a TEE-attested + allowlisted + online service (chatServiceFor enforces the TeeML + mainnet-
+// allowlist moat; we additionally require it be reachable right now). Otherwise fall back to the auto-picked
+// TEE model and flag `modelFallback` so the UI is honest. A missing/invalid/offline/relay-proxy pick can
+// therefore never silently downgrade the reply off a genuine in-enclave provider. Broker + service come from
+// the network-keyed cache, so the mainnet chat broker stays isolated from the testnet image/contract broker.
 async function callZeroG(
   messages: ChatMessage[],
   tools: ChatTool[] | undefined,
   maxTokens: number,
   modelId: string | null,
+  network: ChatNetwork,
 ): Promise<LlmResult> {
-  const broker = await getChatBroker();
+  const broker = await getChatBroker(network);
   let svc: ChatService | null = null;
   let modelFallback = false;
   if (modelId) {
-    svc = await chatServiceFor(broker, modelId); // acknowledged + TEE-attested only
-    if (svc && (await serviceOnline(svc.endpoint)) === false) svc = null; // acknowledged + TEE but offline now
+    svc = await chatServiceFor(broker, modelId, network); // TEE-attested + allowlisted (mainnet) only
+    if (svc && (await serviceOnline(svc.endpoint)) === false) svc = null; // trusted but offline now
     if (!svc) modelFallback = true; // requested model unavailable -> fall back to the auto-picked TEE model
   }
-  if (!svc) svc = (await getChatBrokerAndService()).svc;
+  if (!svc) svc = (await getChatBrokerAndService(network)).svc;
 
   const r = await chatCompletion(broker, svc, messages, tools, { maxTokens });
   return {
@@ -188,8 +191,14 @@ export async function pickProvider(): Promise<{ provider: ChatProvider; reason: 
 }
 
 /**
- * Run ONE turn through the seam. Tries the chosen provider; on a 0G hard error with a configured fallback,
- * transparently retries on anthropic (recording the served provider). Returns the normalized result.
+ * Run ONE turn through the seam with an HONEST fallback ladder. The attestation label always reflects what
+ * ACTUALLY served: mainnet GLM-5.1 = verified in-enclave; testnet qwen = verified; Anthropic = NOT TEE-attested.
+ *   rung 1: the ACTIVE 0G network (mainnet GLM-5.1 when AURA_CHAT_MAINNET=1, else testnet qwen).
+ *   rung 2: if the primary was MAINNET and it failed, the testnet qwen path (still a genuine TEE reply).
+ *   rung 3: Anthropic (attestation null, labeled fallback-served) so a live demo survives a total 0G outage.
+ * When AURA_CHAT_MAINNET is unset the primary IS testnet, so the ladder collapses to testnet -> Anthropic -
+ * i.e. today's EXACT behavior. `chosen` (from pickProvider) short-circuits straight to Anthropic when 0G is
+ * unhealthy and no 0G rung can serve.
  */
 export async function runLlm(
   chosen: ChatProvider,
@@ -204,12 +213,25 @@ export async function runLlm(
     const r = await callAnthropic(messages, tools, maxTokens);
     return { ...r, requestedModel: modelId, modelFallback: !!modelId };
   }
+  const primary = chatNetwork(); // mainnet when AURA_CHAT_MAINNET=1, else testnet (today's behavior)
   try {
-    return await callZeroG(messages, tools, maxTokens, modelId);
+    return await callZeroG(messages, tools, maxTokens, modelId, primary); // rung 1
   } catch (e) {
-    resetChatCache();
+    resetChatCache(primary);
+    // rung 2: mainnet GLM down -> try the TESTNET qwen path before Anthropic. Honest: qwen is a genuine TEE
+    // reply. This rung is STILL 0G, so it runs even under AURA_CHAT_PROVIDER=zerog (that force only bars the
+    // non-TEE Anthropic rung, not the other 0G network). A requested (mainnet) model is substituted here, so
+    // flag modelFallback iff one was requested.
+    if (primary === "mainnet") {
+      try {
+        const r = await callZeroG(messages, tools, maxTokens, null, "testnet");
+        return { ...r, requestedModel: modelId, modelFallback: !!modelId };
+      } catch {
+        resetChatCache("testnet");
+      }
+    }
+    // rung 3: Anthropic (NOT TEE-attested; the UI labels it fallback-served). Survives a total 0G outage.
     if (ANTHROPIC_KEY() && FORCED() !== "zerog") {
-      // 0G failed mid-call (provider down / funding / network). Fall back so the live demo survives.
       const r = await callAnthropic(messages, tools, maxTokens);
       return { ...r, requestedModel: modelId, modelFallback: !!modelId };
     }

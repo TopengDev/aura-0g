@@ -157,11 +157,14 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   );
 
   // GET /chat/health - which provider would serve a reply right now (for the badge). Never leaks the key.
+  // `zerogNetwork` names the network that would actually serve (mainnet | testnet) so the badge is honest
+  // about whether the reply is mainnet GLM-5.1 or the testnet qwen fallback rung.
   app.get("/chat/health", async () => {
     const zerog = await chatComputeHealthy();
     return {
       zerogHealthy: zerog.ok,
       zerogModel: zerog.ok ? zerog.model : null,
+      zerogNetwork: zerog.ok ? (zerog.network ?? null) : null,
       fallbackConfigured: fallbackConfigured(),
       preferred: zerog.ok ? "zerog" : fallbackConfigured() ? "anthropic" : "zerog",
     };
@@ -172,8 +175,8 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
   // total discovery failure degrades to an empty list so the UI just uses the server's auto-picked model).
   app.get("/chat/models", async (req) => {
     try {
-      const { models, defaultId } = await listChatModels();
-      return { models, default: defaultId, cacheTtlMs: 60_000 };
+      const { models, defaultId, network } = await listChatModels();
+      return { models, default: defaultId, network, cacheTtlMs: 60_000 };
     } catch (e: any) {
       req.log.warn({ err: e }, "chat models discovery failed (non-fatal)");
       return { models: [], default: null, error: String(e?.message ?? e).slice(0, 120) };
