@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { Footer } from "@/components/chrome/Footer";
 import { Panel, Chip, MetaRow, CopyValue, StatFigure } from "@/components/product/primitives";
 import { fetchHealth, fetchChatHealth, fetchChatModels, shortAddr, type ChatModelInfo } from "@/lib/api";
-import { EXPLORER, STORAGE_SCAN } from "@/lib/chains";
+import { EXPLORER } from "@/lib/chains";
 
 // /proof - the jury-facing EVIDENCE PAGE. Every claim below re-derives from a LIVE endpoint or an on-chain
 // read. The page fetches /health, /chat/health, /chat/models at request time (force-dynamic, same posture
@@ -23,6 +23,13 @@ export const metadata: Metadata = {
 // container-internal in prod). These are the endpoints a juror can curl to re-derive every claim.
 const API_PUBLIC = "https://api-aura.topengdev.com";
 const CHAT_URL = "https://aura.topengdev.com/chat";
+
+// The 0G Compute chat providers below run on 0G MAINNET, so their address links must resolve on the MAINNET
+// explorer. This is deliberately DIFFERENT from EXPLORER (the Galileo testnet explorer) used for the app's
+// contracts: the marketplace contracts are on Galileo testnet, the chat providers are on 0G mainnet. Two
+// networks, on purpose (a mainnet provider address shows blank on the testnet explorer). Verified live
+// 2026-07-01: all seven providers are active on chainscan.0g.ai and effectively absent from the testnet chain.
+const MAINNET_EXPLORER = "https://chainscan.0g.ai";
 
 // The chain the marketplace contracts live on (verified live via /health).
 const CHAIN_ID = 16602;
@@ -52,7 +59,11 @@ const RELIC = {
   provenanceHash: "0x0d832542dedf6827b3681901b8706f219db042e213d1f07b131deffc9eafcce6",
   royaltyPct: 9,
 };
-const RELIC_STORAGE_SCAN = `${STORAGE_SCAN}/tx/${RELIC.imageRoot}`;
+// The on-0G-Storage proof for the Relic's image root. NOTE: the storagescan `/tx/<hash>` route expects a
+// submission TX hash, not a data merkle root, so it never resolves a root. The 0G Storage indexer's
+// `/file/info/<root>` route DOES resolve the root and returns `{ finalized: true, size, ... }` = the literal
+// proof the blob is committed to 0G Storage. Verified live 2026-07-01 (finalized:true for this root).
+const RELIC_STORAGE_PROOF = `https://indexer-storage-testnet-turbo.0g.ai/file/info/${RELIC.imageRoot}`;
 
 // ── Live-model row (widened past ChatModelInfo, which omits `provider` + `allowlisted` from the shared
 // type though the API returns both at runtime). ────────────────────────────
@@ -269,7 +280,7 @@ export default async function ProofPage() {
             <PrimitiveHead tag="Storage · 0G" title="Content-addressed roots, committed on-chain." />
             <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
               Every Relic image and every sealed agent-brain is a 0G Storage content root, committed on-chain and
-              viewable on 0G StorageScan. Honest caveat: testnet 0G Storage evicts blobs within roughly an hour, so
+              finalized on 0G Storage. Honest caveat: testnet 0G Storage evicts blobs within roughly an hour, so
               v1 serves from a durable content-addressed cache keyed by the same 0G root. Full 0G persistence is a
               mainnet property.
             </p>
@@ -279,7 +290,7 @@ export default async function ProofPage() {
               <MetaRow k="Addressing" v="content root (keccak)" mono={false} />
             </dl>
             <div className="mt-6 flex flex-wrap gap-2.5">
-              <ProofLink href={RELIC_STORAGE_SCAN}>0G StorageScan</ProofLink>
+              <ProofLink href={RELIC_STORAGE_PROOF}>0G Storage proof</ProofLink>
               <ProofLink href={`/verify?id=${RELIC.tokenId}`} internal>Verify on-chain</ProofLink>
             </div>
           </Panel>
@@ -369,7 +380,7 @@ export default async function ProofPage() {
           {[
             { p: "0G Compute", u: "Chat + image generation in a TEE, mainnet GLM-5.1, attested per reply.", href: `${API_PUBLIC}/chat/health`, label: "/chat/health", internal: false },
             { p: "TeeML guard", u: "Allowlist rejects relay-proxies the chain mislabels as in-enclave.", href: `${API_PUBLIC}/chat/models`, label: "/chat/models", internal: false },
-            { p: "0G Storage", u: "Content-addressed image + brain roots, committed on-chain.", href: RELIC_STORAGE_SCAN, label: "StorageScan", internal: false },
+            { p: "0G Storage", u: "Content-addressed image + brain roots, committed on-chain.", href: RELIC_STORAGE_PROOF, label: "Storage proof", internal: false },
             { p: "0G Chain", u: "Five contracts on Galileo 16602, real bytecode.", href: `${API_PUBLIC}/health`, label: "/health", internal: false },
             { p: "iNFT (ERC-7857)", u: "Sealed-key transfer, brain re-keyed to the buyer.", href: `${EXPLORER}/address/${CONTRACTS[4].addr}`, label: "0G Scan", internal: false },
             { p: "EIP-2981", u: "Creator royalty resolving live to the agent owner.", href: `${API_PUBLIC}/royalty/${RELIC.tokenId}`, label: `/royalty/${RELIC.tokenId}`, internal: false },
@@ -457,7 +468,7 @@ function ModelLine({ m, accepted }: { m: ProofModel; accepted: boolean }) {
         </div>
         {m.provider ? (
           <a
-            href={`${EXPLORER}/address/${m.provider}`}
+            href={`${MAINNET_EXPLORER}/address/${m.provider}`}
             target="_blank"
             rel="noreferrer"
             className="mt-0.5 ml-6 inline-block font-mono-x text-[13px] underline-offset-2 hover:underline"
