@@ -47,13 +47,54 @@ export interface ChatCompletionResult {
 let _cached: { broker: any; svc: ChatService; at: number } | null = null;
 const SVC_TTL_MS = 5 * 60_000;
 
-/** Discover the TEE chat service on 0G Compute (serviceType "chatbot"). Throws if none is served now. */
+/** True when a discovered 0G service can serve chat completions (its serviceType or model id signals it). */
+function isChatService(s: any): boolean {
+  return (
+    /chat|text|llm|chatbot|completion/i.test(String(s.serviceType)) ||
+    /omni|qwen2|llm|chatbot|instruct|deepseek|glm|gpt|gemma|llama|mixtral|mistral/i.test(String(s.model))
+  );
+}
+
+/**
+ * Capability score for ranking chat services (higher = stronger). Lets an Aura automatically prefer a stronger
+ * TEE-attested chat model the moment 0G Compute serves (acknowledges) one, with qwen as the guaranteed floor.
+ * Pure + deterministic: score = a known-family bonus + the parameter count parsed from the model id, minus a
+ * small penalty for the "omni" multimodal variant (weaker at pure-text chat than a same-size text model).
+ * IMPORTANT: this only ever ranks services listService() ALREADY returned - i.e. acknowledged, TEE-attestable
+ * providers - so it can never select an unattested provider and the verifiability moat is fully preserved.
+ * (Verified live 2026-07-01: 0G Compute serves qwen2.5-omni-7b acknowledged; gpt-oss-20b + gemma-3-27b-it are
+ * registered as TeeML but NOT yet acknowledged, so today only qwen is returned and this ranking is a no-op.)
+ */
+export function chatModelScore(model: string): number {
+  const m = model.toLowerCase();
+  const size = m.match(/(\d+(?:\.\d+)?)\s*b(?![a-z0-9])/); // parses 27b / 20b / 7b / 0.5b
+  const sizeB = size ? parseFloat(size[1]) : 0;
+  let family = 0;
+  if (/deepseek|glm/.test(m)) family = 40;
+  else if (/gpt|gemma|llama|mixtral|mistral/.test(m)) family = 25;
+  else if (/qwen/.test(m)) family = 10;
+  return family + sizeB + (/omni/.test(m) ? -3 : 0);
+}
+
+/**
+ * Discover the STRONGEST TEE chat service on 0G Compute. Ranks the discovered (acknowledged, attestable) chat
+ * services by capability and prefers the strongest, with a safe fallback to qwen / the first chat service if
+ * the preferred one is absent. An operator can pin a specific model via AURA_CHAT_PREFER (substring match) or
+ * restore the old first-match behaviour with AURA_CHAT_RANK=0. Throws if no chat service is served right now.
+ */
 export async function chatService(broker: any): Promise<ChatService> {
   const services = await broker.inference.listService();
-  const chat = services.find(
-    (s: any) => /chat|text|llm|chatbot|completion/i.test(String(s.serviceType)) || /omni|qwen2|llm|chatbot|instruct|deepseek|glm/i.test(String(s.model)),
-  );
-  if (!chat) throw new Error("no chat service served on 0G Compute right now");
+  const chats = services.filter(isChatService);
+  if (!chats.length) throw new Error("no chat service served on 0G Compute right now");
+
+  const prefer = (process.env.AURA_CHAT_PREFER || "").toLowerCase();
+  const rank = (process.env.AURA_CHAT_RANK ?? "1") !== "0";
+
+  let chat: any;
+  if (prefer) chat = chats.find((s: any) => String(s.model).toLowerCase().includes(prefer)); // explicit operator pin
+  if (!chat && rank) chat = [...chats].sort((a: any, b: any) => chatModelScore(String(b.model)) - chatModelScore(String(a.model)))[0];
+  if (!chat) chat = chats.find((s: any) => /qwen/i.test(String(s.model))) ?? chats[0]; // safe qwen / first fallback
+
   const meta = await broker.inference.getServiceMetadata(chat.provider);
   return {
     provider: chat.provider,
