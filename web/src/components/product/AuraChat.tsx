@@ -20,12 +20,14 @@ import {
   sendChat,
   fetchChatHistory,
   fetchChatHealth,
+  fetchChatModels,
   fetchJob,
   fetchJobImageObjectUrl,
   fetchMintArgs,
   type ChatReply,
   type ChatToolInvocation,
   type ChatHealth,
+  type ChatModelInfo,
   type MintArgs,
 } from "@/lib/api";
 
@@ -37,6 +39,10 @@ type Turn = {
   attestation?: ChatReply["attestation"];
   tools?: ChatToolInvocation[];
   pending?: boolean;
+  // model-picker honesty: set when the picked model was offline/unverifiable and another TEE model served.
+  modelFallback?: boolean;
+  requestedModel?: string | null;
+  servedModel?: string | null;
 };
 
 // ── The shared chat engine ────────────────────────────────────────────────
@@ -50,11 +56,26 @@ function useAuraChat(agentId: number) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [health, setHealth] = useState<ChatHealth | null>(null);
+  const [models, setModels] = useState<ChatModelInfo[]>([]);
+  const [modelsDefault, setModelsDefault] = useState<string | null>(null);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchChatHealth().then(setHealth);
+    fetchChatModels().then((r) => {
+      setModels(r.models);
+      setModelsDefault(r.default);
+    });
   }, []);
+
+  // Default the selection to the auto-picked online model once discovered. NEVER auto-select a model that
+  // is not selectable (offline / unverified), and never overwrite an explicit user choice.
+  useEffect(() => {
+    if (selectedModel || !models.length) return;
+    const def = models.find((m) => m.id === modelsDefault && m.selectable) ?? models.find((m) => m.selectable) ?? null;
+    if (def) setSelectedModel(def.id);
+  }, [models, modelsDefault, selectedModel]);
 
   // Clear the transcript when the Aura changes. The /chat thread is keyed by agentId so it REMOUNTS
   // (this is a no-op there: a fresh mount inits agentRef to the current agentId). It matters only for the
@@ -123,13 +144,13 @@ function useAuraChat(agentId: number) {
     }
 
     try {
-      const r = await sendChat(t, agentId, message);
+      const r = await sendChat(t, agentId, message, selectedModel);
       setTurns((prev) => {
         const next = [...prev];
         // replace the trailing pending aura bubble
         for (let i = next.length - 1; i >= 0; i--) {
           if (next[i].role === "aura" && next[i].pending) {
-            next[i] = { role: "aura", text: r.reply, provider: r.provider, teeAttested: r.teeAttested, attestation: r.attestation, tools: r.toolInvocations };
+            next[i] = { role: "aura", text: r.reply, provider: r.provider, teeAttested: r.teeAttested, attestation: r.attestation, tools: r.toolInvocations, modelFallback: r.modelFallback, requestedModel: r.requestedModel, servedModel: r.servedModel };
             break;
           }
         }
@@ -141,9 +162,9 @@ function useAuraChat(agentId: number) {
     } finally {
       setSending(false);
     }
-  }, [input, sending, token, signIn, agentId]);
+  }, [input, sending, token, signIn, agentId, selectedModel]);
 
-  return { token, address: address ?? null, status, turns, input, setInput, sending, error, health, scrollRef, send };
+  return { token, address: address ?? null, status, turns, input, setInput, sending, error, health, models, selectedModel, setSelectedModel, scrollRef, send };
 }
 
 type ChatEngine = ReturnType<typeof useAuraChat>;
@@ -164,6 +185,187 @@ function HealthBadge({ health, accent }: { health: ChatHealth | null; accent: st
         {badge.label}
       </Chip>
     </span>
+  );
+}
+
+// The shared chat header: title + the model picker + the provenance badge. Used by both surfaces so the
+// picker + badge never drift between the inline panel and the /chat thread.
+function ChatHeaderBar({ c, agentName, accent }: { c: ChatEngine; agentName: string; accent: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b px-5 py-4 sm:px-6" style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}>
+      <div className="min-w-0">
+        <div className="label-caps text-[12px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+          Talk to the Aura
+        </div>
+        <div className="truncate font-display" style={{ fontSize: "22px", lineHeight: 1.1 }}>
+          {agentName}
+        </div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        <ModelPicker models={c.models} selected={c.selectedModel} onSelect={c.setSelectedModel} accent={accent} />
+        <HealthBadge health={c.health} accent={accent} />
+      </div>
+    </div>
+  );
+}
+
+// Just the model id tail (drop the "vendor/" prefix) for compact display. "" -> "auto".
+function shortModelId(id?: string | null): string {
+  if (!id) return "auto";
+  return id.split("/").pop() || id;
+}
+
+// A SHARP TEXT status tag (online / offline / unverified / unknown). NEVER a status dot - text only.
+function ModelStatusTag({ m }: { m: ChatModelInfo }) {
+  const s =
+    m.online === false
+      ? { t: "offline", fg: "var(--color-ink-3)", bd: "var(--color-border-strong)", bg: "transparent" }
+      : m.online == null
+        ? { t: "unknown", fg: "var(--color-ink-3)", bd: "var(--color-border-strong)", bg: "transparent" }
+        : !m.teeAttested
+          ? { t: "unverified", fg: "var(--color-warn)", bd: "color-mix(in oklab, var(--color-warn) 42%, var(--color-border))", bg: "color-mix(in oklab, var(--color-warn) 8%, transparent)" }
+          : { t: "online", fg: "var(--color-ok)", bd: "color-mix(in oklab, var(--color-ok) 42%, var(--color-border))", bg: "color-mix(in oklab, var(--color-ok) 10%, transparent)" };
+  return (
+    <span className="tag" style={{ border: `1px solid ${s.bd}`, background: s.bg, color: s.fg }}>
+      {s.t}
+    </span>
+  );
+}
+
+// The TEE attestation tag (shown on any hardware-attestable model). A sharp text tag, not a mark.
+function TeeTag() {
+  return (
+    <span className="tag" style={{ border: "1px solid color-mix(in oklab, var(--color-ok) 42%, var(--color-border))", background: "color-mix(in oklab, var(--color-ok) 9%, transparent)", color: "var(--color-ok)" }}>
+      TEE
+    </span>
+  );
+}
+
+// A hairline chevron for the picker trigger (rotates when open). Not a dot.
+function Caret({ open }: { open: boolean }) {
+  return (
+    <svg
+      width="12"
+      height="12"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      style={{ color: "var(--color-ink-3)", transform: open ? "rotate(180deg)" : "none", transition: "transform 200ms cubic-bezier(0.22,1,0.36,1)" }}
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+// The MODEL PICKER: a sharp technical-editorial disclosure (NOT a native select). Lists every 0G chat model
+// with a status TEXT tag + a TEE tag on attested ones. Offline / unverified models are disabled + greyed
+// (shown for transparency, never selectable). The chosen model rides on every POST /chat. NO status dots.
+function ModelPicker({ models, selected, onSelect, accent }: { models: ChatModelInfo[]; selected: string | null; onSelect: (id: string) => void; accent: string }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  if (!models.length) return null; // discovery not ready / empty -> the backend auto-picks; nothing to choose
+
+  const current = models.find((m) => m.id === selected) ?? null;
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        className="micro inline-flex items-center gap-2 rounded-[11px] border px-3 py-1.5 hover:-translate-y-px active:scale-[0.98]"
+        style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}
+      >
+        <span className="label-caps text-[12px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.12em" }}>
+          Model
+        </span>
+        <span className="font-mono-x text-[13px]" style={{ color: "var(--color-ink)" }}>
+          {shortModelId(current?.id)}
+        </span>
+        <Caret open={open} />
+      </button>
+
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            transition={{ duration: 0.16, ease: EASE }}
+            role="listbox"
+            className="absolute right-0 z-40 mt-2 w-[320px] max-w-[86vw] overflow-hidden rounded-[16px] border"
+            style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)", boxShadow: "var(--shadow-card)" }}
+          >
+            <div className="border-b px-4 py-2.5 label-caps text-[12px] uppercase tracking-[0.14em]" style={{ borderColor: "var(--color-border)", color: "var(--color-ink-3)" }}>
+              Chat model
+            </div>
+            <ul data-lenis-prevent className="max-h-[320px] overflow-y-auto overscroll-contain py-1">
+              {models.map((m) => {
+                const active = m.id === selected;
+                return (
+                  <li key={m.id}>
+                    <button
+                      type="button"
+                      role="option"
+                      aria-selected={active}
+                      disabled={!m.selectable}
+                      onClick={() => {
+                        if (m.selectable) {
+                          onSelect(m.id);
+                          setOpen(false);
+                        }
+                      }}
+                      className={`micro relative flex w-full items-start gap-3 px-4 py-2.5 text-left ${m.selectable ? "hover:bg-[color-mix(in_oklab,var(--color-ink)_5%,transparent)]" : ""}`}
+                      style={{ cursor: m.selectable ? "pointer" : "not-allowed", opacity: m.selectable ? 1 : 0.55, background: active ? `color-mix(in oklab, ${accent} 12%, var(--color-paper))` : undefined }}
+                    >
+                      {active ? <span className="absolute left-1.5 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full" style={{ background: accent }} aria-hidden /> : null}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-display" style={{ fontSize: 15, lineHeight: 1.15, color: "var(--color-ink)" }}>
+                          {m.label}
+                        </span>
+                        <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          {m.sizeB ? (
+                            <span className="tag" style={{ border: "1px solid var(--color-border-strong)", background: "var(--color-paper)", color: "var(--color-ink-3)" }}>
+                              {m.sizeB}B
+                            </span>
+                          ) : null}
+                          {m.teeAttested ? <TeeTag /> : null}
+                          <ModelStatusTag m={m} />
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="border-t px-4 py-2.5 text-[12.5px] leading-snug" style={{ borderColor: "var(--color-border)", color: "var(--color-ink-3)" }}>
+              Only TEE-attested, online models are selectable. Offline and unverified models are shown for transparency, never served silently.
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -258,9 +460,9 @@ function ChatComposer({ c, agentName }: { c: ChatEngine; agentName: string }) {
         className="micro min-h-[44px] flex-1 resize-none rounded-[14px] border bg-transparent px-3 py-3 text-[16px] outline-none focus:border-[var(--color-accent)]"
         style={{ borderColor: "var(--color-border)", color: "var(--color-ink)" }}
       />
-      <div className="w-[120px]">
+      <div className="shrink-0 whitespace-nowrap" style={{ width: c.token ? 120 : 156 }}>
         <ActionButton onClick={() => void c.send()} disabled={c.sending || c.status === "signing"}>
-          {c.sending ? "..." : !c.token ? "Sign in" : "Send"}
+          {c.sending ? "..." : !c.token ? "Sign in & send" : "Send"}
         </ActionButton>
       </div>
     </div>
@@ -271,19 +473,8 @@ function ChatComposer({ c, agentName }: { c: ChatEngine; agentName: string }) {
 export function AuraChat({ agentId, agentName, accent }: { agentId: number; agentName: string; accent: string }) {
   const c = useAuraChat(agentId);
   return (
-    <Panel className="mt-7 overflow-hidden p-0">
-      {/* header */}
-      <div className="flex items-center justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}>
-        <div>
-          <div className="label-caps text-[12px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-            Talk to the Aura
-          </div>
-          <div className="font-display" style={{ fontSize: "22px", lineHeight: 1.1 }}>
-            {agentName}
-          </div>
-        </div>
-        <HealthBadge health={c.health} accent={accent} />
-      </div>
+    <Panel className="mt-7 overflow-visible p-0">
+      <ChatHeaderBar c={c} agentName={agentName} accent={accent} />
 
       {/* transcript */}
       <div ref={c.scrollRef} data-lenis-prevent className="flex max-h-[440px] min-h-[220px] flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-5">
@@ -312,18 +503,7 @@ export function AuraChatThread({ agentId, agentName, accent }: { agentId: number
   const c = useAuraChat(agentId);
   return (
     <motion.div className="flex h-full min-h-0 flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35, ease: EASE }}>
-      {/* header */}
-      <div className="flex items-center justify-between gap-3 border-b px-5 py-4 sm:px-6" style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${accent} 7%, var(--color-paper))` }}>
-        <div>
-          <div className="label-caps text-[12px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
-            Talk to the Aura
-          </div>
-          <div className="font-display" style={{ fontSize: "22px", lineHeight: 1.1 }}>
-            {agentName}
-          </div>
-        </div>
-        <HealthBadge health={c.health} accent={accent} />
-      </div>
+      <ChatHeaderBar c={c} agentName={agentName} accent={accent} />
 
       {/* transcript (fills the available height) */}
       <div ref={c.scrollRef} data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
@@ -360,7 +540,7 @@ function ChatBubble({ turn, agentName, accent, token, address }: { turn: Turn; a
         {turn.pending ? <span style={{ color: "var(--color-ink-3)" }}>{agentName} is thinking...</span> : turn.text}
       </div>
 
-      {/* per-reply provenance badge (honest) */}
+      {/* per-reply honesty labels (ReplyBadge self-hides on a verified, no-substitution reply) */}
       {!turn.pending && turn.provider ? (
         <ReplyBadge turn={turn} />
       ) : null}
@@ -373,30 +553,32 @@ function ChatBubble({ turn, agentName, accent, token, address }: { turn: Turn; a
   );
 }
 
+// Per-reply provenance, DECLUTTERED: a TEE-verified reply renders NOTHING here (the model picker + the
+// one-time honest-framing notice now carry the model + TEE story). We keep only the two honest labels the
+// verifiability promise requires: (a) a "not TEE-attested" tag whenever a NON-attested fallback served the
+// reply (the README commits the UI says so), and (b) a plain note when the model you PICKED was offline and
+// another model served instead (so a substitution is never silent). A verified, no-substitution reply => null.
 function ReplyBadge({ turn }: { turn: Turn }) {
   const attested = turn.teeAttested && turn.provider === "zerog";
-  const model = turn.attestation?.model;
-  const signer = turn.attestation?.teeSigner;
+  const showFallbackTag = !attested; // the reply itself was NOT TEE-attested
+  const showModelNote = !!turn.modelFallback && !!turn.requestedModel;
+  if (!showFallbackTag && !showModelNote) return null;
   return (
     <div className="flex flex-wrap items-center gap-2 pl-1">
-      {attested ? (
-        <span
-          title={`TEE-verified by ${signer ?? "the TEE signer"} (verifiability ${turn.attestation?.verifiability ?? "TeeML"}). This reply provably ran in a 0G TEE.`}
-          className="tag"
-          style={{ border: "1px solid color-mix(in oklab, #1f9d55 45%, var(--color-border))", background: "color-mix(in oklab, #1f9d55 9%, transparent)", color: "#1f9d55" }}
-        >
-          <span aria-hidden style={{ width: 12, height: 2, background: "#1f9d55", display: "inline-block" }} />
-          TEE-verified{model ? ` · ${model.split("/").pop()}` : ""}
-        </span>
-      ) : (
+      {showFallbackTag ? (
         <span
           title="This reply was served by a fallback model (0G was unreachable). It is NOT TEE-attested."
           className="tag"
           style={{ border: "1px solid var(--color-border-strong)", background: "var(--color-paper)", color: "var(--color-ink-3)" }}
         >
-          Fallback · not TEE-attested
+          Fallback, not TEE-attested
         </span>
-      )}
+      ) : null}
+      {showModelNote ? (
+        <span className="text-[12.5px]" style={{ color: "var(--color-ink-3)" }}>
+          picked {shortModelId(turn.requestedModel)} was offline, served by {shortModelId(turn.servedModel)}
+        </span>
+      ) : null}
     </div>
   );
 }

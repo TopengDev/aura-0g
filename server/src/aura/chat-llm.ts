@@ -8,8 +8,8 @@
 // The route calls pickProvider() (a cheap 0G health probe) and falls back to anthropic on health-fail OR a
 // hard call error, recording WHICH provider served each reply. The Anthropic key is server-side only
 // (AURA_CHAT_ANTHROPIC_KEY) - NEVER NEXT_PUBLIC, never logged, never returned to the client.
-import type { ChatMessage, ChatTool } from "./chat-compute.js";
-import { chatCompletion, getChatBrokerAndService, chatComputeHealthy, resetChatCache } from "./chat-compute.js";
+import type { ChatMessage, ChatTool, ChatService } from "./chat-compute.js";
+import { chatCompletion, getChatBroker, getChatBrokerAndService, chatServiceFor, serviceOnline, chatComputeHealthy, resetChatCache } from "./chat-compute.js";
 
 export type ChatProvider = "zerog" | "anthropic";
 
@@ -38,6 +38,10 @@ export interface LlmResult {
   attestation: ReplyAttestation | null; // null for the non-TEE fallback (labeled honestly in the UI)
   model: string;
   latencyMs: number;
+  // model-picker honesty: the model the caller asked for (echo) + whether it had to be substituted because
+  // the requested one was offline / unverifiable / a non-serving provider. Lets the UI say so plainly.
+  requestedModel?: string | null;
+  modelFallback?: boolean;
 }
 
 const ANTHROPIC_KEY = () => process.env.AURA_CHAT_ANTHROPIC_KEY || process.env.ANTHROPIC_API_KEY || "";
@@ -55,8 +59,26 @@ function parseArgs(raw: string): Record<string, unknown> {
 }
 
 // ── 0G (zerog) ────────────────────────────────────────────────────────────────────────────────────
-async function callZeroG(messages: ChatMessage[], tools: ChatTool[] | undefined, maxTokens: number): Promise<LlmResult> {
-  const { broker, svc } = await getChatBrokerAndService();
+// When `modelId` is set, route to THAT model iff it resolves to an acknowledged + TEE-attested + online
+// service (chatServiceFor enforces the acknowledged + TeeML moat; we additionally require it be reachable
+// right now). Otherwise fall back to the auto-picked TEE model and flag `modelFallback` so the UI is honest.
+// A missing/invalid/offline pick can therefore never silently downgrade the reply off a verified provider.
+async function callZeroG(
+  messages: ChatMessage[],
+  tools: ChatTool[] | undefined,
+  maxTokens: number,
+  modelId: string | null,
+): Promise<LlmResult> {
+  const broker = await getChatBroker();
+  let svc: ChatService | null = null;
+  let modelFallback = false;
+  if (modelId) {
+    svc = await chatServiceFor(broker, modelId); // acknowledged + TEE-attested only
+    if (svc && (await serviceOnline(svc.endpoint)) === false) svc = null; // acknowledged + TEE but offline now
+    if (!svc) modelFallback = true; // requested model unavailable -> fall back to the auto-picked TEE model
+  }
+  if (!svc) svc = (await getChatBrokerAndService()).svc;
+
   const r = await chatCompletion(broker, svc, messages, tools, { maxTokens });
   return {
     text: r.content,
@@ -72,6 +94,8 @@ async function callZeroG(messages: ChatMessage[], tools: ChatTool[] | undefined,
     },
     model: r.model,
     latencyMs: r.latencyMs,
+    requestedModel: modelId,
+    modelFallback,
   };
 }
 
@@ -171,17 +195,23 @@ export async function runLlm(
   chosen: ChatProvider,
   messages: ChatMessage[],
   tools?: ChatTool[],
-  opts: { maxTokens?: number } = {},
+  opts: { maxTokens?: number; modelId?: string | null } = {},
 ): Promise<LlmResult> {
   const maxTokens = opts.maxTokens ?? 2048; // higher ceiling for richer in-character replies; models self-terminate (finish=stop) so short answers stay short
-  if (chosen === "anthropic") return callAnthropic(messages, tools, maxTokens);
+  const modelId = opts.modelId ?? null;
+  if (chosen === "anthropic") {
+    // 0G is unhealthy (or forced off). A specific 0G model requested here is served by the fallback -> flag it.
+    const r = await callAnthropic(messages, tools, maxTokens);
+    return { ...r, requestedModel: modelId, modelFallback: !!modelId };
+  }
   try {
-    return await callZeroG(messages, tools, maxTokens);
+    return await callZeroG(messages, tools, maxTokens, modelId);
   } catch (e) {
     resetChatCache();
     if (ANTHROPIC_KEY() && FORCED() !== "zerog") {
       // 0G failed mid-call (provider down / funding / network). Fall back so the live demo survives.
-      return callAnthropic(messages, tools, maxTokens);
+      const r = await callAnthropic(messages, tools, maxTokens);
+      return { ...r, requestedModel: modelId, modelFallback: !!modelId };
     }
     throw e;
   }

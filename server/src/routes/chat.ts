@@ -16,7 +16,7 @@ import { buildSystemPrompt } from "../aura/chat-persona.js";
 import { loadOwnerMemory, retrieve, renderMemory, appendTurn, historyForOwner } from "../aura/chat-memory.js";
 import { pickProvider, runLlm, fallbackConfigured, type LlmResult } from "../aura/chat-llm.js";
 import { CHAT_TOOLS, routeTool, type ToolResult } from "../aura/chat-tools.js";
-import { chatComputeHealthy } from "../aura/chat-compute.js";
+import { chatComputeHealthy, listChatModels } from "../aura/chat-compute.js";
 import { rateLimit } from "../aura/ratelimit.js";
 
 const MAX_TOOL_ROUNDS = 2;
@@ -29,7 +29,7 @@ function sanitizeReply(s: string): string {
 
 export async function chatRoutes(app: FastifyInstance): Promise<void> {
   // POST /chat
-  app.post<{ Body: { agentId?: number; message?: string } }>(
+  app.post<{ Body: { agentId?: number; message?: string; model?: string; modelId?: string } }>(
     "/chat",
     { preHandler: [app.authenticate] },
     async (req, reply) => {
@@ -42,6 +42,12 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: "message required" });
       }
       const userText = message.trim().slice(0, 2000);
+      // OPTIONAL model pick (from the /chat/models picker). Routed to iff it is online + TEE-attested +
+      // acknowledged; otherwise the seam falls back to the auto-picked TEE model and flags modelFallback.
+      const requestedModel =
+        (typeof req.body?.model === "string" && req.body.model.trim()) ||
+        (typeof req.body?.modelId === "string" && req.body.modelId.trim()) ||
+        null;
 
       // per-user chat rate limit (each 0G reply costs the sponsor ledger).
       const rl = rateLimit(`chat:${owner}`, 20, 60_000);
@@ -70,10 +76,11 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const toolInvocations: Array<{ name: string; args: Record<string, unknown>; result: ToolResult }> = [];
       let result: LlmResult;
       try {
-        result = await runLlm(chosen, messages, CHAT_TOOLS);
+        result = await runLlm(chosen, messages, CHAT_TOOLS, { modelId: requestedModel });
       } catch (e: any) {
         return reply.code(502).send({ error: `chat provider failed: ${String(e?.message ?? e).slice(0, 160)}` });
       }
+      const modelFallback = !!result.modelFallback; // captured from the FIRST reply (the routing decision)
 
       for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
         if (!result.toolCalls.length) break;
@@ -92,7 +99,7 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         }
 
         try {
-          result = await runLlm(result.provider, messages, CHAT_TOOLS);
+          result = await runLlm(result.provider, messages, CHAT_TOOLS, { modelId: requestedModel });
         } catch (e: any) {
           // tools already executed; synthesize a minimal honest reply rather than 502.
           result = { ...result, text: result.text ?? "Done.", toolCalls: [] };
@@ -126,6 +133,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
         // verifiable on-chain; private memory is owner-only. The UI labels exactly this.
         attestation: result.attestation,
         teeAttested: !!result.attestation && result.attestation.teeVerified === true,
+        // model-picker honesty: what was asked for vs what actually served, and whether we substituted.
+        requestedModel,
+        servedModel: result.attestation?.model ?? result.model ?? null,
+        modelFallback,
         toolInvocations: toolInvocations.map((t) => ({ name: t.name, args: t.args, ok: t.result.ok, display: t.result.display, job: t.result.job ?? null })),
         jobId,
         latencyMs: result.latencyMs,
@@ -154,5 +165,18 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       fallbackConfigured: fallbackConfigured(),
       preferred: zerog.ok ? "zerog" : fallbackConfigured() ? "anthropic" : "zerog",
     };
+  });
+
+  // GET /chat/models - every 0G chat model + its live status for the picker. PUBLIC (no auth), READ-ONLY
+  // (a cached, unbilled reachability probe -> NO broker spend), and fail-soft (never 500s the picker: a
+  // total discovery failure degrades to an empty list so the UI just uses the server's auto-picked model).
+  app.get("/chat/models", async (req) => {
+    try {
+      const { models, defaultId } = await listChatModels();
+      return { models, default: defaultId, cacheTtlMs: 60_000 };
+    } catch (e: any) {
+      req.log.warn({ err: e }, "chat models discovery failed (non-fatal)");
+      return { models: [], default: null, error: String(e?.message ?? e).slice(0, 120) };
+    }
   });
 }

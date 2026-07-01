@@ -530,9 +530,27 @@ export interface ChatReply {
   providerReason: string;
   attestation: ChatAttestation | null; // null = the non-TEE fallback served it (labeled honestly)
   teeAttested: boolean;
+  requestedModel: string | null; // the model the user picked (echo), or null for the auto-pick
+  servedModel: string | null; // the model that ACTUALLY served this reply
+  modelFallback: boolean; // true = the picked model was offline/unverifiable, so another TEE model served it
   toolInvocations: ChatToolInvocation[];
   jobId: string | null; // present when the Aura started creating a Relic (poll + mint via the existing flow)
   latencyMs: number;
+}
+// One 0G chat model + its live status for the picker (GET /chat/models). Mirrors ChatModelInfo server-side.
+export interface ChatModelInfo {
+  id: string; // model id, e.g. "qwen/qwen2.5-omni-7b"
+  label: string; // human display label, e.g. "Qwen2.5 Omni 7B"
+  sizeB: number; // parameter count in billions (0 = unknown)
+  teeAttested: boolean; // hardware-attestable (verifiability "TeeML")
+  online: boolean | null; // endpoint reachable now (null = unknown)
+  acknowledged: boolean; // provider TEE signer acknowledged (billable)
+  selectable: boolean; // online + teeAttested + acknowledged -> safe to pick + expect a TEE reply
+  verifiability?: string;
+}
+export interface ChatModelsResponse {
+  models: ChatModelInfo[];
+  default: string | null; // the auto-picked online model id (the default selection)
 }
 export interface ChatTurn {
   ts: string;
@@ -547,12 +565,13 @@ export interface ChatHealth {
   preferred: "zerog" | "anthropic";
 }
 
-// POST /chat { agentId, message } -> ChatReply. Owner-scoped (Bearer JWT).
-export async function sendChat(token: string, agentId: number, message: string): Promise<ChatReply> {
+// POST /chat { agentId, message, model? } -> ChatReply. Owner-scoped (Bearer JWT). `modelId` (optional) is
+// the user's picked model; the backend routes to it iff online + TEE-attested, else falls back honestly.
+export async function sendChat(token: string, agentId: number, message: string, modelId?: string | null): Promise<ChatReply> {
   return authedJson("/chat", token, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ agentId, message }),
+    body: JSON.stringify({ agentId, message, ...(modelId ? { model: modelId } : {}) }),
   });
 }
 
@@ -570,6 +589,18 @@ export async function fetchChatHealth(): Promise<ChatHealth | null> {
     return (await res.json()) as ChatHealth;
   } catch {
     return null;
+  }
+}
+
+// GET /chat/models -> every 0G chat model + live status for the picker. Public, fail-soft (empty on error).
+export async function fetchChatModels(): Promise<ChatModelsResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/chat/models`, { cache: "no-store" });
+    if (!res.ok) return { models: [], default: null };
+    const j = (await res.json()) as Partial<ChatModelsResponse>;
+    return { models: Array.isArray(j.models) ? j.models : [], default: typeof j.default === "string" ? j.default : null };
+  } catch {
+    return { models: [], default: null };
   }
 }
 

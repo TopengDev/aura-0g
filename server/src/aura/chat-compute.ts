@@ -42,9 +42,12 @@ export interface ChatCompletionResult {
   verifiability: string;
 }
 
-// The 0G Compute SDK builds a broker via on-chain reads (slow); cache it + the discovered chat service
-// for a short TTL so a chat route does not re-list services on every message.
-let _cached: { broker: any; svc: ChatService; at: number } | null = null;
+// The 0G Compute SDK builds a broker via on-chain reads (slow); cache the broker + the auto-discovered
+// default chat service for a short TTL so a chat route does not re-list services on every message. The
+// broker is cached SEPARATELY from the discovered service so the /chat/models route + a pick-a-specific-
+// model route can reuse the (expensive) broker without forcing the default-service discovery.
+let _brokerCache: { broker: any; at: number } | null = null;
+let _svcCache: { svc: ChatService; at: number } | null = null;
 const SVC_TTL_MS = 5 * 60_000;
 
 /** True when a discovered 0G service can serve chat completions (its serviceType or model id signals it). */
@@ -105,19 +108,213 @@ export async function chatService(broker: any): Promise<ChatService> {
   };
 }
 
-/** Build (or reuse a cached) broker + discovered chat service. The SPONSOR wallet pays for inference. */
+/** Build (or reuse) just the cached broker. The SPONSOR wallet signs the compute-ledger funding txs. */
+export async function getChatBroker(): Promise<any> {
+  if (_brokerCache && Date.now() - _brokerCache.at < SVC_TTL_MS) return _brokerCache.broker;
+  const broker = await getBroker(sponsorSigner());
+  _brokerCache = { broker, at: Date.now() };
+  return broker;
+}
+
+/** Build (or reuse a cached) broker + the auto-discovered (ranked) default chat service. */
 export async function getChatBrokerAndService(): Promise<{ broker: any; svc: ChatService }> {
-  if (_cached && Date.now() - _cached.at < SVC_TTL_MS) return { broker: _cached.broker, svc: _cached.svc };
-  const signer = sponsorSigner();
-  const broker = await getBroker(signer);
+  const broker = await getChatBroker();
+  if (_svcCache && Date.now() - _svcCache.at < SVC_TTL_MS) return { broker, svc: _svcCache.svc };
   const svc = await chatService(broker);
-  _cached = { broker, svc, at: Date.now() };
+  _svcCache = { svc, at: Date.now() };
   return { broker, svc };
 }
 
 /** Drop the cached broker/service (called after a hard failure so the next call rediscovers). */
 export function resetChatCache(): void {
-  _cached = null;
+  _brokerCache = null;
+  _svcCache = null;
+}
+
+// ── Model discovery + reachability (the /chat/models picker surface + specific-model routing) ──────────
+// The FULL registry (incl UNacknowledged services) surfaces every chat model honestly: the acknowledged +
+// TEE-attested + reachable one is `selectable`; the rest are shown offline / unverified so the moat stays
+// legible in the UI. Each provider endpoint's reachability is probed READ-ONLY (an UNBILLED POST -> the
+// provider rejects the unsigned request BEFORE any inference, so it costs NOTHING) and CACHED (~5 min) so a
+// poll never re-probes the network. Everything here is fail-soft: a probe/meta miss marks a model unknown.
+
+/** Public status of one 0G chat model for the picker (verified live 2026-07-01 against the Galileo registry). */
+export interface ChatModelInfo {
+  id: string; // model id, e.g. "qwen/qwen2.5-omni-7b"
+  provider: string; // the representative provider address serving it (on-chain public)
+  label: string; // human display label, e.g. "Qwen2.5 Omni 7B"
+  sizeB: number; // parsed parameter count in billions (0 = unknown)
+  teeAttested: boolean; // verifiability === "TeeML" (hardware-attestable)
+  acknowledged: boolean; // this caller has acknowledged the provider's TEE signer (a precondition to bill it)
+  online: boolean | null; // endpoint reachable now (null = probe inconclusive / unknown)
+  selectable: boolean; // online === true && teeAttested && acknowledged (safe to route + expect a TEE reply)
+  verifiability: string; // e.g. "TeeML" or ""
+}
+
+const REACH_TTL_MS = 5 * 60_000;
+const MODELS_TTL_MS = 60_000;
+const _reachCache = new Map<string, { online: boolean | null; at: number }>();
+let _modelsCache: { models: ChatModelInfo[]; defaultId: string | null; at: number } | null = null;
+
+/** Page the FULL inference registry (optionally including services whose TEE signer is unacknowledged). */
+async function pageAllServices(broker: any, includeUnacknowledged: boolean): Promise<any[]> {
+  const out: any[] = [];
+  for (let off = 0; off < 500; off += 50) {
+    const page = await broker.inference.listService(off, 50, includeUnacknowledged);
+    if (!Array.isArray(page) || !page.length) break;
+    out.push(...page);
+    if (page.length < 50) break;
+  }
+  return out;
+}
+
+/**
+ * READ-ONLY reachability check: an UNBILLED POST to a provider's /chat/completions. Any HTTP status means
+ * the endpoint is UP (it rejects the unsigned request before inference, so NO broker spend). A transport
+ * failure means DOWN. Anything ambiguous returns null (unknown). NEVER throws.
+ */
+async function probeReach(endpoint: string): Promise<boolean | null> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const res = await fetch(`${endpoint}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model: "probe", messages: [{ role: "user", content: "ping" }], max_tokens: 1 }),
+      signal: ctrl.signal,
+    });
+    clearTimeout(timer);
+    void res.text().catch(() => {}); // drain + ignore the body; we only care that it answered
+    return true;
+  } catch (e: any) {
+    clearTimeout(timer);
+    const m = String(e?.message || e);
+    if (/abort|timeout/i.test(m)) return false;
+    if (/eof|ECONNREFUSED|fetch failed|handshake|socket|ENOTFOUND|EAI_AGAIN|network|dns/i.test(m)) return false;
+    return null; // inconclusive -> unknown (never falsely claim up/down)
+  }
+}
+
+/** Cached reachability (TTL ~5 min). Shared by the models list + specific-model routing so neither re-probes. */
+export async function serviceOnline(endpoint: string): Promise<boolean | null> {
+  if (!endpoint) return null;
+  const hit = _reachCache.get(endpoint);
+  if (hit && Date.now() - hit.at < REACH_TTL_MS) return hit.online;
+  let online: boolean | null = null;
+  try {
+    online = await probeReach(endpoint);
+  } catch {
+    online = null;
+  }
+  _reachCache.set(endpoint, { online, at: Date.now() });
+  return online;
+}
+
+/** Parse the parameter count in billions from a model id (7b / 20b / 27b / 0.5b -> 7 / 20 / 27 / 0.5). */
+function parseSizeB(model: string): number {
+  const m = model.toLowerCase().match(/(\d+(?:\.\d+)?)\s*b(?![a-z0-9])/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+/** A human display label derived from a model id (last path segment, spaced + tastefully cased). */
+function labelForModel(model: string): string {
+  const seg = (model.split("/").pop() || model).trim();
+  return seg
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => {
+      if (/^(gpt|oss|it|tee|glm|llm|ai|hd)$/i.test(w)) return w.toUpperCase();
+      if (/^\d+(?:\.\d+)?b$/i.test(w)) return w.toUpperCase(); // 7B / 20B / 0.5B
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    })
+    .join(" ");
+}
+
+/**
+ * Discover EVERY 0G chat model with its live status for the picker. Dedups by model id (a model served by
+ * several providers collapses to one row: online if UP on ANY provider, TEE/acknowledged if so on ANY).
+ * CACHED for a short TTL; the per-endpoint reachability underneath is cached longer (~5 min). Robust: a
+ * probe/meta failure marks that model unknown, never throws.
+ */
+export async function listChatModels(): Promise<{ models: ChatModelInfo[]; defaultId: string | null }> {
+  if (_modelsCache && Date.now() - _modelsCache.at < MODELS_TTL_MS) {
+    return { models: _modelsCache.models, defaultId: _modelsCache.defaultId };
+  }
+  const broker = await getChatBroker();
+  const all = await pageAllServices(broker, true);
+  const chats = all.filter(isChatService);
+
+  // resolve endpoint + reachability per raw service (parallel, fail-soft)
+  const raw = await Promise.all(
+    chats.map(async (s: any) => {
+      const teeAttested = /teeml/i.test(String(s.verifiability || ""));
+      const acknowledged = !!s.teeSignerAcknowledged;
+      let online: boolean | null = null;
+      try {
+        const meta = await broker.inference.getServiceMetadata(s.provider);
+        online = await serviceOnline(meta.endpoint);
+      } catch {
+        online = null; // metadata lookup failed -> unknown, never throw
+      }
+      return { id: String(s.model), provider: String(s.provider), teeAttested, acknowledged, online, verifiability: String(s.verifiability || "") };
+    }),
+  );
+
+  // dedup by model id, merging each group to its strongest status
+  const groups = new Map<string, typeof raw>();
+  for (const r of raw) {
+    const g = groups.get(r.id) ?? [];
+    g.push(r);
+    groups.set(r.id, g);
+  }
+  const models: ChatModelInfo[] = [];
+  for (const [id, group] of groups) {
+    const onlines = group.map((g) => g.online);
+    const online: boolean | null = onlines.includes(true) ? true : onlines.includes(false) ? false : null;
+    const teeAttested = group.some((g) => g.teeAttested);
+    const acknowledged = group.some((g) => g.acknowledged);
+    // the representative provider is the one routing would actually bill (acknowledged + TEE), else the live one
+    const rep = group.find((g) => g.acknowledged && g.teeAttested) ?? group.find((g) => g.online === true) ?? group[0];
+    models.push({
+      id,
+      provider: rep.provider,
+      label: labelForModel(id),
+      sizeB: parseSizeB(id),
+      teeAttested,
+      acknowledged,
+      online,
+      selectable: online === true && teeAttested && acknowledged,
+      verifiability: rep.verifiability,
+    });
+  }
+
+  models.sort(
+    (a, b) => Number(b.selectable) - Number(a.selectable) || chatModelScore(b.id) - chatModelScore(a.id) || a.label.localeCompare(b.label),
+  );
+  const defaultId = models.find((m) => m.selectable)?.id ?? null;
+  _modelsCache = { models, defaultId, at: Date.now() };
+  return { models, defaultId };
+}
+
+/**
+ * Resolve a specific requested model id to a routable ChatService, or null. THE MOAT: it searches ONLY the
+ * acknowledged services (listService default) AND requires verifiability === "TeeML", so it can NEVER return
+ * an unattested / unacknowledged provider. A miss (offline big model, unverified 0.5B, a typo) returns null,
+ * and the caller falls back to the auto-picked TEE model - a reply is never silently served unverified.
+ */
+export async function chatServiceFor(broker: any, modelId: string): Promise<ChatService | null> {
+  const target = String(modelId || "").trim().toLowerCase();
+  if (!target) return null;
+  const services = await broker.inference.listService(); // acknowledged only
+  const chats = services.filter(isChatService);
+  const match =
+    chats.find((s: any) => String(s.model).toLowerCase() === target) ??
+    chats.find((s: any) => String(s.model).toLowerCase().includes(target)) ??
+    chats.find((s: any) => target.includes(String(s.model).toLowerCase()));
+  if (!match) return null;
+  if (!/teeml/i.test(String(match.verifiability || ""))) return null; // never route to a non-TEE provider
+  const meta = await broker.inference.getServiceMetadata(match.provider);
+  return { provider: match.provider, endpoint: meta.endpoint, model: meta.model, verifiability: match.verifiability, teeSigner: match.teeSignerAddress };
 }
 
 /** The content string the billing header + TEE attestation are signed over (mirrors the DD smoke). */
