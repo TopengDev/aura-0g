@@ -45,7 +45,9 @@ export type OwnerIdentityVault = {
 };
 
 export type RelationshipRecord =
-  | { kind: "chat"; turns: { role: "owner" | "agent"; text: string }[]; ts: string } // text MAY hold PII
+  // `tools` = the agent's guarded tool invocations this turn (owner-relationship context, never L1). Optional
+  // + additive: the module's own tests write chat records without it, so widening here is backward-compatible.
+  | { kind: "chat"; turns: { role: "owner" | "agent"; text: string }[]; tools?: string[]; ts: string } // text MAY hold PII
   | { kind: "preference"; subject: "<<OWNER>>"; pref: string; ts: string }
   | { kind: "rapport"; tone: string; runningContext: string; insideRefs: string[]; ts: string }
   | { kind: "owner_identity_vault"; vault: OwnerIdentityVault; ts: string };

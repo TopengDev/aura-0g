@@ -110,9 +110,10 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const replyText = sanitizeReply((result.text ?? "").trim()) || "(no reply)";
       const jobId = toolInvocations.find((t) => t.result.job)?.result.job?.jobId ?? null;
 
-      // 5. persist the turn to sealed owner memory (batched per turn)
+      // 5. persist the turn to sealed owner memory (batched per turn). appendTurn is GATED (async):
+      // it resolves ownerOf on-chain and only persists when the caller is the current owner.
       try {
-        appendTurn(agentId, owner, {
+        await appendTurn(agentId, owner, {
           ts: new Date().toISOString(),
           ownerText: userText,
           auraText: replyText,

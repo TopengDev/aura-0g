@@ -18,15 +18,22 @@ async function main() {
   const token = app.jwt.sign({ address: owner });
   const auth = { authorization: `Bearer ${token}` };
 
-  // discover a real on-chain agent to talk to
+  // discover a real on-chain agent to talk to - PREFER one THIS caller OWNS, because relationship memory is
+  // now gated to the agent's current on-chain owner (loadOwnerMemory resolves ownerOf + fails closed). Fall
+  // back to any agent (memory will then be correctly gated OFF, which the script reports honestly).
   let agentId = 0;
   let agentName = "";
+  let fbId = 0, fbName = "";
   for (let i = 1; i <= 40; i++) {
     const a = await rawAgent(i);
-    if (a) { agentId = i; agentName = a.name; break; }
+    if (!a) continue;
+    if (!fbId) { fbId = i; fbName = a.name; }
+    if (a.owner.toLowerCase() === owner) { agentId = i; agentName = a.name; break; }
   }
+  const ownsAgent = agentId !== 0;
+  if (!ownsAgent) { agentId = fbId; agentName = fbName; }
   if (!agentId) throw new Error("no on-chain agent found in 1..40");
-  line(`[setup] talking to agent #${agentId} ${agentName} as owner ${owner.slice(0, 6)}..${owner.slice(-4)}`);
+  line(`[setup] talking to agent #${agentId} ${agentName} as owner ${owner.slice(0, 6)}..${owner.slice(-4)} (caller ${ownsAgent ? "OWNS it -> memory ungated" : "does NOT own it -> memory gated off, by design"})`);
 
   const post = async (message: string) => {
     const r = await app.inject({ method: "POST", url: "/chat", headers: auth, payload: { agentId, message } });
@@ -64,7 +71,7 @@ async function main() {
 
   // ── T3b: DUAL-WALL (a different owner cannot read this owner's sealed segments)
   const stranger = "0x000000000000000000000000000000000000dead";
-  appendTurn(agentId, owner, { ts: new Date().toISOString(), ownerText: "secret to owner A", auraText: "noted", tools: [] });
+  await appendTurn(agentId, owner, { ts: new Date().toISOString(), ownerText: "secret to owner A", auraText: "noted", tools: [] });
   const asStranger = await loadOwnerMemory(agentId, stranger);
   const asOwner = await loadOwnerMemory(agentId, owner);
   line(`\n### T3b dual-wall:`);
