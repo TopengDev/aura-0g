@@ -173,7 +173,7 @@ export async function runLlm(
   tools?: ChatTool[],
   opts: { maxTokens?: number } = {},
 ): Promise<LlmResult> {
-  const maxTokens = opts.maxTokens ?? 512;
+  const maxTokens = opts.maxTokens ?? 2048; // higher ceiling for richer in-character replies; models self-terminate (finish=stop) so short answers stay short
   if (chosen === "anthropic") return callAnthropic(messages, tools, maxTokens);
   try {
     return await callZeroG(messages, tools, maxTokens);

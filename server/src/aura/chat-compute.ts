@@ -146,7 +146,7 @@ export async function chatCompletion(
     const body: Record<string, unknown> = {
       model: svc.model,
       messages,
-      max_tokens: opts.maxTokens ?? 512,
+      max_tokens: opts.maxTokens ?? 2048,
     };
     if (tools && tools.length) {
       body.tools = tools;
