@@ -40,7 +40,7 @@ The two contracts were compared field by field (`contracts/src/AuraINFT.sol` vs
   `feat/sealed-key-transfer` branch) + `contracts/test/AuraINFT.t.sol` ship in v2 and pass
   (forge: 103/103 across the repo, including all AuraINFT reject + happy paths). A standalone
   AuraINFT is even already deployed on Galileo (`0x19738D5C...843d`, referenced by the proof
-  page) — the contract half of the de-mock is DONE; only the app wiring is missing.
+  page): the contract half of the de-mock is DONE; only the app wiring is missing.
 - **Option (b) [port the transfer into AgentRegistry] is strictly worse**: it would
   re-implement AuraINFT's entire proof-gated machinery (sealedKey mapping, EIP-191 verify,
   replay guard, dataHash rotation) inside a second contract, requiring a fresh audit + re-test,
@@ -80,7 +80,7 @@ already drives end to end on-chain.
 6. E2E on Galileo: mint (sealed) -> chat (new memory + ownerOf gate) -> secure transfer
    (happy + forged + expired + replay reject) -> royalty resolves to the new owner.
 
-## Deferred to a main-reviewed PROD CUTOVER (NOT executed here — touches the frozen demo)
+## Deferred to a main-reviewed PROD CUTOVER (NOT executed here, touches the frozen demo)
 
 - Re-mint the live 30 agents onto AuraINFT WITH per-owner sealed keys (each needs the owner's
   recovered secp256k1 pubkey; owners must have logged in via SIWE so `wallet_pubkeys` has them,
