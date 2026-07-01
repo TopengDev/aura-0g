@@ -166,7 +166,8 @@ export interface MintArgsResponse {
 
 /** Computed mintAgent args for the USER to submit (mintAgent is permissionless, user-signed). */
 export interface CreateAgentResponse {
-  contract: string; // AgentRegistry address
+  contract: string; // the mint target: AuraINFT when wired (standard "erc7857"), else AgentRegistry ("erc721")
+  standard: "erc7857" | "erc721"; // which mintAgent shape the client must build (9-arg sealed vs 7-arg)
   chainId: number;
   to: string;
   name: string;
@@ -175,6 +176,10 @@ export interface CreateAgentResponse {
   modelAttestation: string;
   royaltyBps: number;
   creatorResaleBps: number;
+  // ERC-7857 per-owner mint inputs. Present + REQUIRED when standard === "erc7857" (AuraINFT.mintAgent needs
+  // them); the AgentRegistry path leaves sealedKey null (legacy server-custody-only).
+  dataHash: string; // sha256 of the encrypted brain envelope (the contract's dataHash commitment)
+  sealedKey: string | null; // ECIES seal of the AES data-key to the owner's secp256k1 pubkey (0x-hex)
   // diagnostics (NOT consumed by mintAgent, but useful to the client / for verify):
   canonicalBaseRoot: string;
   publicStyle: Record<string, unknown>;

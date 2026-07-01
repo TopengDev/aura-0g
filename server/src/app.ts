@@ -15,6 +15,7 @@ import { healthRoutes } from "./routes/health.js";
 import { generateRoutes } from "./routes/generate.js";
 import { mintArgsRoutes } from "./routes/mint-args.js";
 import { agentsCreateRoutes } from "./routes/agents-create.js";
+import { agentTransferRoutes } from "./routes/agent-transfer.js";
 import { imageRoutes } from "./routes/image.js";
 import { readsRoutes } from "./routes/reads.js";
 import { indexerRoutes } from "./routes/indexer.js";
@@ -57,6 +58,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(generateRoutes);
   await app.register(mintArgsRoutes);
   await app.register(agentsCreateRoutes);
+  await app.register(agentTransferRoutes); // ERC-7857 secure-transfer flow (oracle proof + memory reseal)
   await app.register(imageRoutes); // public GET /image/:root -> real bytes (local cache, 0G fallback)
   // Phase-3 indexer integration: /api/* passthrough + indexer-first /agents,/outputs,/marketplace
   // (with a graceful chain-scan fallback). Registered before readsRoutes; their paths don't overlap

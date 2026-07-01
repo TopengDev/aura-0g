@@ -64,6 +64,23 @@ export function promoteBrainByRoot(encBrainRoot: string, agentId: number, owner:
   return r.changes > 0;
 }
 
+/** Re-custody an agent's brain to the NEW owner after an ERC-7857 secure transfer: the oracle rotated the
+ *  AES key + re-encrypted the envelope + re-sealed to the buyer, so the durable custody row must follow, or
+ *  the new owner's generations would try to decrypt with the old (now-invalid) key. Keyed by agentId. */
+export function recustodyBrainForTransfer(input: {
+  agentId: number;
+  newOwner: string;
+  encBrainRoot: string;
+  brainKeyHex: string;
+  sealedKey: string | null;
+  dataHash: string | null;
+}): boolean {
+  const r = db()
+    .prepare(`UPDATE agent_brains SET owner=?, enc_brain_root=?, brain_key_hex=?, sealed_key=?, data_hash=? WHERE agent_id=?`)
+    .run(input.newOwner.toLowerCase(), input.encBrainRoot, input.brainKeyHex, input.sealedKey, input.dataHash, input.agentId);
+  return r.changes > 0;
+}
+
 /** Look up a brain by the on-chain encBrainRoot (the generalized generator's path). */
 export function brainByRoot(encBrainRoot: string): BrainRecord | null {
   const r = db().prepare(`SELECT * FROM agent_brains WHERE enc_brain_root=? ORDER BY agent_id IS NULL LIMIT 1`).get(encBrainRoot) as any;

@@ -19,6 +19,35 @@ export const REG_ABI = [
   "event AgentMinted(uint256 indexed agentId,address indexed owner,string name,bytes32 styleFingerprint,uint16 royaltyBps,bytes32 modelAttestation)",
 ] as const;
 
+// AuraINFT (ERC-7857 de-mock): the proof-gated secure-transfer successor to AgentRegistry. Superset of
+// REG_ABI: mintAgent gains bytes32 dataHash + bytes sealedKey; getAgent tuple gains bytes32 dataHash at
+// index 3 (all readers here decode by NAMED field, so they are safe across the shift); adds the real
+// oracle-verified transfer() + transferProofDigest + sealedKeyOf + oracle + usedProof; raw
+// transferFrom/safeTransferFrom REVERT on-chain (spec-strict). Beneficiary-dynamic royaltyInfo (ERC2981).
+export const INFT_ABI = [
+  "function mintAgent(address to,string name,bytes32 styleFingerprint,string encBrainRoot,bytes32 dataHash,bytes32 modelAttestation,uint16 royaltyBps,uint16 creatorResaleBps,bytes sealedKey) returns (uint256)",
+  "function ownerOf(uint256) view returns (address)",
+  "function getAgent(uint256) view returns (tuple(string name,bytes32 styleFingerprint,string encBrainRoot,bytes32 dataHash,bytes32 modelAttestation,uint16 royaltyBps,uint16 styleVersion,uint16 creatorResaleBps))",
+  "function royaltyBpsOf(uint256) view returns (uint16)",
+  "function creatorResaleBpsOf(uint256) view returns (uint16)",
+  "function agentCreator(uint256) view returns (address)",
+  "function nextAgentId() view returns (uint256)",
+  "function sealedKeyOf(uint256) view returns (bytes)",
+  "function oracle() view returns (address)",
+  "function usedProof(bytes32) view returns (bool)",
+  "function royaltyInfo(uint256,uint256) view returns (address,uint256)",
+  "function isApprovedForAll(address,address) view returns (bool)",
+  "function getApproved(uint256) view returns (address)",
+  "function setOracle(address)",
+  "function transfer(address from,address to,uint256 tokenId,bytes newSealedKey,string newEncBrainRoot,bytes32 newDataHash,uint256 deadline,bytes proof)",
+  "function transferProofDigest(address from,address to,uint256 tokenId,bytes newSealedKey,bytes32 newDataHash,uint256 deadline) view returns (bytes32)",
+  "function updateBrain(uint256 agentId,string encBrainRoot,bytes32 dataHash,bytes sealedKey)",
+  "event AgentMinted(uint256 indexed agentId,address indexed owner,string name,bytes32 styleFingerprint,uint16 royaltyBps,bytes32 modelAttestation,bytes32 dataHash)",
+  "event BrainRekeyed(uint256 indexed agentId,string newEncRoot,bytes32 newDataHash,address indexed newOwner)",
+  "event SealedKeyDelivered(uint256 indexed agentId,address indexed newOwner,bytes sealedKey,bytes32 sealedKeyHash)",
+  "event OracleUpdated(address indexed oracle)",
+] as const;
+
 // OutputNFT v2: mintOutput gains bytes32 nonce + bytes attestationSig; provenanceOf tuple unchanged;
 // NEW: authDigest (compute the EIP-712 digest), attestor, usedNonce.
 export const OUT_ABI = [
@@ -81,6 +110,20 @@ export function readProvider(): ethers.JsonRpcProvider {
 
 export function registryRead() {
   return new ethers.Contract(CONTRACTS.agentRegistry, REG_ABI as unknown as string[], readProvider());
+}
+/** True when a fresh AuraINFT has been deployed + wired (CONTRACTS.auraINFT set). Gates the INFT flows. */
+export function auraInftConfigured(): boolean {
+  return typeof CONTRACTS.auraINFT === "string" && /^0x[0-9a-fA-F]{40}$/.test(CONTRACTS.auraINFT);
+}
+/** AuraINFT read-only (ownerOf, getAgent, sealedKeyOf, oracle, transferProofDigest, usedProof, royaltyInfo). */
+export function auraInftRead() {
+  if (!auraInftConfigured()) throw new Error("auraINFT not configured (set AURA_INFT_ADDR or deployed-v2.json auraINFT)");
+  return new ethers.Contract(CONTRACTS.auraINFT, INFT_ABI as unknown as string[], readProvider());
+}
+/** AuraINFT bound to a SIGNER (owner/deployer) - used by deploy/e2e tooling, never by the user-args routes. */
+export function auraInftWrite(signer: ethers.Signer) {
+  if (!auraInftConfigured()) throw new Error("auraINFT not configured (set AURA_INFT_ADDR or deployed-v2.json auraINFT)");
+  return new ethers.Contract(CONTRACTS.auraINFT, INFT_ABI as unknown as string[], signer);
 }
 export function outputRead() {
   return new ethers.Contract(CONTRACTS.outputNFT, OUT_ABI as unknown as string[], readProvider());

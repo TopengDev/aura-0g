@@ -23,6 +23,7 @@ export const GALILEO = {
 // ── deployed v2 contracts (read from contracts/deployed-v2.json so there is ONE source of truth) ──
 interface DeployedV2 {
   agentRegistry: string;
+  auraINFT: string; // ERC-7857 de-mock: proof-gated secure-transfer iNFT. "" until deployed/wired (additive).
   outputNFT: string;
   marketplace: string;
   summonEscrow: string; // integrated deploy: the demand-pull commissioning escrow ("" if not deployed)
@@ -38,6 +39,9 @@ function loadDeployed(): DeployedV2 {
   const j = JSON.parse(readFileSync(p, "utf8"));
   return {
     agentRegistry: j.agentRegistry,
+    // OPTIONAL + additive: the live demo does not read auraINFT, so a missing field never breaks it. Present
+    // once a fresh AuraINFT is deployed on Galileo for the secure-transfer + create wiring.
+    auraINFT: j.auraINFT ?? "",
     outputNFT: j.outputNFT,
     marketplace: j.marketplace,
     summonEscrow: j.summonEscrow ?? "",
@@ -54,6 +58,9 @@ export const DEPLOYED = loadDeployed();
 // addresses are env-overridable (same reason as GALILEO above: local anvil e2e vs live Galileo).
 export const CONTRACTS = {
   agentRegistry: process.env.AGENT_REGISTRY_ADDR ?? DEPLOYED.agentRegistry,
+  // AuraINFT (ERC-7857 secure-transfer target). Env-overridable (AURA_INFT_ADDR) for the Galileo e2e; "" =>
+  // the secure-transfer + INFT-mint flows are OFF (graceful), the app keeps reading agentRegistry.
+  auraINFT: process.env.AURA_INFT_ADDR ?? DEPLOYED.auraINFT ?? "",
   outputNFT: process.env.OUTPUT_NFT_ADDR ?? DEPLOYED.outputNFT,
   marketplace: process.env.MARKETPLACE_ADDR ?? DEPLOYED.marketplace,
   // Summon escrow: from deployed-v2.json (the integrated deploy populates it), env-overridable for local

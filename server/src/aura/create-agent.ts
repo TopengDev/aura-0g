@@ -17,6 +17,7 @@ import { stageBrain } from "./store.js";
 import { sealKeyToPubkey, sealedToHex } from "./sealing.js";
 import { pubkeyOf } from "./pubkey.js";
 import { CONTRACTS, GALILEO } from "./config.js";
+import { auraInftConfigured } from "./contracts.js";
 import type { CreateAgentResponse } from "./types.js";
 
 // canonicalize ships a CJS module.exports = fn; under NodeNext the callable may sit on .default.
@@ -76,6 +77,17 @@ function validate(input: CreateAgentInput): CreateAgentValidationError | null {
 export async function createAgent(input: CreateAgentInput): Promise<CreateAgentResponse | CreateAgentValidationError> {
   const v = validate(input);
   if (v) return v;
+
+  // ERC-7857 (AuraINFT) mint REQUIRES a per-owner sealed key, which needs the owner's recovered secp256k1
+  // pubkey (from their SIWE login). Fail FAST here - BEFORE any sponsor-paid 0G upload - if it is missing,
+  // so a user never pays for an agent that would revert at mint (AuraINFT.mintAgent requires sealedKey > 0).
+  if (auraInftConfigured() && !pubkeyOf(input.owner)) {
+    return {
+      ok: false,
+      status: 409,
+      error: "sign in first: ERC-7857 mint seals the brain to your wallet pubkey (recovered at SIWE login). Log in, then create.",
+    };
+  }
 
   const name = input.name.trim();
   const signer = sponsorSigner();
@@ -170,9 +182,13 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
     throw new Error("create-agent: brain envelope failed local-cache persistence verification (refusing to mint an unretrievable agent)");
   }
 
-  // 7. return the computed mintAgent args for the USER to submit (permissionless, user-signed).
+  // 7. return the computed mintAgent args for the USER to submit (permissionless, user-signed). Target
+  //    AuraINFT (ERC-7857, 9-arg mint with dataHash + per-owner sealedKey) when it is wired; otherwise the
+  //    legacy AgentRegistry (7-arg, server-custody only). Both are user-signed + non-custodial.
+  const useInft = auraInftConfigured();
   return {
-    contract: CONTRACTS.agentRegistry,
+    contract: useInft ? CONTRACTS.auraINFT : CONTRACTS.agentRegistry,
+    standard: useInft ? "erc7857" : "erc721",
     chainId: GALILEO.chainId,
     to: input.owner,
     name,
@@ -181,6 +197,8 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
     modelAttestation,
     royaltyBps: input.royaltyBps,
     creatorResaleBps: input.creatorResaleBps,
+    dataHash,
+    sealedKey: sealedKeyHex,
     canonicalBaseRoot,
     publicStyle,
     styleVersionHint: 1,
