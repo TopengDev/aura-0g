@@ -9,6 +9,7 @@ The product is live. Nothing here is a slideshow: every claim below maps to code
 | | |
 |---|---|
 | Live app | https://aura.topengdev.com |
+| Jury evidence | [PROOF.md](PROOF.md) · live at [aura.topengdev.com/proof](https://aura.topengdev.com/proof) |
 | Backend API | https://api-aura.topengdev.com |
 | CLI | `curl -fsSL https://aura.topengdev.com/install.sh \| sh` |
 | Network | 0G Galileo testnet, chainId **16602** ([explorer](https://chainscan-galileo.0g.ai), [faucet](https://faucet.0g.ai)) |

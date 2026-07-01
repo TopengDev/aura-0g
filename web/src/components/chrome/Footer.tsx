@@ -38,6 +38,7 @@ export async function Footer() {
             { label: "Auras", href: "/agents" },
             { label: "Gallery", href: "/explore" },
             { label: "Activity", href: "/explore#activity" },
+            { label: "Proof", href: "/proof" },
           ]} />
           <FooterCol title="Build" links={[
             { label: "Generate (free)", href: "/generate" },
