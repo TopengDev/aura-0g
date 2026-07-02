@@ -19,8 +19,8 @@ import { reencryptForTransfer } from "../aura/oracle.js";
 import { sealedToHex } from "../aura/sealing.js";
 import { pubkeyOf } from "../aura/pubkey.js";
 import { brainByAgentId, recustodyBrainForTransfer } from "../aura/store.js";
-import { store, download } from "../aura/storage.js";
-import { cachedImageByRoot, cacheImageByRoot } from "../aura/image-cache.js";
+import { store } from "../aura/storage.js";
+import { cacheImageByRoot, resolveBytesByRoot } from "../aura/image-cache.js";
 import { sponsorSigner } from "../aura/wallet.js";
 import { resealRelationshipForNewOwner } from "../aura/chat-memory.js";
 import { rateLimit } from "../aura/ratelimit.js";
@@ -95,14 +95,11 @@ export async function agentTransferRoutes(app: FastifyInstance): Promise<void> {
       const brain = brainByAgentId(agentId);
       if (!brain) return reply.code(409).send({ error: "no brain custody for this agent on this backend (mint it through this backend to enable secure transfer)" });
 
-      // current encrypted envelope: durable local cache first, then 0G Storage.
-      let currentEnvelope: Buffer | null = cachedImageByRoot(brain.encBrainRoot)?.bytes ?? null;
+      // current encrypted envelope: durable local cache first, then 0G Storage (shared cache-first resolver).
+      const currentEnvelope: Buffer | null =
+        (await resolveBytesByRoot(brain.encBrainRoot, { source: "brain", contentType: "application/octet-stream" }))?.bytes ?? null;
       if (!currentEnvelope) {
-        try {
-          currentEnvelope = await download(brain.encBrainRoot);
-        } catch {
-          return reply.code(409).send({ error: "current brain envelope is not retrievable (cache miss + 0G eviction)" });
-        }
+        return reply.code(409).send({ error: "current brain envelope is not retrievable (cache miss + 0G eviction)" });
       }
 
       const deadline = Math.floor(Date.now() / 1000) + 3600;

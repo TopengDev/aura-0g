@@ -91,6 +91,17 @@ function eventId(blockNumber: bigint, logIndex: number): string {
   return `${blockNumber.toString()}-${logIndex}`;
 }
 
+// A defensive `context.db.update(...)` may target a row that is not indexed yet (an out-of-order event) or
+// was reverted (reorg): Ponder throws RecordNotFoundError ("No existing record found in table ...") for that,
+// which is EXPECTED and safe to swallow. But the previous bare `.catch(() => {})` also swallowed REAL DB
+// failures (connection, constraint, type) - hiding them. Log everything EXCEPT the benign missing-row case.
+function onUpdateError(where: string, e: unknown): void {
+  const name = e instanceof Error ? e.name : "";
+  const msg = e instanceof Error ? e.message : String(e);
+  if (name === "RecordNotFoundError" || /no existing record found/i.test(msg)) return; // benign: row not indexed yet / reverted
+  console.error(`[indexer] db.update failed (${where}): ${msg}`);
+}
+
 // ─────────────────────────── AgentRegistry ───────────────────────────
 
 ponder.on("AgentRegistry:AgentMinted", async ({ event, context }) => {
@@ -163,7 +174,7 @@ ponder.on("AgentRegistry:BrainUpdated", async ({ event, context }) => {
   await context.db
     .update(agents, { agentId })
     .set({ encBrainRoot, styleVersion: Number(styleVersion) })
-    .catch(() => {});
+    .catch((e) => onUpdateError("AgentRegistry:BrainUpdated agents", e));
 
   await context.db.insert(events).values({
     id: eventId(event.block.number, event.log.logIndex),
@@ -187,7 +198,7 @@ ponder.on("AgentRegistry:Transfer", async ({ event, context }) => {
   await context.db
     .update(agents, { agentId: tokenId })
     .set({ owner: to.toLowerCase() as `0x${string}` })
-    .catch(() => {});
+    .catch((e) => onUpdateError("AgentRegistry:Transfer agents", e));
 
   await context.db.insert(events).values({
     id: eventId(event.block.number, event.log.logIndex),
@@ -270,7 +281,7 @@ ponder.on("OutputNFT:Transfer", async ({ event, context }) => {
   await context.db
     .update(outputs, { tokenId })
     .set({ owner: to.toLowerCase() as `0x${string}` })
-    .catch(() => {});
+    .catch((e) => onUpdateError("OutputNFT:Transfer outputs", e));
 
   await context.db.insert(events).values({
     id: eventId(event.block.number, event.log.logIndex),
@@ -319,10 +330,13 @@ ponder.on("AuraMarketplace:Listed", async ({ event, context }) => {
       orderKey: ok,
     });
 
-  // a listing of an OUTPUT counts toward its creating agent's listing activity.
+  // a listing of an OUTPUT counts toward its creating agent's listing activity. Resolve the output row ONCE
+  // and reuse its creatorAgentId when logging the event below (previously found twice for the same event).
+  let listingAgentId: bigint | null = null;
   if (kind === "output") {
     const out = await context.db.find(outputs, { tokenId });
     if (out) {
+      listingAgentId = out.creatorAgentId;
       await context.db
         .insert(agentStats)
         .values({ agentId: out.creatorAgentId, name: "", listingsCount: 1, lastActivityAt: ts })
@@ -344,7 +358,7 @@ ponder.on("AuraMarketplace:Listed", async ({ event, context }) => {
     collection: collection.toLowerCase() as `0x${string}`,
     collectionKind: kind === "unknown" ? null : kind,
     tokenId,
-    agentId: kind === "output" ? (await context.db.find(outputs, { tokenId }))?.creatorAgentId ?? null : null,
+    agentId: listingAgentId, // reuse the single find above (no second lookup for the same output)
     actor: seller.toLowerCase() as `0x${string}`,
     price,
   });
@@ -357,7 +371,7 @@ ponder.on("AuraMarketplace:PriceUpdated", async ({ event, context }) => {
   await context.db
     .update(listings, { id: listingId(collection, tokenId) })
     .set({ price: newPrice, updatedAt: ts, orderKey: ok })
-    .catch(() => {});
+    .catch((e) => onUpdateError("AuraMarketplace:PriceUpdated listings", e));
 
   await context.db.insert(events).values({
     id: eventId(event.block.number, event.log.logIndex),
@@ -381,7 +395,7 @@ ponder.on("AuraMarketplace:ListingCancelled", async ({ event, context }) => {
   await context.db
     .update(listings, { id: listingId(collection, tokenId) })
     .set({ active: false, updatedAt: ts, orderKey: ok })
-    .catch(() => {});
+    .catch((e) => onUpdateError("AuraMarketplace:ListingCancelled listings", e));
 
   await context.db.insert(events).values({
     id: eventId(event.block.number, event.log.logIndex),
@@ -417,7 +431,7 @@ ponder.on("AuraMarketplace:Sold", async ({ event, context }) => {
   await context.db
     .update(listings, { id: listingId(collection, tokenId) })
     .set({ active: false, updatedAt: ts, orderKey: ok })
-    .catch(() => {});
+    .catch((e) => onUpdateError("AuraMarketplace:Sold listings", e));
 
   // 2. resolve the SELLING agent for earnings routing:
   //    - output sale  -> the output's creatorAgentId

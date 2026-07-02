@@ -9,35 +9,18 @@
 //
 // No auth: images are public content (the gallery is public). Read-only.
 import type { FastifyInstance } from "fastify";
-import { cachedImageByRoot, cacheImageByRoot } from "../aura/image-cache.js";
-import { download } from "../aura/storage.js";
+import { resolveBytesByRoot } from "../aura/image-cache.js";
 import { brainByAgentId } from "../aura/store.js";
 import { db } from "../aura/db.js";
 
 const IMMUTABLE = "public, max-age=31536000, immutable"; // content-addressed => safe to cache hard
-
-/** Resolve bytes for a 0G root: durable local cache first, best-effort 0G fallback (backfilled). */
-async function bytesForRoot(root: string): Promise<{ bytes: Buffer; contentType: string } | null> {
-  const cached = cachedImageByRoot(root);
-  if (cached) return cached;
-  try {
-    const bytes = await download(root);
-    if (bytes && bytes.length > 0) {
-      cacheImageByRoot(root, bytes, { source: "0g-fallback" });
-      return { bytes, contentType: "image/png" };
-    }
-  } catch {
-    /* evicted on testnet */
-  }
-  return null;
-}
 
 export async function imageRoutes(app: FastifyInstance): Promise<void> {
   // ── GET /image/:root -> real bytes for an output/reference 0G root ──
   app.get<{ Params: { root: string } }>("/image/:root", async (req, reply) => {
     const root = decodeURIComponent(req.params.root || "").trim();
     if (!root) return reply.code(400).send({ error: "root required" });
-    const hit = await bytesForRoot(root);
+    const hit = await resolveBytesByRoot(root);
     if (hit) return reply.header("Content-Type", hit.contentType || "image/png").header("Cache-Control", IMMUTABLE).send(hit.bytes);
     return reply.code(404).send({ error: "image bytes not available for this root" });
   });
@@ -54,7 +37,7 @@ export async function imageRoutes(app: FastifyInstance): Promise<void> {
     // 1. the reference image (the brain's canonicalBaseRoot).
     const rec = brainByAgentId(agentId);
     if (rec?.canonicalBaseRoot) {
-      const hit = await bytesForRoot(rec.canonicalBaseRoot);
+      const hit = await resolveBytesByRoot(rec.canonicalBaseRoot);
       if (hit) return reply.header("Content-Type", hit.contentType || "image/png").header("Cache-Control", IMMUTABLE).send(hit.bytes);
     }
 
@@ -68,7 +51,7 @@ export async function imageRoutes(app: FastifyInstance): Promise<void> {
         )
         .get(agentId) as { root?: string } | undefined;
       if (row?.root) {
-        const hit = await bytesForRoot(row.root);
+        const hit = await resolveBytesByRoot(row.root);
         if (hit) return reply.header("Content-Type", hit.contentType || "image/png").header("Cache-Control", "public, max-age=3600").send(hit.bytes);
       }
     } catch {

@@ -12,8 +12,8 @@ import path from "node:path";
 import { ethers } from "ethers";
 import { sponsorSigner } from "./wallet.js";
 import { getBroker, imageService, generate } from "./compute.js";
-import { store, download } from "./storage.js";
-import { cacheImageByRoot, cachedImageByRoot } from "./image-cache.js";
+import { store } from "./storage.js";
+import { cacheImageByRoot, resolveBytesByRoot } from "./image-cache.js";
 import { baseForSeededAgent, fallbackPrompt } from "./catalog.js";
 import { rawAgent } from "./agents.js";
 import { brainByRoot, brainByAgentId } from "./store.js";
@@ -76,26 +76,6 @@ export function teeVerifyPassed(verified: boolean | string): boolean {
 }
 
 /**
- * Load bytes for a 0G content root, durable-source FIRST. 0G Storage testnet evicts image-sized blobs
- * (verified), so we read the local content-addressed cache first, then fall back to a 0G download (and
- * backfill the cache on a successful 0G hit). Returns null if neither source has the bytes.
- */
-async function loadBytesByRoot(root: string, source: string): Promise<Buffer | null> {
-  const cached = cachedImageByRoot(root);
-  if (cached) return cached.bytes;
-  try {
-    const bytes = await download(root);
-    if (bytes && bytes.length > 0) {
-      cacheImageByRoot(root, bytes, { source }); // backfill so the next read is local + durable
-      return bytes;
-    }
-  } catch {
-    /* 0G miss (likely evicted on testnet) */
-  }
-  return null;
-}
-
-/**
  * Reconstruct { baseBytes, prompt } for an agent + user prompt.
  *   - Agent WITH a brain (encBrainRoot + server-custody key): MUST generate via the brain. The base
  *     image is loaded from the durable local cache first, 0G second. If the brain genuinely cannot be
@@ -122,7 +102,7 @@ export async function resolveGenConfig(
 
   if (hasBrainRoot && rec) {
     // ENFORCED brain path. Any failure here throws (no silent catalog fallback for a brain-backed agent).
-    const envelopeBytes = await loadBytesByRoot(rec.encBrainRoot, "brain");
+    const envelopeBytes = (await resolveBytesByRoot(rec.encBrainRoot, { source: "brain" }))?.bytes ?? null;
     if (!envelopeBytes) {
       throw new BrainUnavailableError(
         `agent #${agentId} (${agentName}) brain envelope unavailable (root ${rec.encBrainRoot.slice(0, 14)}... not in local cache or 0G)`,
@@ -134,7 +114,7 @@ export async function resolveGenConfig(
     } catch (e: any) {
       throw new BrainUnavailableError(`agent #${agentId} (${agentName}) brain decrypt failed: ${String(e?.message).slice(0, 100)}`);
     }
-    const baseBytes = await loadBytesByRoot(brain.canonicalBaseRoot, "reference");
+    const baseBytes = (await resolveBytesByRoot(brain.canonicalBaseRoot, { source: "reference" }))?.bytes ?? null;
     if (!baseBytes) {
       throw new BrainUnavailableError(
         `agent #${agentId} (${agentName}) reference image unavailable (root ${brain.canonicalBaseRoot.slice(0, 14)}... not in local cache or 0G). Re-create the agent to re-persist its reference image.`,

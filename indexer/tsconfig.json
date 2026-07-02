@@ -11,5 +11,7 @@
     "types": ["node"]
   },
   "include": ["./**/*.ts", "ponder-env.d.ts"],
-  "exclude": ["node_modules"]
+  // scripts/ holds standalone manual scripts (e.g. trade-roundtrip.ts) that expect their own hoisted deps
+  // and are not part of the Ponder app; typecheck the app only (keeps the workspace typecheck/CI green).
+  "exclude": ["node_modules", "scripts"]
 }

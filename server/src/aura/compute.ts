@@ -3,7 +3,7 @@
 // processResponse() returns the hardware-signed TEE pass that makes provenance unforgeable.
 // The SPONSOR wallet pays for generation (compute ledger). No change to the proven 0G integration.
 import { ethers } from "ethers";
-import { createZGComputeNetworkBroker } from "./zg-compute.js";
+import { createZGComputeNetworkBroker, type ZgBroker, type ZgService } from "./zg-compute.js";
 
 export interface ImageService {
   provider: string;
@@ -23,24 +23,25 @@ export interface GenerationResult {
 }
 
 /** Construct the compute broker for a signer (the SPONSOR wallet pays for generation). */
-export async function getBroker(signer: ethers.Wallet): Promise<any> {
+export async function getBroker(signer: ethers.Wallet): Promise<ZgBroker> {
   return await createZGComputeNetworkBroker(signer);
 }
 
 /** Find the TEE image service on testnet. */
-export async function imageService(broker: any): Promise<ImageService> {
+export async function imageService(broker: ZgBroker): Promise<ImageService> {
   const services = await broker.inference.listService();
   const img = services.find(
-    (s: any) => s.serviceType === "image-editing" || s.serviceType === "text-to-image",
+    (s: ZgService) => s.serviceType === "image-editing" || s.serviceType === "text-to-image",
   );
   if (!img) throw new Error("no image service served on 0G Compute testnet right now");
   const meta = await broker.inference.getServiceMetadata(img.provider);
-  return { provider: img.provider, meta, verifiability: img.verifiability, teeSigner: img.teeSignerAddress };
+  return { provider: img.provider, meta, verifiability: img.verifiability ?? "", teeSigner: img.teeSignerAddress ?? "" };
 }
 
 /** Fund the compute ledger + provider sub-account (idempotent). Ported from run-aura.ts fundCompute. */
-export async function fundCompute(broker: any, provider: string): Promise<void> {
-  const lp: any = (broker.ledger as any).ledger;
+export async function fundCompute(broker: ZgBroker, provider: string): Promise<void> {
+  // SDK-internal min-balance hack: poke the nested ledger object's constructor static. Untyped by design.
+  const lp: any = broker.ledger.ledger;
   if (lp?.constructor && "MIN_LEDGER_BALANCE_OG" in lp.constructor) lp.constructor.MIN_LEDGER_BALANCE_OG = 0;
   try {
     await broker.ledger.depositFund(1.0);
@@ -64,7 +65,7 @@ export async function fundCompute(broker: any, provider: string): Promise<void> 
  * ritual once and retries (matches run-aura.ts). Returns image bytes + the TEE proof.
  */
 export async function generate(
-  broker: any,
+  broker: ZgBroker,
   svc: ImageService,
   baseBytes: Buffer,
   prompt: string,

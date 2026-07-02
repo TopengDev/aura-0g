@@ -1,0 +1,77 @@
+name: CI
+
+# Minimal CI for the AURA monorepo: Solidity tests (Foundry) + a TypeScript typecheck of every
+# workspace + the server's offline invariant test suite. The repo is intentionally NOT a single
+# package manager - server uses npm, web/indexer use pnpm, cli uses bun - so each workspace installs
+# with its own tool + committed lockfile (frozen) for reproducibility.
+
+on:
+  push:
+    branches: [v2, main]
+  pull_request:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contracts:
+    name: contracts (forge test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: foundry-rs/foundry-toolchain@v1
+      # OZ is not vendored (contracts/lib is gitignored, no submodules); install the pinned version the
+      # contracts compile against. --no-git clones into lib/ without creating a submodule.
+      - name: Install contract dependencies
+        working-directory: contracts
+        run: forge install OpenZeppelin/openzeppelin-contracts@v5.6.1 --no-git
+      - name: forge test
+        working-directory: contracts
+        run: forge test -vv
+
+  typecheck-and-test:
+    name: typecheck (all workspaces) + server tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: oven-sh/setup-bun@v2
+
+      # server (npm) - typecheck + the offline invariant suite (poc-hardening, memory core, chat-memory
+      # wall, gacha + catalog cross-checks).
+      - name: server install + typecheck + test
+        working-directory: server
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+
+      # indexer (pnpm) - Ponder app typecheck (ponder-env.d.ts is committed, so no codegen needed).
+      # strict-dep-builds=false: skip native build scripts (esbuild) without failing - tsc doesn't need them.
+      - name: indexer install + typecheck
+        working-directory: indexer
+        run: |
+          pnpm install --frozen-lockfile --config.strict-dep-builds=false
+          pnpm typecheck
+
+      # cli (bun) - typecheck the terminal client.
+      - name: cli install + typecheck
+        working-directory: cli
+        run: |
+          bun install --frozen-lockfile
+          bun run typecheck
+
+      # web (pnpm) - Next.js app typecheck (no build; that stays a deploy concern).
+      # strict-dep-builds=false: skip native build scripts (sharp, etc.) without failing - tsc doesn't need them.
+      - name: web install + typecheck
+        working-directory: web
+        run: |
+          pnpm install --frozen-lockfile --config.strict-dep-builds=false
+          npx tsc --noEmit

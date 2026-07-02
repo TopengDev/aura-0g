@@ -18,6 +18,7 @@ interface SummonRow {
   fee: string;
   deadline: number;
   status: string;
+  progress: string | null;
   image_root: string | null;
   token_id: number | null;
   fulfill_tx: string | null;
@@ -166,6 +167,7 @@ export async function summonRoutes(app: FastifyInstance): Promise<void> {
       requestId: id,
       // the journal status is richer (generating/fulfilling); fall back to on-chain when the watcher is off.
       status: row?.status ?? (settled ? "settled" : "pending"),
+      progress: row?.progress ?? null, // human-readable stage line (persisted by the watcher's setStatus)
       agentId: row?.agent_id ?? onChain?.agentId ?? null,
       agentName: row?.agent_name ?? null,
       buyer: row?.buyer ?? onChain?.buyer ?? null,

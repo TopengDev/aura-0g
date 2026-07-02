@@ -5,6 +5,7 @@
 // into the backend, reusing the proven broker + funding ritual. No change to the image compute path.
 import { ethers } from "ethers";
 import { getBroker, fundCompute } from "./compute.js";
+import type { ZgBroker, ZgService } from "./zg-compute.js";
 import { sponsorSigner } from "./wallet.js";
 import { CHAT_MAINNET_RPC, CHAT_MAINNET_CHAIN_ID, chatMainnetKey } from "./config.js";
 
@@ -105,7 +106,7 @@ export function chatTeemlAllowlist(): Set<string> {
  * On TESTNET the flag is honest (no relay-proxy problem; qwen2.5-omni-7b is genuinely in-enclave), so only
  * (1) applies, which qwen satisfies -> testnet selection is UNCHANGED. Pure + synchronous => trivially unit-traceable.
  */
-export function chatServiceAllowed(svc: { provider: string; verifiability: string }, network: ChatNetwork): boolean {
+export function chatServiceAllowed(svc: { provider: string; verifiability?: string }, network: ChatNetwork): boolean {
   if (!/teeml/i.test(String(svc.verifiability || ""))) return false; // (1) TEE floor - both networks
   if (network === "mainnet" && !chatTeemlAllowlist().has(String(svc.provider || "").toLowerCase())) return false; // (2) mainnet allowlist
   return true;
@@ -116,7 +117,7 @@ export function chatServiceAllowed(svc: { provider: string; verifiability: strin
 // broker is cached SEPARATELY from the discovered service so the /chat/models route + a pick-a-specific-
 // model route can reuse the (expensive) broker without forcing the default-service discovery. Caches are
 // keyed BY NETWORK so the mainnet + testnet brokers/services never collide (the isolation is enforced here).
-const _brokerCache: Partial<Record<ChatNetwork, { broker: any; at: number }>> = {};
+const _brokerCache: Partial<Record<ChatNetwork, { broker: ZgBroker; at: number }>> = {};
 const _svcCache: Partial<Record<ChatNetwork, { svc: ChatService; at: number }>> = {};
 const SVC_TTL_MS = 5 * 60_000;
 
@@ -127,13 +128,13 @@ const SVC_TTL_MS = 5 * 60_000;
  *     yet, so acknowledged-only would hide GLM-5.1; the funding ritual in chatCompletion acknowledges the
  *     picked provider on first use, and chatServiceAllowed() keeps listing-the-unacknowledged safe.
  */
-async function listChatServicesRaw(broker: any, network: ChatNetwork): Promise<any[]> {
+async function listChatServicesRaw(broker: ZgBroker, network: ChatNetwork): Promise<ZgService[]> {
   if (network === "mainnet") return await pageAllServices(broker, true);
   return await broker.inference.listService();
 }
 
 /** True when a discovered 0G service can serve chat completions (its serviceType or model id signals it). */
-function isChatService(s: any): boolean {
+function isChatService(s: ZgService): boolean {
   return (
     /chat|text|llm|chatbot|completion/i.test(String(s.serviceType)) ||
     /omni|qwen2|llm|chatbot|instruct|deepseek|glm|gpt|gemma|llama|mixtral|mistral/i.test(String(s.model))
@@ -167,36 +168,36 @@ export function chatModelScore(model: string): number {
  * the preferred one is absent. An operator can pin a specific model via AURA_CHAT_PREFER (substring match) or
  * restore the old first-match behaviour with AURA_CHAT_RANK=0. Throws if no chat service is served right now.
  */
-export async function chatService(broker: any, network: ChatNetwork = chatNetwork()): Promise<ChatService> {
+export async function chatService(broker: ZgBroker, network: ChatNetwork = chatNetwork()): Promise<ChatService> {
   const services = await listChatServicesRaw(broker, network);
   // THE MOAT: only consider services that pass the integrity guard (TeeML on both nets; TeeML + allowlist on
   // mainnet). This runs BEFORE ranking, so a higher-scoring relay-proxy tagged "TeeML" (e.g. a DeepSeek proxy,
   // family score 40) can NEVER be auto-picked on mainnet - it is filtered out before the sort even sees it.
-  const chats = services.filter(isChatService).filter((s: any) => chatServiceAllowed(s, network));
+  const chats = services.filter(isChatService).filter((s: ZgService) => chatServiceAllowed(s, network));
   if (!chats.length) throw new Error(`no allowlisted TEE chat service served on 0G ${network} right now`);
 
   const prefer = (process.env.AURA_CHAT_PREFER || "").toLowerCase();
   const rank = (process.env.AURA_CHAT_RANK ?? "1") !== "0";
 
-  let chat: any;
-  if (prefer) chat = chats.find((s: any) => String(s.model).toLowerCase().includes(prefer)); // explicit operator pin
-  if (!chat && rank) chat = [...chats].sort((a: any, b: any) => chatModelScore(String(b.model)) - chatModelScore(String(a.model)))[0];
-  if (!chat) chat = chats.find((s: any) => /qwen/i.test(String(s.model))) ?? chats[0]; // safe qwen / first fallback
+  let chat: ZgService | undefined;
+  if (prefer) chat = chats.find((s: ZgService) => String(s.model).toLowerCase().includes(prefer)); // explicit operator pin
+  if (!chat && rank) chat = [...chats].sort((a: ZgService, b: ZgService) => chatModelScore(String(b.model)) - chatModelScore(String(a.model)))[0];
+  if (!chat) chat = chats.find((s: ZgService) => /qwen/i.test(String(s.model))) ?? chats[0]; // safe qwen / first fallback
 
   const meta = await broker.inference.getServiceMetadata(chat.provider);
   return {
     provider: chat.provider,
     endpoint: meta.endpoint,
     model: meta.model,
-    verifiability: chat.verifiability,
-    teeSigner: chat.teeSignerAddress,
+    verifiability: chat.verifiability ?? "",
+    teeSigner: chat.teeSignerAddress ?? "",
   };
 }
 
 /** Build (or reuse) the cached broker FOR A NETWORK. Testnet uses the SPONSOR signer (unchanged); mainnet
  *  uses the dedicated isolated mainnet signer. Defaults to the active network so existing no-arg callers are
  *  testnet when AURA_CHAT_MAINNET is unset (today's behavior) and mainnet when it is set. */
-export async function getChatBroker(network: ChatNetwork = chatNetwork()): Promise<any> {
+export async function getChatBroker(network: ChatNetwork = chatNetwork()): Promise<ZgBroker> {
   const hit = _brokerCache[network];
   if (hit && Date.now() - hit.at < SVC_TTL_MS) return hit.broker;
   const broker = await getBroker(chatSigner(network));
@@ -208,7 +209,7 @@ export async function getChatBroker(network: ChatNetwork = chatNetwork()): Promi
  *  for a network. Returns the network too so callers can label attestation/health honestly. */
 export async function getChatBrokerAndService(
   network: ChatNetwork = chatNetwork(),
-): Promise<{ broker: any; svc: ChatService; network: ChatNetwork }> {
+): Promise<{ broker: ZgBroker; svc: ChatService; network: ChatNetwork }> {
   const broker = await getChatBroker(network);
   const hit = _svcCache[network];
   if (hit && Date.now() - hit.at < SVC_TTL_MS) return { broker, svc: hit.svc, network };
@@ -257,8 +258,8 @@ const _reachCache = new Map<string, { online: boolean | null; at: number }>();
 const _modelsCache: Partial<Record<ChatNetwork, { models: ChatModelInfo[]; defaultId: string | null; at: number }>> = {};
 
 /** Page the FULL inference registry (optionally including services whose TEE signer is unacknowledged). */
-async function pageAllServices(broker: any, includeUnacknowledged: boolean): Promise<any[]> {
-  const out: any[] = [];
+async function pageAllServices(broker: ZgBroker, includeUnacknowledged: boolean): Promise<ZgService[]> {
+  const out: ZgService[] = [];
   for (let off = 0; off < 500; off += 50) {
     const page = await broker.inference.listService(off, 50, includeUnacknowledged);
     if (!Array.isArray(page) || !page.length) break;
@@ -351,7 +352,7 @@ export async function listChatModels(
   // verdict for THIS network (TeeML on testnet; TeeML + allowlist on mainnet) - the raw teeAttested flag is
   // ALSO kept so the UI can show a relay-proxy honestly as "tagged TeeML but not a trusted in-enclave provider".
   const raw = await Promise.all(
-    chats.map(async (s: any) => {
+    chats.map(async (s: ZgService) => {
       const teeAttested = /teeml/i.test(String(s.verifiability || ""));
       const trusted = chatServiceAllowed(s, network);
       const acknowledged = !!s.teeSignerAcknowledged;
@@ -421,7 +422,7 @@ export async function listChatModels(
  * unacknowledged so a not-yet-acknowledged-but-allowlisted GLM is routable, then funded on first use.)
  */
 export async function chatServiceFor(
-  broker: any,
+  broker: ZgBroker,
   modelId: string,
   network: ChatNetwork = chatNetwork(),
 ): Promise<ChatService | null> {
@@ -430,13 +431,13 @@ export async function chatServiceFor(
   const services = await listChatServicesRaw(broker, network);
   const chats = services.filter(isChatService);
   const match =
-    chats.find((s: any) => String(s.model).toLowerCase() === target) ??
-    chats.find((s: any) => String(s.model).toLowerCase().includes(target)) ??
-    chats.find((s: any) => target.includes(String(s.model).toLowerCase()));
+    chats.find((s: ZgService) => String(s.model).toLowerCase() === target) ??
+    chats.find((s: ZgService) => String(s.model).toLowerCase().includes(target)) ??
+    chats.find((s: ZgService) => target.includes(String(s.model).toLowerCase()));
   if (!match) return null;
   if (!chatServiceAllowed(match, network)) return null; // TEE floor (both nets) + allowlist (mainnet)
   const meta = await broker.inference.getServiceMetadata(match.provider);
-  return { provider: match.provider, endpoint: meta.endpoint, model: meta.model, verifiability: match.verifiability, teeSigner: match.teeSignerAddress };
+  return { provider: match.provider, endpoint: meta.endpoint, model: meta.model, verifiability: match.verifiability ?? "", teeSigner: match.teeSignerAddress ?? "" };
 }
 
 /** The content string the billing header + TEE attestation are signed over (mirrors the DD smoke). */
@@ -452,7 +453,7 @@ function billText(messages: ChatMessage[]): string {
  * once and retries (matches compute.ts). Returns the reply + tool calls + the processResponse TEE verdict.
  */
 export async function chatCompletion(
-  broker: any,
+  broker: ZgBroker,
   svc: ChatService,
   messages: ChatMessage[],
   tools?: ChatTool[],

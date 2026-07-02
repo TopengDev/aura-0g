@@ -175,6 +175,8 @@ docker compose -f docker-compose.yml up --build
 
 To run a service directly for development, each has its own scripts: `server/` (`npm run dev`, Fastify on :8787), `indexer/` (`ponder dev` on :42069), `web/` (`next dev` on :3000), `cli/` (`bun run dev verify 23`). Server env is documented in [`server/.env.example`](./server/.env.example); contracts deploy via Foundry, see [`contracts/README.md`](./contracts/README.md).
 
+**Tests + CI.** `cd server && npm test` runs the offline invariant suite (POC hardening, memory core, the chat-memory ownership wall, and the gacha + catalog server↔indexer cross-checks). CI ([`.github/workflows/ci.yml`](./.github/workflows/ci.yml)) runs `forge test` (contracts) + a `tsc --noEmit` typecheck of every workspace + that server suite on every push and PR.
+
 ---
 
 ## Honest scope

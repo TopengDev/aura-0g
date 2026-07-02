@@ -15,6 +15,7 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
 import path from "node:path";
 import { db } from "./db.js";
+import { download } from "./storage.js";
 import { GEN_DIR } from "./config.js";
 
 // Cache dir lives next to the generated-images dir (same named volume), so it persists across restarts.
@@ -103,6 +104,32 @@ export function cachedImageByRoot(root: string): CachedImage | null {
     }
   } catch {
     /* fall through */
+  }
+  return null;
+}
+
+/**
+ * Resolve bytes for a 0G content root, durable-source FIRST: the local content-addressed cache, then a
+ * best-effort 0G Storage download (backfilled into the cache on a hit so the next read is local + durable).
+ * Returns null if neither source has the bytes. This is the SINGLE cache-first resolver the image endpoint,
+ * the generate path, and the brain-transfer path all share (previously three drifting copies).
+ * `source`/`contentType` label the backfill (default an image PNG; pass octet-stream for brain envelopes).
+ */
+export async function resolveBytesByRoot(
+  root: string,
+  opts?: { source?: string; contentType?: string },
+): Promise<CachedImage | null> {
+  const cached = cachedImageByRoot(root);
+  if (cached) return cached;
+  try {
+    const bytes = await download(root);
+    if (bytes && bytes.length > 0) {
+      const contentType = opts?.contentType ?? "image/png";
+      cacheImageByRoot(root, bytes, { source: opts?.source ?? "0g-fallback", contentType });
+      return { bytes, contentType };
+    }
+  } catch {
+    /* 0G miss (likely evicted on testnet) */
   }
   return null;
 }

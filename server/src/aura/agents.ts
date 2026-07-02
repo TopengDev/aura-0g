@@ -80,7 +80,8 @@ interface OnChainAgent {
   encBrainRoot: string;
 }
 
-/** Enumerate every minted agent on-chain (1 .. nextAgentId-1). TODO(Phase 3): re-back via indexer. */
+/** Enumerate every minted agent on-chain (1 .. nextAgentId-1). Kept as the indexer-down fallback
+ *  (routes/indexer.ts prefers the indexer; this chain scan only runs when the indexer is unreachable). */
 async function onChainAgents(): Promise<OnChainAgent[]> {
   const reg = registryRead();
   const next = Number(await reg.nextAgentId());
@@ -107,7 +108,7 @@ async function onChainAgents(): Promise<OnChainAgent[]> {
   return out;
 }
 
-/** Count outputs per creating agent. TODO(Phase 3): re-back via indexer. */
+/** Count outputs per creating agent. Kept as the indexer-down fallback (the indexer serves this in prod). */
 async function outputCounts(): Promise<Map<number, number[]>> {
   const out = outputRead();
   const next = Number(await out.nextTokenId());

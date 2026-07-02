@@ -107,6 +107,7 @@ function migrate(d: Database.Database): void {
       fee             TEXT NOT NULL,            -- wei, as a decimal string
       deadline        INTEGER NOT NULL,         -- unix seconds
       status          TEXT NOT NULL DEFAULT 'pending',
+      progress        TEXT,                     -- human-readable stage line for the ~42s summon UX
       image_root      TEXT,
       provenance_hash TEXT,
       tee_attestation TEXT,
@@ -146,6 +147,10 @@ function migrate(d: Database.Database): void {
   // The watcher fetches that block's hash at gen-time to root the deterministic pull seed (closes buyer
   // grinding). Nullable so a pre-cutover row (no captured block) cleanly falls back. Idempotent ALTER.
   addColumnIfMissing(d, "summon_requests", "summon_block", "INTEGER");
+
+  // Human-readable progress line for the summon status UX (persisted by SummonWatcher.setStatus, served by
+  // GET /summon/:id/status). Idempotent ALTER so existing DBs upgrade in place. Nullable (old rows -> null).
+  addColumnIfMissing(d, "summon_requests", "progress", "TEXT");
 
   // M2 (single-mint sentinel): a done job may be minted AT MOST ONCE. mint-args records the single
   // attestation nonce it issued for a job (+ the bound recipient) so it never signs a SECOND distinct

@@ -17,7 +17,7 @@
 // unfulfillable request 'expired' so the UI can surface the refund button; it never moves the buyer's money.
 import { ethers } from "ethers";
 import { db } from "./db.js";
-import { summonRead, summonWrite, readProvider } from "./contracts.js";
+import { summonRead, summonWrite, readProvider, SUMMON_ABI, parseEvent } from "./contracts.js";
 import { sponsorSigner } from "./wallet.js";
 import { signSettlementMintAuth, type MintAuthParams } from "./attestation.js";
 import { generateAndProve, type GenProof } from "./generate.js";
@@ -35,6 +35,10 @@ import {
   MAX_SUMMON_ATTEMPTS,
   SUMMON_RETRY_BACKOFF_MS,
 } from "./config.js";
+
+// The escrow's event interface (built once from the shared SUMMON_ABI in contracts.ts) - used to parse the
+// Fulfilled log off a fulfill receipt. Avoids re-declaring the Fulfilled ABI inline (it lives in ONE place now).
+const SUMMON_IFACE = new ethers.Interface(SUMMON_ABI as unknown as string[]);
 
 /** The gen function the watcher uses. Injectable so the e2e can swap in a fast deterministic stub.
  *  `pull` carries the deterministic gacha seedRoot + the hash-into-pools subject for THIS summon (the
@@ -339,18 +343,8 @@ export class SummonWatcher {
   }
 
   private tokenIdFromReceipt(rcpt: ethers.TransactionReceipt): number | null {
-    const iface = new ethers.Interface([
-      "event Fulfilled(uint256 indexed requestId,uint256 indexed agentId,address indexed buyer,uint256 tokenId,address agentOwner,uint256 ownerCut,uint256 platformFee)",
-    ]);
-    for (const lg of rcpt.logs) {
-      try {
-        const p = iface.parseLog(lg);
-        if (p?.name === "Fulfilled") return Number(p.args.tokenId);
-      } catch {
-        /* not our event */
-      }
-    }
-    return null;
+    const args = parseEvent(rcpt, SUMMON_IFACE, "Fulfilled");
+    return args ? Number(args.tokenId) : null;
   }
 
   // ── interval poller (prod). Non-overlapping: the next tick is scheduled only after the current finishes. ──
@@ -396,10 +390,12 @@ export class SummonWatcher {
       .run(r.requestId, r.agentId, r.buyer.toLowerCase(), r.fee, r.deadline, r.summonBlock, now, now);
   }
 
-  private setStatus(id: number, status: string, _detail: string): void {
+  // Persist the composed human-readable progress line alongside the status so the ~42s summon UX can show
+  // "generating inside the TEE (~42s)" / "submitting fulfill()..." (served by GET /summon/:id/status).
+  private setStatus(id: number, status: string, progress: string): void {
     db()
-      .prepare(`UPDATE summon_requests SET status = ?, updated_at = ? WHERE request_id = ?`)
-      .run(status, nowIso(), id);
+      .prepare(`UPDATE summon_requests SET status = ?, progress = ?, updated_at = ? WHERE request_id = ?`)
+      .run(status, progress, nowIso(), id);
   }
 
   private bumpAttempts(id: number): void {

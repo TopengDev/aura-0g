@@ -24,7 +24,7 @@ import schema from "ponder:schema";
 import { Hono } from "hono";
 import { and, asc, client, count, desc, eq, graphql, gte, lt, sql } from "ponder";
 import { formatEther, getAddress } from "viem";
-import { styleForName, isHiddenAgent } from "../catalog";
+import { CATALOG, styleForName, isHiddenAgent } from "../catalog";
 import { deriveRarity } from "../gacha";
 
 const app = new Hono();
@@ -332,10 +332,7 @@ app.get("/discover", async (c) => {
     const style = (c.req.query("style") ?? "").toLowerCase();
     if (!style) return c.json({ error: "by-style requires ?style=" }, 400);
     // resolve which agent names map to this style slug, then fetch their outputs (newest first).
-    const matchingNames = Object.entries(
-      // CATALOG is keyed by NAME; build a name list whose style === requested
-      await import("../catalog").then((m) => m.CATALOG)
-    )
+    const matchingNames = Object.entries(CATALOG) // CATALOG is keyed by NAME; pick names whose style === requested
       .filter(([, v]) => v.style === style)
       .map(([name]) => name.toUpperCase());
     if (matchingNames.length === 0) return c.json({ sort, style, items: [], nextCursor: null, source: "indexer" });
@@ -583,38 +580,31 @@ function inArrayText(col: any, vals: string[]) {
   return sql`${col} in (${sql.join(vals.map((v) => sql`${v}`), sql`, `)})`;
 }
 
-async function agentNameMap(ids: bigint[]): Promise<Map<bigint, string>> {
+// Shared shape of the by-id row maps: dedup the ids, `select * from <table> where <keyCol> in (ids)`
+// (empty-safe), then key the rows by `keyOf`. Collapses five near-identical helpers into one.
+async function selectByIds<R>(table: any, keyCol: any, ids: bigint[], keyOf: (r: R) => bigint): Promise<Map<bigint, R>> {
   const uniq = [...new Set(ids.map((i) => i.toString()))].map((s) => BigInt(s));
   if (uniq.length === 0) return new Map();
-  const rows = await db
-    .select({ agentId: schema.agents.agentId, name: schema.agents.name })
-    .from(schema.agents)
-    .where(inArrayBigint(schema.agents.agentId, uniq));
-  return new Map(rows.map((r) => [r.agentId, r.name]));
+  const rows = (await db.select().from(table).where(inArrayBigint(keyCol, uniq))) as R[];
+  return new Map(rows.map((r) => [keyOf(r), r]));
 }
+
 async function agentRowMap(ids: bigint[]): Promise<Map<bigint, typeof schema.agents.$inferSelect>> {
-  const uniq = [...new Set(ids.map((i) => i.toString()))].map((s) => BigInt(s));
-  if (uniq.length === 0) return new Map();
-  const rows = await db.select().from(schema.agents).where(inArrayBigint(schema.agents.agentId, uniq));
-  return new Map(rows.map((r) => [r.agentId, r]));
+  return selectByIds<typeof schema.agents.$inferSelect>(schema.agents, schema.agents.agentId, ids, (r) => r.agentId);
 }
 async function agentStatsMap(ids: bigint[]): Promise<Map<bigint, typeof schema.agentStats.$inferSelect>> {
-  const uniq = [...new Set(ids.map((i) => i.toString()))].map((s) => BigInt(s));
-  if (uniq.length === 0) return new Map();
-  const rows = await db.select().from(schema.agentStats).where(inArrayBigint(schema.agentStats.agentId, uniq));
-  return new Map(rows.map((r) => [r.agentId, r]));
+  return selectByIds<typeof schema.agentStats.$inferSelect>(schema.agentStats, schema.agentStats.agentId, ids, (r) => r.agentId);
 }
 async function agentEarningsMap(ids: bigint[]): Promise<Map<bigint, typeof schema.agentEarnings.$inferSelect>> {
-  const uniq = [...new Set(ids.map((i) => i.toString()))].map((s) => BigInt(s));
-  if (uniq.length === 0) return new Map();
-  const rows = await db.select().from(schema.agentEarnings).where(inArrayBigint(schema.agentEarnings.agentId, uniq));
-  return new Map(rows.map((r) => [r.agentId, r]));
+  return selectByIds<typeof schema.agentEarnings.$inferSelect>(schema.agentEarnings, schema.agentEarnings.agentId, ids, (r) => r.agentId);
 }
 async function outputRowMap(ids: bigint[]): Promise<Map<bigint, typeof schema.outputs.$inferSelect>> {
-  const uniq = [...new Set(ids.map((i) => i.toString()))].map((s) => BigInt(s));
-  if (uniq.length === 0) return new Map();
-  const rows = await db.select().from(schema.outputs).where(inArrayBigint(schema.outputs.tokenId, uniq));
-  return new Map(rows.map((r) => [r.tokenId, r]));
+  return selectByIds<typeof schema.outputs.$inferSelect>(schema.outputs, schema.outputs.tokenId, ids, (r) => r.tokenId);
+}
+// name-only view derived from the full agent row map (agents table is tiny; fetching all cols is fine).
+async function agentNameMap(ids: bigint[]): Promise<Map<bigint, string>> {
+  const rows = await agentRowMap(ids);
+  return new Map([...rows].map(([id, r]) => [id, r.name]));
 }
 
 export default app;

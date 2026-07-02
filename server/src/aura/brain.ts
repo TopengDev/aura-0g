@@ -1,7 +1,9 @@
 // SERVER-ONLY. The agent "brain" = the PRIVATE style-DNA, AES-256-GCM encrypted and sealed on 0G
 // Storage (encBrainRoot). Envelope layout = iv(12) || authTag(16) || ciphertext  (proven in smoke/p3,
 // byte-identical round-trip + drove a verified gen). The AES key is stored server-side keyed to the
-// agent for now; per-owner sealing (ERC-7857 secure transfer) is the DEFERRED milestone.
+// agent (the live default: agents live on AgentRegistry). Per-owner ECIES sealing for ERC-7857 secure
+// transfer is now SHIPPED (sealing.ts seals the key to the owner's wallet pubkey; oracle.ts re-keys it on
+// transfer), proven on the AuraINFT transfer path.
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 
 export interface BrainPlain {
