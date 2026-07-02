@@ -50,6 +50,7 @@ export default async function OutputDetailPage({ params }: { params: Promise<{ i
   const listing = findListing(listings, "output", output.tokenId);
 
   return (
+    <>
     <main className="min-h-screen pt-14">
       <OutputDetailView
         output={output}
@@ -58,7 +59,8 @@ export default async function OutputDetailPage({ params }: { params: Promise<{ i
         agent={agent}
         listing={listing}
       />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

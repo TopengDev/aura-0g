@@ -209,9 +209,15 @@ export function SummonPanel({
           </ConnectButton.Custom>
         </div>
       ) : summonable ? (
-        <ActionButton onClick={onSummon} disabled={busy || !price}>
-          {busy && state.action === "summon" ? phaseLabel(state.phase) : `Summon for ${price} 0G`}
-        </ActionButton>
+        <div className="space-y-2">
+          <ActionButton onClick={onSummon} disabled={busy || !price}>
+            {busy && state.action === "summon" ? phaseLabel(state.phase) : `Summon for ${price} 0G`}
+          </ActionButton>
+          <p className="text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+            Your payment is escrowed on-chain and cannot be undone. It is refundable only if the Aura
+            misses the delivery deadline.
+          </p>
+        </div>
       ) : (
         <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
           {isOwner

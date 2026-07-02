@@ -24,9 +24,11 @@ export default async function VerifyPage({
   const initialId = Array.isArray(id) ? id[0] : id;
 
   return (
+    <>
     <main className="min-h-screen pt-14">
       <VerifyView initialId={initialId} />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

@@ -44,9 +44,11 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
   const listing = findListing(listings, "agent", agent.agentId);
 
   return (
+    <>
     <main className="min-h-screen pt-14">
       <AgentDetailView agent={agent} outputs={outputs} listing={listing} />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

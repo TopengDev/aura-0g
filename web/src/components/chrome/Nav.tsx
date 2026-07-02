@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 import { EASE } from "@/lib/motion";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -28,6 +28,7 @@ export function Nav() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const { isConnected } = useAccount();
+  const burgerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -50,6 +51,19 @@ export function Nav() {
     return () => {
       document.body.style.overflow = "";
     };
+  }, [open]);
+
+  // Close the mobile menu on Escape and return focus to the toggle (WCAG keyboard operability).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        burgerRef.current?.focus();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
   }, [open]);
 
   const visibleLinks = LINKS.filter((l) => !l.connectedOnly || isConnected);
@@ -98,6 +112,7 @@ export function Nav() {
             <ThemeToggle />
           </div>
           <button
+            ref={burgerRef}
             type="button"
             aria-label={open ? "Close menu" : "Open menu"}
             aria-expanded={open}

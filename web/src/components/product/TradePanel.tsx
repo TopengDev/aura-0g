@@ -86,9 +86,14 @@ export function TradePanel({
         </div>
       ) : isListed && !isOwner ? (
         // BUY
-        <ActionButton onClick={() => buy(kind, tokenId, price!)} disabled={busy}>
-          {busy ? labelFor(state.phase) : `Buy for ${price} 0G`}
-        </ActionButton>
+        <div className="space-y-2">
+          <ActionButton onClick={() => buy(kind, tokenId, price!)} disabled={busy}>
+            {busy ? labelFor(state.phase) : `Buy for ${price} 0G`}
+          </ActionButton>
+          <p className="text-center text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+            On-chain purchase. It settles immediately and cannot be undone.
+          </p>
+        </div>
       ) : isOwner && isListed ? (
         // UPDATE PRICE + CANCEL (seller-only)
         <div className="space-y-3">

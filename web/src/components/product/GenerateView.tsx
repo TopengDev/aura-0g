@@ -322,7 +322,8 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                             : { border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }
                         }
                       >
-                        <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-[7px] object-cover" />
+                        {/* decorative: the name is the adjacent visible label */}
+                        <img src={agentPortraitUrl(a)} alt="" className="h-6 w-6 rounded-[7px] object-cover" />
                         <span className="text-[16px] font-semibold">{a.name}</span>
                       </button>
                     );
@@ -387,7 +388,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                               className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors first:rounded-t-[16px] last:rounded-b-[16px] disabled:opacity-50 ${active ? "" : cursored ? "bg-[var(--color-cream-deep)]" : "hover:bg-[var(--color-cream-deep)]"}`}
                               style={active ? { background: "var(--color-cream-warm)" } : {}}
                             >
-                              <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-full object-cover" />
+                              <img src={agentPortraitUrl(a)} alt="" className="h-6 w-6 rounded-full object-cover" />
                               <span className="font-mono-x text-[16px]" style={{ color: active ? "var(--color-accent)" : "var(--color-ink)" }}>
                                 {a.name}
                               </span>
@@ -516,7 +517,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       {minting ? (mintState.step ?? "Minting...") : "Sign mint in your wallet"}
                     </ActionButton>
                     <p className="text-center text-[16px]" style={{ color: "var(--color-ink-3)" }}>
-                      Minting costs a little <ZeroG /> for gas.{" "}
+                      Minting is an on-chain transaction and cannot be undone. It costs a little <ZeroG /> for gas.{" "}
                       <Link href="/faucet" className="underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
                         Need some? Faucet -&gt;
                       </Link>

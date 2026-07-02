@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTheme, type ThemeMode } from "./ThemeProvider";
 
 type Option = {
@@ -21,6 +21,18 @@ export function ThemeToggle() {
   const groupId = useId();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const btnRefs = useRef<(HTMLButtonElement | null)[]>([]);
+
+  // Roving tabindex + arrow-key nav (WAI-ARIA radiogroup): one Tab stop, arrows move + select.
+  const onKey = (e: React.KeyboardEvent, idx: number) => {
+    let next = idx;
+    if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (idx + 1) % OPTIONS.length;
+    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (idx - 1 + OPTIONS.length) % OPTIONS.length;
+    else return;
+    e.preventDefault();
+    setTheme(OPTIONS[next].value);
+    btnRefs.current[next]?.focus();
+  };
 
   return (
     <div
@@ -28,16 +40,21 @@ export function ThemeToggle() {
       aria-label="Theme"
       className="relative inline-flex w-fit items-center gap-0.5 rounded-full border border-[var(--color-border)] bg-[var(--color-paper)] p-1"
     >
-      {OPTIONS.map((opt) => {
+      {OPTIONS.map((opt, idx) => {
         const isActive = mounted && theme === opt.value;
         return (
           <button
             key={opt.value}
+            ref={(el) => { btnRefs.current[idx] = el; }}
             type="button"
             role="radio"
             aria-checked={isActive}
             aria-label={opt.ariaLabel}
+            // Before mount every button is tabbable (avoids a keyboard trap during hydration); after mount
+            // only the checked radio is a Tab stop and arrows move between the others.
+            tabIndex={!mounted ? 0 : isActive ? 0 : -1}
             onClick={() => setTheme(opt.value)}
+            onKeyDown={(e) => onKey(e, idx)}
             className="micro relative z-10 inline-flex items-center justify-center rounded-full p-1.5 active:scale-[0.9]"
             style={{ background: "transparent", border: "none", color: isActive ? "var(--color-cream)" : "var(--color-ink-2)" }}
           >

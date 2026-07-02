@@ -62,19 +62,22 @@ export default async function HomePage() {
     sponsorBalance: health?.sponsorBalance ? Number(health.sponsorBalance) : null,
   };
 
+  // Footer is a <footer> (contentinfo) landmark and must be a SIBLING of <main>, not nested inside it.
   return (
-    <main>
-      <Hero feature={heroFeature} agentCount={agentCount} outputCount={outputCount} />
-      {galleryOutputs.length > 0 && <CharacterGallery outputs={galleryOutputs} />}
-      <Thesis />
-      <AgentTheatre />
-      <StatsLedger data={ledger} />
-      {featured.length > 0 && <FeaturedAgents agents={featured} />}
-      <OutputsRail outputs={outputs} />
-      <ActivityTicker activity={cleanActivity} />
-      <HowItWorks />
-      <CtaClose />
+    <>
+      <main>
+        <Hero feature={heroFeature} agentCount={agentCount} outputCount={outputCount} />
+        {galleryOutputs.length > 0 && <CharacterGallery outputs={galleryOutputs} />}
+        <Thesis />
+        <AgentTheatre />
+        <StatsLedger data={ledger} />
+        {featured.length > 0 && <FeaturedAgents agents={featured} />}
+        <OutputsRail outputs={outputs} />
+        <ActivityTicker activity={cleanActivity} />
+        <HowItWorks />
+        <CtaClose />
+      </main>
       <Footer />
-    </main>
+    </>
   );
 }

@@ -401,6 +401,7 @@ export function CreateView() {
                 <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
                   The style fingerprint is a keccak hash of the canonical public style. It is committed
                   on-chain at mint, so the Aura&apos;s identity is provable and cannot drift silently.
+                  Registering the Aura is an on-chain transaction and cannot be undone.
                 </p>
               </div>
             </Reveal>

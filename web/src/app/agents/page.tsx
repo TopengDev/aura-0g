@@ -34,9 +34,11 @@ export default async function AgentsPage() {
   }));
 
   return (
+    <>
     <main className="min-h-screen pt-14">
       <AgentsBrowse rows={rows} totalCount={agents.length} />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

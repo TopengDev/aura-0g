@@ -160,6 +160,7 @@ export default async function ProofPage() {
   const totalTeeAttested = models.filter((m) => m.teeAttested).length;
 
   return (
+    <>
     <main className="min-h-screen pt-14">
       <div className="mx-auto w-full max-w-[var(--container-wrap)] px-5 py-16 sm:px-8 sm:py-24">
         {/* ── Header ─────────────────────────────────────────────────────── */}
@@ -428,8 +429,9 @@ export default async function ProofPage() {
           </div>
         </section>
       </div>
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }
 

@@ -14,9 +14,11 @@ export const metadata: Metadata = {
 
 export default function FaucetPage() {
   return (
+    <>
     <main className="min-h-screen pt-14">
       <FaucetView />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

@@ -14,9 +14,11 @@ export const metadata: Metadata = {
 
 export default function CliPage() {
   return (
+    <>
     <main className="min-h-screen pt-14">
       <CliView />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

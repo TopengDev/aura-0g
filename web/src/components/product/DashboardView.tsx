@@ -215,7 +215,7 @@ function AgentsTab({ agents }: { agents: Agent[] }) {
             style={{ borderColor: "var(--color-border)", background: `color-mix(in oklab, ${a.meta.accent} 7%, var(--color-paper))` }}
           >
             <div className="relative aspect-[4/3] w-full overflow-hidden" style={{ background: "var(--color-cream-deep)" }}>
-              <img src={agentPortraitUrl(a)} alt={a.name} className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
+              <img src={agentPortraitUrl(a)} alt="" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" />
               <span className="absolute left-3 top-3"><Chip tone="solid" accent={a.meta.accent}>{a.style}</Chip></span>
             </div>
             <div className="flex flex-1 flex-col p-5">

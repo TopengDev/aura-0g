@@ -19,9 +19,11 @@ export const dynamic = "force-dynamic";
 
 export default function CreatePage() {
   return (
+    <>
     <main className="min-h-screen pt-14">
       <CreateView />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

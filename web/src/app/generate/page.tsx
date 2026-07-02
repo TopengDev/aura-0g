@@ -27,9 +27,11 @@ export default async function GeneratePage({
   const preselectId = agent ? Number(agent) : null;
 
   return (
+    <>
     <main className="min-h-screen pt-14">
       <GenerateView agents={catalog} preselectId={Number.isFinite(preselectId) ? preselectId : null} />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

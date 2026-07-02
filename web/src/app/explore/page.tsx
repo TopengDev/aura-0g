@@ -64,9 +64,11 @@ export default async function ExplorePage() {
   };
 
   return (
+    <>
     <main className="min-h-screen pt-14">
       <ExploreView data={data} />
-      <Footer />
     </main>
+      <Footer />
+    </>
   );
 }

@@ -37,12 +37,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <MotionTierScript />
       </head>
       <body>
+        {/* Keyboard bypass-block (WCAG 2.4.1): first in tab order, off-screen until focused, jumps past
+            the fixed nav to the main content region. */}
+        <a href="#main-content" className="skip-link">
+          Skip to content
+        </a>
         <ThemeProvider>
           <FontClass />
           <Web3Provider>
             <MotionProvider>
               <Nav />
-              {children}
+              <div id="main-content" tabIndex={-1}>
+                {children}
+              </div>
             </MotionProvider>
           </Web3Provider>
         </ThemeProvider>

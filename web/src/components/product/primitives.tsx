@@ -210,7 +210,7 @@ export function CopyValue({
         onClick={onCopy}
         aria-label={copied ? "Copied" : "Copy full value"}
         title={copied ? "Copied" : "Copy full value"}
-        className="micro inline-flex shrink-0 items-center justify-center rounded-md p-1 hover:bg-[color-mix(in_oklab,var(--color-ink)_8%,transparent)] active:scale-[0.88]"
+        className="micro inline-flex h-6 min-h-[24px] w-6 min-w-[24px] shrink-0 items-center justify-center rounded-md hover:bg-[color-mix(in_oklab,var(--color-ink)_8%,transparent)] active:scale-[0.88]"
         style={{ color: copied ? "var(--color-ok)" : "var(--color-ink-3)" }}
       >
         {copied ? (
