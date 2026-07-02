@@ -9,7 +9,7 @@ import { getTransactionReceipt } from "wagmi/actions";
 import { type Config, useChainId, useSwitchChain } from "wagmi";
 import { APP_CHAIN } from "@/lib/chains";
 
-// LOAD-BEARING (Phase-1 viem gotcha): NEVER use waitForTransactionReceipt — it hangs on the 0G RPC. We
+// LOAD-BEARING (Phase-1 viem gotcha): NEVER use waitForTransactionReceipt - it hangs on the 0G RPC. We
 // poll getTransactionReceipt manually until the tx is mined (or we time out), then the CALLER asserts
 // receipt.status ("success" | "reverted"). This is the single shared implementation; do not re-inline it.
 export async function pollReceipt(
