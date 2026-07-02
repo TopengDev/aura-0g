@@ -75,7 +75,7 @@ const VERIFY_TRANSCRIPT = `Verify Relic #23   Rare ◆
   Recomputed locally by this CLI (trustless - re-derived from on-chain preimage)
   ✔ seed recomputes from public preimage  (seedRoot == on-chain seed)
   ✔ seed is a real provable-pull seed  (>= 2^64 keccak root)
-  ✔ PROVABLE: this pull is unrigged
+  ✔ PROVABLE: rig-evident, recompute it yourself
 
    rarity  Rare ◆  roll 8054 / 9999
   subject  tiger hermit as frost mechanical form, casting cradling something, in a salt-flat

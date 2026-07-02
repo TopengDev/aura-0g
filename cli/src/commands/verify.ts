@@ -1,8 +1,8 @@
 // THE money command. Fetches the on-chain economic proof for a Relic, then LOCALLY recomputes the
 // provable-pull seed, rarity, and subject from the PUBLIC on-chain preimage - never trusting the API's
 // verdict. The recompute mirrors server/src/aura/gacha.ts byte-for-byte (it is a verbatim copy), so a
-// juror running `aura verify <id>` re-derives the result independently. This is the "provably unrigged"
-// story made scriptable + trustless from any terminal.
+// juror running `aura verify <id>` re-derives the result independently. This is the "rig-evident,
+// recompute it yourself" story made scriptable + trustless from any terminal.
 import { api } from "../api.ts";
 import { c, kv, heading, rarityBadge, check, ok, bad } from "../ui.ts";
 import { pullSeedRoot, mapSubject, deriveRarity, rarityRoll, isProvablePullSeed } from "../gacha.ts";
@@ -85,7 +85,7 @@ export async function cmdVerify(args: string[]): Promise<void> {
       "\n  " +
       check(isPull, `seed is a real provable-pull seed  ${c.dim("(>= 2^64 keccak root)")}`) +
       "\n  " +
-      (provable ? ok(c.green(c.bold("PROVABLE: this pull is unrigged"))) : bad(c.red("NOT provable from on-chain data"))) +
+      (provable ? ok(c.green(c.bold("PROVABLE: rig-evident, recompute it yourself"))) : bad(c.red("NOT provable from on-chain data"))) +
       "\n\n",
   );
 

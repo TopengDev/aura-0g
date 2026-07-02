@@ -2,7 +2,7 @@
 // AURA CLI - the composable, scriptable surface for the AURA verifiable creative-agent protocol.
 // Same actions as the AURA app + AI-chat surface, driven from any terminal or script. The headline is
 // `aura verify <id>`: it recomputes a Relic's rarity + subject from the on-chain seed locally, so a pull
-// is provably unrigged without trusting our API.
+// is rig-evident: you recompute it yourself, no trust in our API.
 import { c } from "./ui.ts";
 import { API_BASE, ApiError } from "./api.ts";
 import { cmdAgents } from "./commands/agents.ts";

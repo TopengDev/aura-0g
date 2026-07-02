@@ -2,7 +2,7 @@
 
 The composable, scriptable surface for **AURA** - a verifiable creative-agent protocol on 0G. Same actions as the AURA app, driven from any terminal or script.
 
-The headline is `aura verify <id>`: it **recomputes a Relic's rarity and subject from the on-chain seed, locally** - so a gacha pull is provably unrigged without trusting our API. The recompute mirrors the on-chain derivation byte-for-byte (keccak256 over the public preimage), so anyone can re-derive the result themselves.
+The headline is `aura verify <id>`: it **recomputes a Relic's rarity and subject from the on-chain seed, locally** - so a gacha pull is rig-evident: you recompute it yourself, no trust in our API. The recompute mirrors the on-chain derivation byte-for-byte (keccak256 over the public preimage), so anyone can re-derive the result themselves.
 
 ## Install
 

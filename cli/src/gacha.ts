@@ -1,6 +1,6 @@
 // SERVER-ONLY, but PURE + dependency-light (only ethers for keccak/abi). The gacha-depth core: one
 // deterministic on-chain-anchored seed roots BOTH a unique per-pull SUBJECT and a provable RARITY, so a
-// juror can recompute either from public on-chain data and prove the pull was not rigged.
+// juror can recompute either from public on-chain data, so the pull is rig-evident (recompute it yourself).
 //
 // THE UNIFYING SEED (zero contract change - it drops into the existing uint256 Provenance.seed slot):
 //
