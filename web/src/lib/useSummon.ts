@@ -10,11 +10,22 @@
 // The agent owner earns the summon-fee split on fulfill; the watcher (server) does the gen + fulfill.
 
 import { useCallback, useState } from "react";
-import { getTransactionReceipt, writeContract } from "wagmi/actions";
+import { writeContract } from "wagmi/actions";
 import { decodeEventLog, parseEther } from "viem";
-import { type Config, useAccount, useChainId, useConfig, useSwitchChain } from "wagmi";
+import { useAccount, useConfig } from "wagmi";
 import { APP_CHAIN } from "@/lib/chains";
 import { CONTRACTS, summonEscrowAbi, summonedEvent } from "@/lib/contracts";
+import { humanError, pollReceipt, useEnsureChain } from "@/lib/tx";
+
+// Summon-specific revert messages layered on the shared humanError fallbacks.
+const SUMMON_ERRORS: Array<[RegExp, string]> = [
+  [/insufficient funds/i, "Insufficient 0G balance for the summon fee + gas."],
+  [/agent not summonable/i, "This agent is not currently accepting summons."],
+  [/price exceeds max/i, "The price changed - refresh and try again."],
+  [/insufficient payment/i, "The amount sent is below the commission price."],
+  [/not agent owner/i, "Only the agent's owner can set its summon price."],
+  [/nothing to withdraw/i, "No summon earnings to withdraw yet."],
+];
 
 export type SummonPhase = "idle" | "pending" | "confirming" | "success" | "error";
 export type SummonAction = "summon" | "setPrice" | "withdraw" | "refund";
@@ -31,52 +42,13 @@ export interface SummonState {
 
 const IDLE: SummonState = { phase: "idle", action: null, txHash: null, error: null, step: null, requestId: null };
 
-// Manual receipt poll - identical contract to useTrade.pollReceipt (NEVER waitForTransactionReceipt).
-async function pollReceipt(
-  config: Config,
-  hash: `0x${string}`,
-  chainId: number,
-  { intervalMs = 2500, timeoutMs = 120_000 }: { intervalMs?: number; timeoutMs?: number } = {},
-) {
-  const deadline = Date.now() + timeoutMs;
-  await new Promise((r) => setTimeout(r, 1500));
-  while (Date.now() < deadline) {
-    try {
-      const receipt = await getTransactionReceipt(config, { hash, chainId });
-      if (receipt) return receipt;
-    } catch {
-      // not mined yet -> keep polling
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error("Timed out waiting for the transaction to confirm. Check the explorer.");
-}
-
-function humanError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  if (/User rejected|User denied|rejected the request/i.test(msg)) return "Transaction rejected.";
-  if (/insufficient funds/i.test(msg)) return "Insufficient 0G balance for the summon fee + gas.";
-  if (/agent not summonable/i.test(msg)) return "This agent is not currently accepting summons.";
-  if (/price exceeds max/i.test(msg)) return "The price changed - refresh and try again.";
-  if (/insufficient payment/i.test(msg)) return "The amount sent is below the commission price.";
-  if (/not agent owner/i.test(msg)) return "Only the agent's owner can set its summon price.";
-  if (/nothing to withdraw/i.test(msg)) return "No summon earnings to withdraw yet.";
-  if (/reverted/i.test(msg)) return "The transaction reverted on-chain.";
-  return msg.split("\n")[0].slice(0, 180);
-}
-
 export function useSummon() {
   const config = useConfig();
   const { address } = useAccount();
-  const chainId = useChainId();
-  const { switchChainAsync } = useSwitchChain();
+  const ensureChain = useEnsureChain();
   const [state, setState] = useState<SummonState>(IDLE);
 
   const reset = useCallback(() => setState(IDLE), []);
-
-  const ensureChain = useCallback(async () => {
-    if (chainId !== APP_CHAIN.id) await switchChainAsync({ chainId: APP_CHAIN.id });
-  }, [chainId, switchChainAsync]);
 
   const escrow = CONTRACTS.summonEscrow;
 
@@ -117,7 +89,7 @@ export function useSummon() {
         setState((s) => ({ ...s, phase: "success", step: "Payment escrowed", requestId }));
         return requestId;
       } catch (e) {
-        setState((s) => ({ ...s, phase: "error", error: humanError(e) }));
+        setState((s) => ({ ...s, phase: "error", error: humanError(e, SUMMON_ERRORS) }));
         return null;
       }
     },
@@ -145,7 +117,7 @@ export function useSummon() {
         setState((s) => ({ ...s, phase: "success", step: "Summon price set" }));
         return true;
       } catch (e) {
-        setState((s) => ({ ...s, phase: "error", error: humanError(e) }));
+        setState((s) => ({ ...s, phase: "error", error: humanError(e, SUMMON_ERRORS) }));
         return false;
       }
     },
@@ -172,7 +144,7 @@ export function useSummon() {
       setState((s) => ({ ...s, phase: "success", step: "Earnings withdrawn" }));
       return true;
     } catch (e) {
-      setState((s) => ({ ...s, phase: "error", error: humanError(e) }));
+      setState((s) => ({ ...s, phase: "error", error: humanError(e, SUMMON_ERRORS) }));
       return false;
     }
   }, [address, config, ensureChain, escrow]);
@@ -198,7 +170,7 @@ export function useSummon() {
         setState((s) => ({ ...s, phase: "success", step: "Refunded - withdraw from your balance" }));
         return true;
       } catch (e) {
-        setState((s) => ({ ...s, phase: "error", error: humanError(e) }));
+        setState((s) => ({ ...s, phase: "error", error: humanError(e, SUMMON_ERRORS) }));
         return false;
       }
     },

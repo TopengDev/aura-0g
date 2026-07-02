@@ -12,6 +12,8 @@
 // Both default to http://localhost:8787 so the existing local dev flow (web dev server + backend on
 // 8787) is unchanged. An empty NEXT_PUBLIC_AURA_API ("") is honored as same-origin (relative) in the
 // browser; the SERVER branch never goes relative.
+import { formatEther } from "viem";
+
 function resolveApiBase(): string {
   if (typeof window === "undefined") {
     // server-side: prefer the in-cluster address; fall back to the public value, then localhost.
@@ -399,7 +401,9 @@ export interface GenerateJobResult {
   verifiability: string;
   chatId: string | null;
   latencyMs: number;
-  seed: number;
+  // uint256 as a decimal string (precision-safe for full-keccak summon seeds) - matches the server shape
+  // (was typed number here, which would lose precision on a large seed; the UI only ever displays it).
+  seed: string;
   mintable: boolean;
   usedBrain: boolean;
 }
@@ -561,6 +565,9 @@ export interface ChatTurn {
 export interface ChatHealth {
   zerogHealthy: boolean;
   zerogModel: string | null;
+  // Which 0G network serves chat right now (e.g. "mainnet" / "galileo"). Optional to stay back-compatible
+  // with an older server response; mirrors the field the server now returns.
+  zerogNetwork?: string;
   fallbackConfigured: boolean;
   preferred: "zerog" | "anthropic";
 }
@@ -685,17 +692,6 @@ export interface CreatorDashboard {
 
 export async function fetchCreatorDashboard(address: string): Promise<CreatorDashboard | null> {
   return getJson<CreatorDashboard>(`/api/creators/${address}`);
-}
-
-// One enriched activity-feed item (GET /api/activity). The dashboard filters these to the connected
-// address (actor | counterparty | royaltyReceiver) for the wallet's on-chain history.
-export interface ActivityItem extends Activity {
-  priceWei: string | null;
-}
-
-export async function fetchActivityFeed(limit = 60): Promise<Activity[]> {
-  const data = await getJson<{ items: Activity[] }>(`/api/activity?limit=${limit}`);
-  return data?.items ?? [];
 }
 
 // The events that touch a given address (as actor, counterparty, or royalty receiver), newest-first.
@@ -858,11 +854,9 @@ export function creatorsLeaderboard(agents: Agent[]): CreatorRollup[] {
   }
   const rows = Array.from(byOwner.values());
   for (const r of rows) {
-    // 18-decimal 0G, trimmed: enough precision to distinguish testnet royalties without noise.
-    const whole = r.royaltiesEarnedWei / 10n ** 18n;
-    const frac = r.royaltiesEarnedWei % 10n ** 18n;
-    const fracStr = frac === 0n ? "" : `.${(frac + 10n ** 18n).toString().slice(1).replace(/0+$/, "")}`;
-    r.royaltiesEarned = `${whole}${fracStr}`;
+    // 18-decimal 0G via viem (trims trailing zeros; integer amounts print with no decimal point) instead
+    // of the hand-rolled wei->ether math this duplicated.
+    r.royaltiesEarned = formatEther(r.royaltiesEarnedWei);
   }
   return rows.sort(
     (a, b) =>

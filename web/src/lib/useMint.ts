@@ -9,9 +9,9 @@
 // The backend supplies the args (and, for output, the attestor signature); the wallet only signs.
 
 import { useCallback, useState } from "react";
-import { getTransactionReceipt, writeContract } from "wagmi/actions";
+import { writeContract } from "wagmi/actions";
 import { decodeEventLog } from "viem";
-import { type Config, useAccount, useChainId, useConfig, useSwitchChain } from "wagmi";
+import { useAccount, useConfig } from "wagmi";
 import { APP_CHAIN } from "@/lib/chains";
 import {
   CONTRACTS,
@@ -21,6 +21,15 @@ import {
 } from "@/lib/contracts";
 import { useAuth } from "@/components/web3/AuthProvider";
 import type { CreateAgentArgs, MintArgs } from "@/lib/api";
+import { humanError, pollReceipt, useEnsureChain } from "@/lib/tx";
+
+// Mint-specific revert messages layered on the shared humanError fallbacks.
+const MINT_ERRORS: Array<[RegExp, string]> = [
+  [/insufficient funds/i, "Insufficient 0G balance for the gas fee."],
+  [/nonce used/i, "This attestation was already minted. Generate a fresh piece to mint again."],
+  [/bad attestation/i, "The attestation signature was rejected on-chain. Try regenerating."],
+  [/royalty too high|resale royalty too high/i, "Royalty exceeds the 20% on-chain cap."],
+];
 
 export type MintPhase =
   | "idle"
@@ -40,51 +49,14 @@ export interface MintState {
 
 const IDLE: MintState = { phase: "idle", txHash: null, error: null, step: null, mintedId: null };
 
-// Manual receipt poll - identical contract to useTrade.pollReceipt (NEVER waitForTransactionReceipt).
-async function pollReceipt(
-  config: Config,
-  hash: `0x${string}`,
-  chainId: number,
-  { intervalMs = 2500, timeoutMs = 180_000 }: { intervalMs?: number; timeoutMs?: number } = {},
-) {
-  const deadline = Date.now() + timeoutMs;
-  await new Promise((r) => setTimeout(r, 1500));
-  while (Date.now() < deadline) {
-    try {
-      const receipt = await getTransactionReceipt(config, { hash, chainId });
-      if (receipt) return receipt;
-    } catch {
-      // not mined yet -> keep polling
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error("Timed out waiting for the transaction to confirm. Check the explorer.");
-}
-
-function humanError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  if (/User rejected|User denied|rejected the request/i.test(msg)) return "Transaction rejected.";
-  if (/insufficient funds/i.test(msg)) return "Insufficient 0G balance for the gas fee.";
-  if (/nonce used/i.test(msg)) return "This attestation was already minted. Generate a fresh piece to mint again.";
-  if (/bad attestation/i.test(msg)) return "The attestation signature was rejected on-chain. Try regenerating.";
-  if (/royalty too high|resale royalty too high/i.test(msg)) return "Royalty exceeds the 20% on-chain cap.";
-  if (/reverted/i.test(msg)) return "The transaction reverted on-chain.";
-  return msg.split("\n")[0].slice(0, 180);
-}
-
 export function useMint() {
   const config = useConfig();
   const { address } = useAccount();
-  const chainId = useChainId();
-  const { switchChainAsync } = useSwitchChain();
   const auth = useAuth();
+  const ensureChain = useEnsureChain();
   const [state, setState] = useState<MintState>(IDLE);
 
   const reset = useCallback(() => setState(IDLE), []);
-
-  const ensureChain = useCallback(async () => {
-    if (chainId !== APP_CHAIN.id) await switchChainAsync({ chainId: APP_CHAIN.id });
-  }, [chainId, switchChainAsync]);
 
   // ── MINT OUTPUT (the /generate write) ──────────────────────────────────────
   // Submits OutputNFT.mintOutput with the backend's exact args + attestor signature. seed arrives as a
@@ -112,7 +84,7 @@ export function useMint() {
           chainId: APP_CHAIN.id,
         });
         setState((s) => ({ ...s, txHash: hash, phase: "confirming", step: "Minting on-chain" }));
-        const receipt = await pollReceipt(config, hash, APP_CHAIN.id);
+        const receipt = await pollReceipt(config, hash, APP_CHAIN.id, { timeoutMs: 180_000 });
         if (receipt.status !== "success") throw new Error("The mint reverted on-chain.");
 
         // parse the new tokenId from the OutputMinted event.
@@ -131,7 +103,7 @@ export function useMint() {
         setState((s) => ({ ...s, phase: "success", step: "Minted", mintedId }));
         return mintedId;
       } catch (e) {
-        setState((s) => ({ ...s, phase: "error", error: humanError(e) }));
+        setState((s) => ({ ...s, phase: "error", error: humanError(e, MINT_ERRORS) }));
         return null;
       }
     },
@@ -163,7 +135,7 @@ export function useMint() {
           chainId: APP_CHAIN.id,
         });
         setState((s) => ({ ...s, txHash: hash, phase: "confirming", step: "Registering the agent on-chain" }));
-        const receipt = await pollReceipt(config, hash, APP_CHAIN.id);
+        const receipt = await pollReceipt(config, hash, APP_CHAIN.id, { timeoutMs: 180_000 });
         if (receipt.status !== "success") throw new Error("The agent mint reverted on-chain.");
 
         let mintedId: number | null = null;
@@ -181,7 +153,7 @@ export function useMint() {
         setState((s) => ({ ...s, phase: "success", step: "Agent registered", mintedId }));
         return mintedId;
       } catch (e) {
-        setState((s) => ({ ...s, phase: "error", error: humanError(e) }));
+        setState((s) => ({ ...s, phase: "error", error: humanError(e, MINT_ERRORS) }));
         return null;
       }
     },

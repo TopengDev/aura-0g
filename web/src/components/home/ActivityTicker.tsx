@@ -3,19 +3,13 @@
 import { useState } from "react";
 import type { Activity } from "@/lib/api";
 import { shortHex } from "@/lib/api";
+import { kindLabel } from "@/lib/format";
 import { Kicker } from "./Kicker";
 
 // Section 6 - ACTIVITY ticker. Skeleton: full-bleed-marquee (edge-to-edge single moving line - the
 // provenance line, now in motion). Technique: continuous CSS/transform marquee (NOT scroll-scrubbed,
-// so the scrollytelling count stays at 1). Pausable on hover. Real on-chain events. Reduced-motion:
-// the CSS rule freezes the track to a static row.
-const KIND_LABEL: Record<string, string> = {
-  mint: "MINT",
-  sale: "SALE",
-  transfer: "TRANSFER",
-  listing: "LISTING",
-  agent_mint: "AURA MINT",
-};
+// so the scrollytelling count stays at 1). Pausable on hover + an explicit control. Real on-chain
+// events. Reduced-motion: the CSS rule freezes the track to a static row.
 
 export function ActivityTicker({ activity }: { activity: Activity[] }) {
   // A control to pause the auto-scrolling marquee (WCAG 2.2.2: moving content that starts automatically
@@ -73,7 +67,7 @@ function Chip({ a }: { a: Activity }) {
           border: isSale ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
         }}
       >
-        {KIND_LABEL[a.kind] ?? a.kind}
+        {kindLabel(a.kind).toUpperCase()}
       </span>
       {a.agentName && <span className="font-semibold" style={{ color: "var(--color-ink)" }}>{a.agentName}</span>}
       {a.tokenId != null && <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-3)" }}>#{a.tokenId}</span>}

@@ -21,7 +21,7 @@ import { useTrade } from "@/lib/useTrade";
 import {
   activityForAddress,
   agentPortraitUrl,
-  fetchActivityFeed,
+  fetchActivity,
   fetchCreatorDashboard,
   fetchMarketplace,
   shortHex,
@@ -31,6 +31,7 @@ import {
   type MarketListing,
   type Output,
 } from "@/lib/api";
+import { describeActivity, kindLabel, timeAgo } from "@/lib/format";
 
 type Tab = "agents" | "outputs" | "listings" | "activity";
 
@@ -66,7 +67,7 @@ export function DashboardView() {
       const [dash, market, feed] = await Promise.all([
         fetchCreatorDashboard(addr),
         fetchMarketplace(),
-        fetchActivityFeed(80),
+        fetchActivity(80),
       ]);
       if (!dash) {
         setError("We couldn't load your portfolio. The indexer may be unreachable.");
@@ -392,10 +393,10 @@ function ActivityTab({ items, address }: { items: Activity[]; address: string })
             <span className="font-mono-x text-[16px] tabular-nums" style={{ color: "var(--color-ink-3)" }}>
               {String(i + 1).padStart(2, "0")}
             </span>
-            <Chip tone={e.kind === "sale" ? "accent" : "default"}>{labelForKind(e.kind)}</Chip>
+            <Chip tone={e.kind === "sale" ? "accent" : "default"}>{kindLabel(e.kind)}</Chip>
             <div className="min-w-0 flex-1">
               <div className="truncate font-mono-x text-[16px]" style={{ color: "var(--color-ink)" }}>
-                {describeEvent(e, a)}
+                {describeActivity(e, address)}
               </div>
               <div className="mt-0.5 font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                 {timeAgo(e.timestamp)}
@@ -473,65 +474,4 @@ function MiniStat({ n, l }: { n: number | string; l: string }) {
   );
 }
 
-function labelForKind(kind: string): string {
-  switch (kind) {
-    case "mint":
-      return "mint";
-    case "agent_mint":
-      return "aura";
-    case "sale":
-      return "sale";
-    case "listing":
-      return "listed";
-    case "listing_cancel":
-      return "cancelled";
-    case "price_update":
-      return "repriced";
-    case "transfer":
-      return "transfer";
-    case "withdrawal":
-      return "withdraw";
-    default:
-      return kind;
-  }
-}
-
-// A short human description of an event from the wallet's point of view.
-function describeEvent(e: Activity, addr: string): string {
-  const name = e.agentName ? e.agentName : e.collectionKind === "agent" ? "an Aura" : "a Relic";
-  const tok = e.tokenId !== null ? ` #${e.tokenId}` : "";
-  switch (e.kind) {
-    case "mint":
-      return `Minted ${name}${tok}`;
-    case "agent_mint":
-      return `Created ${name}${tok}`;
-    case "sale":
-      if (e.royaltyReceiver?.toLowerCase() === addr && e.actor?.toLowerCase() !== addr && e.counterparty?.toLowerCase() !== addr) {
-        return `Royalty from a sale of ${name}${tok}`;
-      }
-      return e.counterparty?.toLowerCase() === addr ? `Bought ${name}${tok}` : `Sold ${name}${tok}`;
-    case "listing":
-      return `Listed ${name}${tok}`;
-    case "listing_cancel":
-      return `Cancelled the listing for ${name}${tok}`;
-    case "price_update":
-      return `Updated the price of ${name}${tok}`;
-    case "transfer":
-      return `Transferred ${name}${tok}`;
-    case "withdrawal":
-      return "Withdrew proceeds";
-    default:
-      return `${e.kind} ${name}${tok}`;
-  }
-}
-
-function timeAgo(ts: number): string {
-  const s = Math.max(0, Math.floor(Date.now() / 1000) - ts);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
+// timeAgo / kindLabel / describeActivity now live in @/lib/format (shared with Explore + ActivityTicker).

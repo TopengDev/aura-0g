@@ -20,6 +20,7 @@ import {
   type Output,
   type TrendingItem,
 } from "@/lib/api";
+import { describeActivity, kindLabel, timeAgo } from "@/lib/format";
 
 // /explore - the discovery hub. The "pulse of AURA": a live activity marquee, the trending agents, a
 // recent-outputs gallery (the outputs' own discovery surface, since elsewhere they're only reachable via
@@ -382,20 +383,10 @@ function CreatorRow({ rank, creator: c }: { rank: number; creator: CreatorRollup
 }
 
 // ── activity feed row ───────────────────────────────────────────────────────
-const KIND_LABEL: Record<string, string> = {
-  mint: "mint",
-  sale: "sale",
-  transfer: "transfer",
-  listing: "listed",
-  agent_mint: "aura",
-};
-
 function ActivityRow({ index, e }: { index: number; e: Activity }) {
   const isSale = e.kind === "sale";
-  const tok = e.tokenId !== null ? ` #${e.tokenId}` : "";
-  const name = e.agentName ?? (e.collectionKind === "agent" ? "an Aura" : "a Relic");
   const href = e.tokenId !== null ? (e.collectionKind === "agent" ? `/agents/${e.tokenId}` : `/outputs/${e.tokenId}`) : null;
-  const label = describe(e.kind, name, tok);
+  const label = describeActivity(e);
 
   // The row is a plain container (NOT an anchor) so the entity link and the explorer txHash link are
   // SIBLINGS, never nested anchors (nesting <a> in <a> is invalid HTML and triggers a hydration error).
@@ -408,7 +399,7 @@ function ActivityRow({ index, e }: { index: number; e: Activity }) {
       <span className="font-mono-x text-[16px] tabular-nums" style={{ color: "var(--color-ink-3)" }}>
         {String(index).padStart(2, "0")}
       </span>
-      <Chip tone={isSale ? "accent" : "default"}>{KIND_LABEL[e.kind] ?? e.kind}</Chip>
+      <Chip tone={isSale ? "accent" : "default"}>{kindLabel(e.kind)}</Chip>
       <div className="min-w-0 flex-1">
         {href ? (
           <Link href={href} className="block truncate text-[16px] font-medium underline-offset-2 group-hover:underline" style={{ color: "var(--color-ink)" }}>
@@ -438,30 +429,4 @@ function ActivityRow({ index, e }: { index: number; e: Activity }) {
   );
 }
 
-function describe(kind: string, name: string, tok: string): string {
-  switch (kind) {
-    case "mint":
-      return `Minted ${name}${tok}`;
-    case "agent_mint":
-      return `Created ${name}${tok}`;
-    case "sale":
-      return `Sold ${name}${tok}`;
-    case "listing":
-      return `Listed ${name}${tok}`;
-    case "transfer":
-      return `Transferred ${name}${tok}`;
-    default:
-      return `${kind} ${name}${tok}`;
-  }
-}
-
-function timeAgo(ts: number): string {
-  const s = Math.max(0, Math.floor(Date.now() / 1000) - ts);
-  if (s < 60) return `${s}s ago`;
-  const m = Math.floor(s / 60);
-  if (m < 60) return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  return `${d}d ago`;
-}
+// timeAgo / kindLabel / describeActivity now live in @/lib/format (shared with Dashboard + ActivityTicker).

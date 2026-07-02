@@ -13,12 +13,13 @@
 // We poll getTransactionReceipt manually until it lands (or a timeout), then assert receipt.status.
 
 import { useCallback, useMemo, useState } from "react";
-import { getTransactionReceipt, readContract, writeContract } from "wagmi/actions";
+import { readContract, writeContract } from "wagmi/actions";
 import { parseEther } from "viem";
-import { type Config, useAccount, useChainId, useConfig, useSwitchChain } from "wagmi";
+import { useAccount, useConfig } from "wagmi";
 import { APP_CHAIN } from "@/lib/chains";
 import { CONTRACTS, collectionAddress, erc721Abi, marketplaceAbi } from "@/lib/contracts";
 import { useAuth } from "@/components/web3/AuthProvider";
+import { humanError, pollReceipt, useEnsureChain } from "@/lib/tx";
 
 export type TradeKind = "agent" | "output";
 export type TradeAction = "buy" | "list" | "cancel" | "updatePrice";
@@ -50,55 +51,14 @@ const IDLE: TradeState = {
   step: null,
 };
 
-// Manual receipt poll. NEVER waitForTransactionReceipt (Phase-1 gotcha: it hangs on the 0G RPC).
-// Polls getTransactionReceipt on an interval until the tx is mined or we time out. Returns the
-// receipt (whose .status is "success" | "reverted") so the caller can assert it landed.
-async function pollReceipt(
-  config: Config,
-  hash: `0x${string}`,
-  chainId: number,
-  { intervalMs = 2500, timeoutMs = 120_000 }: { intervalMs?: number; timeoutMs?: number } = {},
-) {
-  const deadline = Date.now() + timeoutMs;
-  // small initial delay so the tx has a chance to propagate before the first lookup
-  await new Promise((r) => setTimeout(r, 1500));
-  while (Date.now() < deadline) {
-    try {
-      const receipt = await getTransactionReceipt(config, { hash, chainId });
-      if (receipt) return receipt;
-    } catch {
-      // not mined yet (viem throws TransactionReceiptNotFoundError) -> keep polling
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error("Timed out waiting for the transaction to confirm. Check the explorer.");
-}
-
-function humanError(e: unknown): string {
-  const msg = e instanceof Error ? e.message : String(e);
-  if (/User rejected|User denied|rejected the request/i.test(msg)) return "Transaction rejected.";
-  if (/insufficient funds/i.test(msg)) return "Insufficient 0G balance for this transaction.";
-  if (/reverted/i.test(msg)) return "The transaction reverted on-chain.";
-  // keep it short: first line only
-  return msg.split("\n")[0].slice(0, 180);
-}
-
 export function useTrade() {
   const config = useConfig();
   const { address } = useAccount();
-  const chainId = useChainId();
-  const { switchChainAsync } = useSwitchChain();
   const auth = useAuth();
+  const ensureChain = useEnsureChain();
   const [state, setState] = useState<TradeState>(IDLE);
 
   const reset = useCallback(() => setState(IDLE), []);
-
-  // Ensure the wallet is on chain 16602 before any write; prompt a switch if not.
-  const ensureChain = useCallback(async () => {
-    if (chainId !== APP_CHAIN.id) {
-      await switchChainAsync({ chainId: APP_CHAIN.id });
-    }
-  }, [chainId, switchChainAsync]);
 
   // Best-effort SIWE. The brief gates writes behind SIWE; we sign in if we have no token yet. A SIWE
   // failure is surfaced but does not silently swallow the user's intent (they can retry).
