@@ -291,8 +291,8 @@ export function CreateView() {
                   </Field>
                 </div>
                 <p className="mt-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
-                  Relic royalty routes to whoever owns this Aura on every sale of its work. Aura resale
-                  royalty pays you, the original creator, each time the Aura itself is resold.
+                  Relic royalty routes to whoever owns this Aura on every sale of its work through AURA. Aura
+                  resale royalty pays you, the original creator, each time the Aura itself is resold.
                 </p>
                 {(!validPct(royaltyPct) || !validPct(resalePct)) ? (
                   <p className="mt-2 text-[16px]" style={{ color: "var(--color-warn)" }}>

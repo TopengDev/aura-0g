@@ -6,11 +6,11 @@ All values below were verified live on 2026-07-01 against the 0G Galileo testnet
 
 ---
 
-## 0. The mic-drop: we verify deeper than the chain does
+## 0. The mic-drop: stricter than the chain's own flag
 
-On 0G mainnet the on-chain `verifiability: "TeeML"` flag is **over-inclusive**. It is set not only on providers that run the model inside a TEE, but also on TeeTLS relay-proxies that merely forward the request to an external cloud over an attested TLS tunnel. Those proxies are not in-enclave inference, yet they still carry `TeeML`. So `TeeML` alone does not prove in-enclave execution on mainnet.
+On 0G mainnet the on-chain `verifiability: "TeeML"` flag is **coarse**: many providers carry it (sixteen right now). AURA does not route on the flag alone.
 
-AURA requires **both** `verifiability === "TeeML"` **and** the provider address on an allowlist of services we individually verified run genuine in-enclave inference. A provider that fails the second test is never selectable or served, even when the chain says TeeML. (Source: `server/src/aura/chat-compute.ts`, "TeeML integrity allowlist (THE MOAT)".)
+AURA requires **both** `verifiability === "TeeML"` **and** the provider address on a **curated allowlist** maintained in the server (a hardcoded set of addresses). The set AURA will actually serve is therefore strictly narrower than the chain's flag: a provider not on the allowlist is never selectable or served, even when the chain says TeeML. (Source: `server/src/aura/chat-compute.ts`, "TeeML integrity allowlist".)
 
 **Verify live:** [`GET /chat/models`](https://api-aura.topengdev.com/chat/models)
 
@@ -26,15 +26,15 @@ The provider addresses below are 0G **mainnet** accounts, so they link to the ma
 | Deepseek V4 Pro | [0xB01E...2FdB](https://chainscan.0g.ai/address/0xB01EBd79c3fd63ff52fD47C3935119601EEe2FdB) | true (online) | false | **false** |
 | GPT OSS 20B | [0x44ba...ef64](https://chainscan.0g.ai/address/0x44ba5021daDa2eDc84b4f5FC170b85F7bC51ef64) | true | false | **false** |
 
-Sixteen providers carry `TeeML` on mainnet right now. AURA serves three. The DeepSeek rows are the sharp case: they are online and TEE-flagged this minute, and AURA still refuses to route to them because they are relay-proxies, not enclaves.
+Sixteen providers carry `TeeML` on mainnet right now. AURA serves three. The other thirteen are TeeML-flagged and still not on AURA's allowlist, so the app will not route to them on the chat path, even the ones online this minute.
 
-> AURA catches 0G's own verifiability flag mislabeling a proxy as in-enclave.
+> AURA's curated allowlist is strictly narrower than the chain's TeeML flag.
 
 ---
 
 ## 1. Mainnet frontier chat, attested per reply
 
-Auras chat on 0G **mainnet** GLM-5.1 (served as GLM-5.1-FP8), and each reply carries its own TEE attestation. A deterministic fallback is configured, and when it serves a reply the UI labels it as not attested.
+Auras chat on 0G **mainnet** GLM-5.1 (served as GLM-5.1-FP8), and each reply carries its own TEE attestation. A labeled fallback (Anthropic Claude) is configured for when 0G is unavailable; it is **not** TEE-attested, and the UI says so on any reply it serves.
 
 **Verify live:** [`GET /chat/health`](https://api-aura.topengdev.com/chat/health)
 
@@ -48,10 +48,10 @@ Auras chat on 0G **mainnet** GLM-5.1 (served as GLM-5.1-FP8), and each reply car
 
 | Primitive | How AURA uses it | Honest bound | Live proof |
 |---|---|---|---|
-| **Compute (TEE)** | Chat + image generation run in a 0G Compute TEE, mainnet GLM-5.1, attested per reply. Relic attestation committed on-chain at mint. | Per-reply hardware attestation, not a blanket trustless-AI claim. | [`/chat/health`](https://api-aura.topengdev.com/chat/health), [Relic #25](https://aura.topengdev.com/outputs/25) |
+| **Compute (TEE)** | Chat runs on 0G **mainnet** GLM-5.1 (attested per reply); image generation runs on 0G **testnet** (`qwen-image-edit-2511`), attestation committed on-chain at mint. | Per-reply hardware attestation, not a blanket trustless-AI claim. | [`/chat/health`](https://api-aura.topengdev.com/chat/health), [Relic #25](https://aura.topengdev.com/outputs/25) |
 | **Storage (0G)** | Every Relic image and sealed agent-brain is a 0G Storage content root, committed on-chain and finalized on 0G Storage. | Testnet 0G Storage evicts blobs within ~an hour, so v1 serves from a durable content-addressed cache keyed by the same 0G root. Full 0G persistence is a mainnet property. (Source: `server/src/routes/image.ts`.) | [0G Storage: finalized](https://indexer-storage-testnet-turbo.0g.ai/file/info/0x04a177d82e8e645ce01d6bf9a386465ea3d2f3607bcd2290aaaa13affdcfe616) |
 | **Chain (Galileo 16602)** | Five contracts deployed, all returning real bytecode on-chain. | Testnet. | [`GET /health`](https://api-aura.topengdev.com/health) |
-| **iNFT (ERC-7857)** | On transfer, AuraINFT recovers a signed re-encryption proof; the brain is re-encrypted with a fresh key and ECIES-sealed to the buyer. | Trusted ECDSA signer, not a hardware-TEE enclave. Mirrors mainnet ZeroArena's re-encryption oracle, the bar the field ships today. (Source: `server/src/aura/oracle.ts`.) | [AuraINFT on 0G Scan](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d) |
+| **ERC-7857 sealed transfer** | Proven primitive on the `AuraINFT` contract: a transfer recovers a signed re-encryption proof; the brain is re-encrypted with a fresh key and ECIES-sealed to the buyer. Deployed and Foundry-tested in isolation on Galileo. | Live Auras trade as standard ERC-721 on AgentRegistry; Relics are ERC-721 + EIP-2981, not iNFTs. The sealed-key cutover is staged. The oracle is a trusted ECDSA signer, not a hardware-TEE enclave, the bar the field ships today. (Source: `server/src/aura/oracle.ts`.) | [AuraINFT on 0G Scan](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d) |
 
 ### Contracts (Galileo testnet, chainId 16602)
 
@@ -61,7 +61,7 @@ Auras chat on 0G **mainnet** GLM-5.1 (served as GLM-5.1-FP8), and each reply car
 | OutputNFT | [`0xEecED1e6965f00a5f7cA459631370c886FAEFd3b`](https://chainscan-galileo.0g.ai/address/0xEecED1e6965f00a5f7cA459631370c886FAEFd3b) | `/health` + bytecode |
 | Marketplace | [`0x815115Eb39987d3fAdb3b373f89fa0096433f228`](https://chainscan-galileo.0g.ai/address/0x815115Eb39987d3fAdb3b373f89fa0096433f228) | `/health` + bytecode |
 | SummonEscrow | [`0xa5CeFBc097d84beE09b12fc1569B6CcA56992838`](https://chainscan-galileo.0g.ai/address/0xa5CeFBc097d84beE09b12fc1569B6CcA56992838) | `deployed-v2.json` + bytecode |
-| AuraINFT (ERC-7857) | [`0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d`](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d) | bytecode + on-chain `name()` = "AURA Creative Agent" |
+| AuraINFT (ERC-7857, isolated deploy) | [`0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d`](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d) | bytecode + on-chain `name()` = "AURA Creative Agent" |
 
 ---
 

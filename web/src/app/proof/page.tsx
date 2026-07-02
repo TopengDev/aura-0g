@@ -7,15 +7,15 @@ import { EXPLORER } from "@/lib/chains";
 
 // /proof - the jury-facing EVIDENCE PAGE. Every claim below re-derives from a LIVE endpoint or an on-chain
 // read. The page fetches /health, /chat/health, /chat/models at request time (force-dynamic, same posture
-// as /verify) and renders the real values; if a fetch is unavailable it falls back to the snapshot VERIFIED
-// live on 2026-07-01 (identical values), so the page is always truthful and never blank. No claim that could
-// not be verified live is on this page.
+// as /verify) and renders the real values. If a fetch is unavailable it falls back to the snapshot captured
+// on 2026-07-01 and LABELS it as a snapshot (the header chip flips to "Snapshot", live-health values drop
+// their green tone), so the page is never blank and never presents stale values as live.
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Proof, not promises | AURA",
   description:
-    "AURA's evidence page: every claim re-derives from a live endpoint or an on-chain read. The TEE guard verifies deeper than 0G's own on-chain flag, chat runs on 0G mainnet GLM-5.1 attested per reply, five contracts are live on Galileo, and creator royalty is enforced by EIP-2981.",
+    "AURA's evidence page: every claim re-derives from a live endpoint or an on-chain read. The TEE guard applies a curated allowlist stricter than 0G's on-chain TeeML flag, chat runs on 0G mainnet GLM-5.1 attested per reply, five contracts are live on Galileo, and creator royalty is enforced by EIP-2981.",
 };
 
 // ── Verified public proof surfaces (all resolved 200/3xx on 2026-07-01) ─────
@@ -40,11 +40,11 @@ const CHAIN_ID = 16602;
 // name() returns "AURA Creative Agent". All five return a real code size via eth_getCode.
 type ContractRow = { label: string; addr: string; note: string };
 const CONTRACTS: ContractRow[] = [
-  { label: "AgentRegistry", addr: "0xb5960cc08caa5195095cfb8aa270f122be09ba0a", note: "the agent iNFT registry (every Aura)" },
+  { label: "AgentRegistry", addr: "0xb5960cc08caa5195095cfb8aa270f122be09ba0a", note: "every Aura's on-chain identity (ERC-721)" },
   { label: "OutputNFT", addr: "0xEecED1e6965f00a5f7cA459631370c886FAEFd3b", note: "attestation-gated Relic mint" },
   { label: "Marketplace", addr: "0x815115Eb39987d3fAdb3b373f89fa0096433f228", note: "EIP-2981 royalty-honoring trades" },
   { label: "SummonEscrow", addr: "0xa5CeFBc097d84beE09b12fc1569B6CcA56992838", note: "demand-pull commissioning + fee split" },
-  { label: "AuraINFT", addr: "0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d", note: "ERC-7857 sealed-key transfer (name: AURA Creative Agent)" },
+  { label: "AuraINFT", addr: "0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d", note: "ERC-7857 sealed-key transfer · isolated deploy (name: AURA Creative Agent)" },
 ];
 
 // The hero Relic, verified all-green live (GET /provenance/25 + /royalty/25). tokenId 25, agent 20 (BITSY),
@@ -101,8 +101,8 @@ const FALLBACK_MODELS: ProofModel[] = [
   { id: "openai/gpt-oss-20b", label: "GPT OSS 20B", provider: PROVIDER_BY_ID["openai/gpt-oss-20b"], teeAttested: true, allowlisted: false, selectable: false, online: false, sizeB: 20 },
 ];
 
-// The four relay-proxy families the code names as TeeML-tagged but NOT in-enclave (chat-compute.ts:80-82).
-// Spotlighted in the rejected group; the remainder is summarized as a count so the table stays scannable.
+// The four providers spotlighted in the rejected group: TeeML-flagged but NOT on AURA's curated allowlist
+// (chat-compute.ts). The remainder is summarized as a count so the table stays scannable.
 const REJECT_SPOTLIGHT = new Set([
   "deepseek/deepseek-chat-v3-0324",
   "deepseek-v4-flash",
@@ -134,13 +134,23 @@ export default async function ProofPage() {
     fetchChatModels(),
   ]);
 
+  // Track whether each live fetch actually succeeded. On failure the fetchers return null / an empty list
+  // (fetchHealth, fetchChatHealth -> null; fetchChatModels -> { models: [] }). When a fetch is down we still
+  // render the 2026-07-01 snapshot, but we LABEL it as a snapshot and drop the green "live" tone, so the page
+  // never presents stale values as live. Health booleans NEVER default to true (a down API is not "healthy").
+  const healthLive = health !== null;
+  const chatLive = chatHealth !== null;
+  const modelsLive = modelsRes.models.length > 0;
+  const allLive = healthLive && chatLive && modelsLive;
+  const SNAPSHOT_DATE = "2026-07-01";
+
   const chainId = health?.chainId ?? CHAIN_ID;
   // ChatHealth (shared type) omits zerogNetwork, though the API returns it at runtime, so read it via a
   // widened view. The rest are on the shared type.
   const zerogNetwork = (chatHealth as { zerogNetwork?: string } | null)?.zerogNetwork ?? "mainnet";
   const zerogModel = chatHealth?.zerogModel ?? "zai-org/GLM-5.1-FP8";
-  const zerogHealthy = chatHealth?.zerogHealthy ?? true;
-  const fallbackConfigured = chatHealth?.fallbackConfigured ?? true;
+  const zerogHealthy = chatHealth?.zerogHealthy ?? false;
+  const fallbackConfigured = chatHealth?.fallbackConfigured ?? false;
 
   const models = normalizeModels(modelsRes.models);
   const allowlisted = models.filter((m) => m.allowlisted && m.selectable);
@@ -167,7 +177,11 @@ export default async function ProofPage() {
             yourself. If a claim cannot be verified right now, it is not on this page.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2.5">
-            <Chip tone="ok">Live re-derived</Chip>
+            {allLive ? (
+              <Chip tone="ok">Live re-derived</Chip>
+            ) : (
+              <Chip>Snapshot · {SNAPSHOT_DATE}</Chip>
+            )}
             <Chip tone="accent">On-chain reads</Chip>
             <Chip>No unverified claims</Chip>
           </div>
@@ -182,15 +196,14 @@ export default async function ProofPage() {
               <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-3)" }}>00</span>
             </div>
             <h2 className="font-display mt-4" style={{ fontSize: "clamp(28px, 4.4vw, 52px)", lineHeight: 1.02, letterSpacing: "-0.015em" }}>
-              We verify deeper than the chain does.
+              Stricter than the chain&apos;s own flag.
             </h2>
             <p className="mt-5 max-w-[70ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
               On 0G mainnet the on-chain <span className="font-mono-x">verifiability: &quot;TeeML&quot;</span> flag is
-              over-inclusive. It is set not only on providers that run the model inside a TEE, but also on TeeTLS
-              relay-proxies that forward the request to an external cloud over an attested TLS tunnel. Those are not
-              in-enclave inference, yet they still carry TeeML. AURA requires TeeML <em>and</em> a provider on an
-              allowlist of services we individually verified run genuine in-enclave inference. A provider that fails
-              the second test is never selectable or served, even when the chain says TeeML.
+              coarse: many providers carry it. AURA does not route on the flag alone. It requires TeeML <em>and</em>
+              the provider address on a curated allowlist maintained in the server, so the set AURA will actually
+              serve is strictly narrower than the chain&apos;s flag. A provider not on the allowlist is never
+              selectable or served, even when the chain says TeeML.
             </p>
 
             <div className="mt-8 grid gap-4 lg:grid-cols-2">
@@ -237,8 +250,8 @@ export default async function ProofPage() {
 
             <div className="mt-7 flex flex-col gap-4 border-t pt-6 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: "var(--color-border)" }}>
               <p className="max-w-[60ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-                AURA catches 0G&apos;s own verifiability flag mislabeling a relay-proxy as in-enclave.
-                {" "}{totalTeeAttested} providers carry TeeML; AURA serves {allowlisted.length}.
+                AURA&apos;s curated allowlist is strictly narrower than 0G&apos;s TeeML flag.
+                {" "}{totalTeeAttested} providers carry TeeML{allLive ? "" : ` (${SNAPSHOT_DATE} snapshot)`}; AURA serves {allowlisted.length}.
               </p>
               <ProofLink href={`${API_PUBLIC}/chat/models`}>Re-derive live: /chat/models</ProofLink>
             </div>
@@ -261,12 +274,13 @@ export default async function ProofPage() {
             <PrimitiveHead tag="Compute · TEE" title="In-enclave inference, attested per reply." />
             <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
               Auras chat on 0G mainnet GLM-5.1, and each reply carries its own TEE attestation. Relic images are
-              generated the same way, with the attestation committed on-chain at mint.
+              generated in a 0G testnet Compute TEE (qwen-image-edit-2511), with the attestation committed on-chain
+              at mint.
             </p>
             <dl className="mt-6">
-              <MetaRow k="Network" v={zerogNetwork} ok={zerogHealthy} mono={false} />
-              <MetaRow k="Model" v={zerogModel} ok mono />
-              <MetaRow k="Deterministic fallback" v={fallbackConfigured ? "configured" : "off"} ok={fallbackConfigured} mono={false} />
+              <MetaRow k="Chat network" v={allLive ? zerogNetwork : `${zerogNetwork} · ${SNAPSHOT_DATE} snapshot`} ok={zerogHealthy} mono={false} />
+              <MetaRow k="Chat model" v={zerogModel} ok={chatLive} mono />
+              <MetaRow k="Labeled fallback" v={fallbackConfigured ? "Anthropic Claude · not TEE-attested" : "off"} mono={false} />
               <MetaRow k="Relic attestation" v={<CopyValue full={RELIC.teeAttestation} display={shortAddr(RELIC.teeAttestation)} />} mono />
             </dl>
             <div className="mt-6 flex flex-wrap gap-2.5">
@@ -299,8 +313,9 @@ export default async function ProofPage() {
           <Panel className="p-6 sm:p-8">
             <PrimitiveHead tag="Chain · Galileo 16602" title="Five contracts, live bytecode." />
             <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              The full marketplace is deployed on 0G Galileo testnet (chainId {chainId}). Every address below returns
-              real bytecode on-chain and opens on 0G Scan.
+              Five contracts are deployed on 0G Galileo testnet (chainId {chainId}); every address below returns real
+              bytecode on-chain and opens on 0G Scan. Four run the live marketplace; AuraINFT is the isolated
+              sealed-transfer deploy, with the cutover staged.
             </p>
             <dl className="mt-6">
               {CONTRACTS.map((c) => (
@@ -317,18 +332,21 @@ export default async function ProofPage() {
 
           {/* iNFT */}
           <Panel className="p-6 sm:p-8">
-            <PrimitiveHead tag="iNFT · ERC-7857" title="Agents transfer with a re-keyed brain." />
+            <PrimitiveHead tag="ERC-7857 · sealed transfer" title="Sealed-key transfer, proven in isolation." />
             <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              Agents and Relics are iNFTs. On transfer, AuraINFT recovers a signed re-encryption proof: the brain is
-              re-encrypted with a fresh key and ECIES-sealed to the buyer, so the old owner cannot open it. Honest
-              framing: this is a trusted ECDSA signer, not a hardware-TEE enclave. It mirrors mainnet ZeroArena&apos;s
-              re-encryption oracle, which is the bar the field ships today.
+              ERC-7857 sealed-key transfer is a proven primitive on the AuraINFT contract: a transfer recovers a
+              signed re-encryption proof, and the brain is re-encrypted with a fresh key and ECIES-sealed to the
+              buyer, so the old owner cannot open it. It is deployed and Foundry-tested in isolation on Galileo. Live
+              Auras trade today as standard ERC-721 on AgentRegistry, and Relics are ERC-721 + EIP-2981, not iNFTs;
+              the sealed-key cutover is staged. Honest framing: the oracle is a trusted ECDSA signer, not a
+              hardware-TEE enclave, which is the bar the field ships today.
             </p>
             <dl className="mt-6">
-              <MetaRow k="Contract" v={shortAddr(CONTRACTS[4].addr)} href={`${EXPLORER}/address/${CONTRACTS[4].addr}`} mono />
+              <MetaRow k="Contract (isolated deploy)" v={shortAddr(CONTRACTS[4].addr)} href={`${EXPLORER}/address/${CONTRACTS[4].addr}`} mono />
               <MetaRow k="On-chain name" v="AURA Creative Agent" ok mono={false} />
               <MetaRow k="Standard" v="ERC-7857 (trusted-signer)" mono={false} />
               <MetaRow k="Key sealing" v="ECIES to buyer pubkey" mono={false} />
+              <MetaRow k="Live Auras" v="ERC-721 on AgentRegistry · cutover staged" mono={false} />
             </dl>
           </Panel>
         </div>
@@ -378,11 +396,11 @@ export default async function ProofPage() {
             <span className="label-caps text-[13px] uppercase tracking-[0.1em] text-right" style={{ color: "var(--color-ink-3)" }}>Live proof</span>
           </div>
           {[
-            { p: "0G Compute", u: "Chat + image generation in a TEE, mainnet GLM-5.1, attested per reply.", href: `${API_PUBLIC}/chat/health`, label: "/chat/health", internal: false },
-            { p: "TeeML guard", u: "Allowlist rejects relay-proxies the chain mislabels as in-enclave.", href: `${API_PUBLIC}/chat/models`, label: "/chat/models", internal: false },
+            { p: "0G Compute", u: "Chat on mainnet GLM-5.1; image on testnet qwen-image-edit-2511; both in a TEE, attested per reply.", href: `${API_PUBLIC}/chat/health`, label: "/chat/health", internal: false },
+            { p: "TeeML guard", u: "Curated allowlist, strictly narrower than the chain's TeeML flag.", href: `${API_PUBLIC}/chat/models`, label: "/chat/models", internal: false },
             { p: "0G Storage", u: "Content-addressed image + brain roots, committed on-chain.", href: RELIC_STORAGE_PROOF, label: "Storage proof", internal: false },
             { p: "0G Chain", u: "Five contracts on Galileo 16602, real bytecode.", href: `${API_PUBLIC}/health`, label: "/health", internal: false },
-            { p: "iNFT (ERC-7857)", u: "Sealed-key transfer, brain re-keyed to the buyer.", href: `${EXPLORER}/address/${CONTRACTS[4].addr}`, label: "0G Scan", internal: false },
+            { p: "ERC-7857", u: "Sealed-key transfer proven on AuraINFT (isolated deploy); live Auras are ERC-721, cutover staged.", href: `${EXPLORER}/address/${CONTRACTS[4].addr}`, label: "0G Scan", internal: false },
             { p: "EIP-2981", u: "Creator royalty resolving live to the agent owner.", href: `${API_PUBLIC}/royalty/${RELIC.tokenId}`, label: `/royalty/${RELIC.tokenId}`, internal: false },
           ].map((row) => (
             <div key={row.p} className="grid grid-cols-1 gap-1.5 border-b px-6 py-4 last:border-b-0 sm:grid-cols-[0.8fr_1.6fr_1fr] sm:items-center sm:gap-4" style={{ borderColor: "var(--color-border)" }}>

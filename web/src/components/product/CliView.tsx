@@ -113,7 +113,7 @@ export function CliView() {
                 driven from any terminal or script. A single static binary, no runtime to install. The
                 headline is <code className="font-mono-x" style={{ color: "var(--color-ink)" }}>aura verify</code>:
                 it recomputes a Relic&rsquo;s rarity and subject from the on-chain seed locally, so a gacha
-                pull is provably unrigged without trusting our API.
+                pull is rig-evident: you recompute the result yourself, no trust in our API.
               </>
             }
           >
@@ -242,7 +242,7 @@ export function CliView() {
                   <ul className="mt-4 space-y-3">
                     <VerifyCheck>The seed recomputes from the public preimage (<code className="font-mono-x">seedRoot == on-chain seed</code>).</VerifyCheck>
                     <VerifyCheck>The seed is a real provable-pull seed (a keccak root, not a low number).</VerifyCheck>
-                    <VerifyCheck>PROVABLE: the pull is unrigged - rarity and subject re-derived locally.</VerifyCheck>
+                    <VerifyCheck>RIG-EVIDENT: rarity and subject re-derived locally, so a substituted result would not match.</VerifyCheck>
                   </ul>
                   <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
                     Confirmed three ways: from source, from the compiled binary, and from the node bundle. The

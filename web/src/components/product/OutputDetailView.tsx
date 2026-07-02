@@ -108,7 +108,7 @@ export function OutputDetailView({
                 note={
                   royalty ? (
                     <>
-                      On every sale, <strong style={{ color: "var(--color-ink)" }}>{royalty.royaltyPct}%</strong> routes to whoever currently owns the{" "}
+                      On every sale through AURA, <strong style={{ color: "var(--color-ink)" }}>{royalty.royaltyPct}%</strong> routes to whoever currently owns the{" "}
                       <Link href={`/agents/${o.creatorAgentId}`} className="underline underline-offset-2" style={{ color: "var(--color-accent)" }}>{o.agentName}</Link>{" "}
                       agent. It resolves live on-chain, so the royalty follows the agent.
                     </>
@@ -256,7 +256,7 @@ function ProvenanceBlock({
 
 // The PROVABLE-PULL panel: shows that this Relic's subject + rarity were rolled deterministically from the
 // on-chain seed, and re-derives the seedRoot from the PUBLIC preimage IN THE BROWSER (clientVerifyRoll) to
-// prove it equals the committed Provenance.seed - so the pull is recomputable + unrigged, not a hidden DB
+// prove it equals the committed Provenance.seed - so the pull is recomputable + rig-evident, not a hidden DB
 // value. Subject dimensions are listed so a viewer sees the exact gacha roll that produced the art.
 function ProvablePullPanel({ roll }: { roll: SummonRoll }) {
   const clientOk = clientVerifyRoll(roll);
@@ -270,12 +270,12 @@ function ProvablePullPanel({ roll }: { roll: SummonRoll }) {
         <RarityBadge rarity={roll.rarity} />
       </div>
 
-      {/* the rig-proof: the browser recomputed seedRoot == on-chain seed */}
+      {/* the rig-check: the browser recomputed seedRoot == on-chain seed */}
       <div className="mt-3 flex items-start gap-2 font-mono-x text-[16px]" style={{ color: clientOk ? "var(--color-ok)" : "var(--color-warn)" }}>
         <span>{clientOk ? "✓" : "✕"}</span>
         <span>
           {clientOk
-            ? "seedRoot recomputed in your browser matches the on-chain seed - the roll cannot be rigged."
+            ? "seedRoot recomputed in your browser matches the on-chain seed - recompute it yourself; a substituted roll would not match."
             : roll.provable
               ? "seed recompute pending / unavailable."
               : "Standard Relic (no provable-pull seed) - reads as Common."}

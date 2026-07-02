@@ -4,7 +4,7 @@
 
 AURA turns a creative AI agent into an owned, on-chain being, an **Aura**. Each Aura has a public identity on 0G Chain, a private style "brain" sealed on 0G Storage, and a persistent, owner-private memory. Auras make art (**Relics**) by generating inside a 0G Compute TEE, so each Relic carries hardware-attested provenance and an enforced royalty that follows the Aura to whoever owns it next. You can talk to an Aura, summon one to create for you, and recompute the result yourself from public on-chain data.
 
-The product is live. Nothing here is a slideshow: every claim below maps to code in this repo and to a real call against the 0G Galileo testnet.
+The product is live. Nothing here is a slideshow: every claim below maps to code in this repo and to a real call against 0G (Galileo testnet for the contracts, 0G mainnet Compute for chat).
 
 | | |
 |---|---|
@@ -12,7 +12,9 @@ The product is live. Nothing here is a slideshow: every claim below maps to code
 | Jury evidence | [PROOF.md](PROOF.md) · live at [aura.topengdev.com/proof](https://aura.topengdev.com/proof) |
 | Backend API | https://api-aura.topengdev.com |
 | CLI | `curl -fsSL https://aura.topengdev.com/install.sh \| sh` |
-| Network | 0G Galileo testnet, chainId **16602** ([explorer](https://chainscan-galileo.0g.ai), [faucet](https://faucet.0g.ai)) |
+| Contract network | 0G Galileo testnet, chainId **16602** ([explorer](https://chainscan-galileo.0g.ai), [faucet](https://faucet.0g.ai)) |
+
+> **Two 0G networks, on purpose.** The marketplace contracts live on 0G Galileo **testnet** (chainId 16602). Chat runs on 0G **mainnet** Compute (frontier GLM-5.1, served as `zai-org/GLM-5.1-FP8`); image generation runs on 0G **testnet** Compute (`qwen-image-edit-2511`). `GET /health` and `GET /chat/health` show both.
 
 ---
 
@@ -45,7 +47,7 @@ An Aura is a creative agent minted as an on-chain token (an iNFT in the ERC-7857
 
 A SIWE-gated, owner-scoped conversation (`POST /chat`). Per turn: load identity and persona, retrieve owner memory, run the model, and persist the turn back to sealed memory.
 
-- **Provider seam:** 0G Compute TEE first (`qwen2.5-omni-7b`, TeeML), with a clearly-labeled fallback behind a health check.
+- **Provider seam:** 0G Compute TEE first (0G **mainnet** GLM-5.1, served as `zai-org/GLM-5.1-FP8`, TeeML), with a clearly-labeled Anthropic Claude fallback behind a health check.
 - **Per-reply attestation:** the response reports `provider`, `teeAttested`, and the raw attestation; only a 0G-served reply is TEE-attested.
 - **The Aura can act (command surface), non-custodially:** two guarded tools, `read_onchain` (a pure read of the Aura's own earnings, royalties, owner, Relic count) and `generate_and_mint` (kicks off a real TEE generation; **you** sign the mint from your own wallet, the server never signs for you).
 - `GET /chat/:agentId/history` returns your decrypted relationship history; `GET /chat/health` reports which provider would serve now.
@@ -98,7 +100,7 @@ aura chat nokturne "what have you earned?"   # talk to an Aura, TEE-attested whe
         |                       \
         |  sponsored             `->  Ponder indexer (PGlite)  ->  0G Chain events  ->  /api/* feeds
         |  generation
-        +->  0G Compute (TEE, qwen)  ->  image + chat reply, hardware-attested (processResponse)
+        +->  0G Compute (TEE)  ->  chat (mainnet GLM-5.1) + image (testnet qwen), hardware-attested (processResponse)
         +->  0G Storage             ->  image + provenance + sealed brain (local merkle == on-chain root)
         v
   Your wallet signs the mint  ->  OutputNFT (creatorAgentId + imageRoot + provenanceHash + teeAttestation)
@@ -115,6 +117,18 @@ aura chat nokturne "what have you earned?"   # talk to an Aura, TEE-attested whe
 | `contracts/` | Foundry project: `AgentRegistry`, `OutputNFT` (ERC-721 + EIP-2981), `AuraMarketplace` (enforced royalty), `SummonEscrow` (demand-pull commissioning), `AuraINFT` (ERC-7857 sealed-key transfer). |
 | `cli/` | Bun CLI, cross-compiled to static binaries plus an npx bundle. |
 | `deploy/` | docker-compose (server + indexer + web + nginx) and Dockerfiles. |
+
+### Repo layout
+
+The live product is five subsystems, each with its own build:
+
+- `web/` - Next.js 15 frontend (live at aura.topengdev.com)
+- `server/` - Fastify API (live at api-aura.topengdev.com)
+- `indexer/` - Ponder read-model indexer (proxied under the backend `/api/*`)
+- `contracts/` - Foundry contracts (`AgentRegistry`, `OutputNFT`, `AuraMarketplace`, `SummonEscrow`, `AuraINFT`)
+- `cli/` - Bun CLI (single static binary)
+
+The root `app/` and `lib/aura/` are a legacy v1 prototype; nothing in the five live subsystems imports them, and they are being removed from the tree as part of repo hygiene.
 
 The 0G primitives are load-bearing, not decorative: take away **0G Compute** and provenance is unprovable; take away **0G Storage** and the art and proof live on an editable server; take away **0G Chain** and there is no enforced royalty bound to the Aura. 0G is the one stack where verifiable TEE compute, decentralized storage, and an EVM that resolves royalty to the current owner are all native to the same place.
 
@@ -175,11 +189,11 @@ One sharp product, fully real, testnet-deployed. What is live versus MVP-scoped:
 | Royalty follows the Aura | **real** | Transferring the Aura re-routes the same Relic's royalty to the new owner; split paid in-platform before the seller. |
 | Sponsored generation, non-custodial mint | **real** | Sponsor pays 0G Compute + Storage; the user signs the mint from their own wallet. |
 | Summon (demand-pull commissioning) | **real** | Buyer self-funds, TEE generation, mint to buyer, fee split that follows the Aura. |
-| Chat with an Aura (TEE-attested) | **real, labeled** | 0G Compute `qwen2.5-omni-7b`, per-reply attestation; a labeled fallback is not attested. Tool actions (`read_onchain`, `generate_and_mint`) are non-custodial. |
+| Chat with an Aura (TEE-attested) | **real, labeled** | 0G Compute mainnet GLM-5.1 (`zai-org/GLM-5.1-FP8`), per-reply attestation; a labeled Anthropic Claude fallback is not attested. Tool actions (`read_onchain`, `generate_and_mint`) are non-custodial. |
 | Per-owner sealed memory | **real, v1-bounded** | AES-256-GCM per relationship, data key ECIES-sealed to the owner pubkey, owner-scoped retrieval wall. v1 keeps a server custody key copy in a durable local cache; mainnet drops custody and persists on 0G. |
 | ERC-7857 secure transfer | **proven primitive** | Sealed-key re-encryption proven on `AuraINFT` (runnable demo + Foundry tests + isolated Galileo deploy). Honest bar: the oracle is a trusted ECDSA signer, not a TEE enclave. |
 | Per-Aura fine-tuning | **research, not shipped** | Not claimed. Style is base model + system prompt + retrieved memory in a TEE. |
-| Network | **testnet** | 0G Galileo, chainId 16602 (the live RPC is authoritative; some docs say 16601). |
+| Networks | **testnet contracts, mainnet chat** | Contracts on 0G Galileo, chainId 16602 (the live RPC is authoritative; some docs say 16601). Chat compute on 0G mainnet (GLM-5.1); image compute on 0G testnet (`qwen-image-edit-2511`). |
 
 ---
 

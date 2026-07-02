@@ -19,7 +19,7 @@ import {
 // ── Client-side, TRUSTLESS recompute of the provable-pull seed (gacha-depth) ────────────────────────────
 // Mirrors the server's server/src/aura/gacha.ts pullSeedRoot EXACTLY (same domain tag + abi.encode shape),
 // so the BROWSER independently re-derives the seedRoot from the public on-chain preimage and confirms it
-// equals the committed Provenance.seed - no trust in our API. This is the heart of "provably unrigged".
+// equals the committed Provenance.seed - no trust in our API. This is the heart of "rig-evident: recompute it yourself".
 const DOMAIN_PULL = keccak256(stringToHex("AURA-PULL-v1"));
 
 /** Recompute uint256 seedRoot from the public preimage. Returns the decimal string (matches onChainSeed). */
