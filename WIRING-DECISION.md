@@ -1,7 +1,11 @@
 # AuraINFT Wiring Decision (Task 2, Step 2a)
 
-Branch: `feat/wire-inft-memory` off `origin/v2` (b18a66e). Galileo testnet only. The live
-demo is FROZEN (Jul-3 Top-16): nothing live is touched, `origin/v2` is not pushed.
+Branch: originally `feat/wire-inft-memory` off `origin/v2` (b18a66e); the wiring has since
+landed on `v2` (HEAD == `origin/v2` == `0ee06a6`, pushed). Galileo testnet only. The AuraINFT
+wiring is PRESENT on v2 but intentionally env-gated OFF (`deployed-v2.json` `auraINFT` is
+blank, so `auraInftConfigured()` is false): the live server creates agents on AgentRegistry
+and the secure-transfer routes return 501, so the live demo behavior is unchanged. Re-enable
+via env `AURA_INFT_ADDR`; the full cutover (below) stays deferred.
 
 ## TL;DR decision
 
