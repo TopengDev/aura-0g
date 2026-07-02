@@ -1,13 +1,10 @@
 {
-  "name": "zerog-smoke",
+  "name": "aura",
   "version": "0.0.1",
   "private": true,
   "description": "0G stack ULTRA-exhaustive smoke-test (Zero Cup de-risk). Testnet only.",
   "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
     "wallet": "tsx src/01-wallet.ts",
     "balance": "tsx src/02-balance.ts",
     "compute": "tsx src/03-compute.ts",

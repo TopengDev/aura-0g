@@ -1,9 +1,0 @@
-{
-  "agentId": 1,
-  "agentName": "NOKTURNE",
-  "model": "qwen/qwen-image-edit-2511",
-  "prompt": "a small coffee shop at night, chiaroscuro noir…",
-  "seed": 42,
-  "teeAttestation": "TeeML/dstack (smoke-test placeholder)",
-  "ts": "2026-06-21T00:00:00Z"
-}
