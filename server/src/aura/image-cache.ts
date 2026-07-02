@@ -20,7 +20,13 @@ import { GEN_DIR } from "./config.js";
 // Cache dir lives next to the generated-images dir (same named volume), so it persists across restarts.
 const CACHE_DIR = path.join(path.dirname(GEN_DIR), "image-cache");
 
+// The table only needs creating ONCE per process, but ensureTable() was being run on every cache read AND
+// write (a redundant CREATE TABLE IF NOT EXISTS exec per request on the image hot path). Memoize it so the
+// DDL runs exactly once (lazily, on first cache use) - equivalent to hoisting to module init, without the
+// import-time db() open.
+let tableReady = false;
 function ensureTable(): void {
+  if (tableReady) return;
   db().exec(`
     CREATE TABLE IF NOT EXISTS image_blobs (
       root        TEXT PRIMARY KEY,   -- 0G Storage root hash (content address)
@@ -30,6 +36,7 @@ function ensureTable(): void {
       created_at  TEXT NOT NULL
     );
   `);
+  tableReady = true;
 }
 
 function sanitizeRoot(root: string): string {

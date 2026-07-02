@@ -11,7 +11,7 @@
 //   GET /chat/health            -> which provider would serve now (badge copy; never leaks the key)
 import type { FastifyInstance } from "fastify";
 import type { ChatMessage } from "../aura/chat-compute.js";
-import { getAgentById } from "../aura/agents.js";
+import { getAgentIdentity } from "../aura/agents.js";
 import { buildSystemPrompt } from "../aura/chat-persona.js";
 import { loadOwnerMemory, retrieve, renderMemory, appendTurn, historyForOwner } from "../aura/chat-memory.js";
 import { pickProvider, runLlm, fallbackConfigured, type LlmResult } from "../aura/chat-llm.js";
@@ -53,7 +53,9 @@ export async function chatRoutes(app: FastifyInstance): Promise<void> {
       const rl = rateLimit(`chat:${owner}`, 20, 60_000);
       if (!rl.ok) return reply.code(429).send({ error: "rate limited", retryInMs: rl.resetInMs });
 
-      const agent = await getAgentById(agentId);
+      // slim identity read (getAgent + ownerOf in parallel + indexer outputCount) - NOT the O(mints)
+      // provenanceOf scan. Chat needs identity/persona, not the full output set.
+      const agent = await getAgentIdentity(agentId);
       if (!agent) return reply.code(404).send({ error: `agent #${agentId} not found on-chain` });
 
       // 1. memory (dual-wall at the loader) -> retrieve -> render

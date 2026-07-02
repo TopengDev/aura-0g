@@ -1,10 +1,72 @@
 // SERVER-ONLY. Agents = on-chain AgentRegistry (v2) truth merged with catalog display metadata.
-// Ported from lib/aura/agents.ts; reads the v2 getAgent tuple (adds creatorResaleBps). Per-item reads
-// are re-backed on chain for now (the indexer is Phase 3). listAgents() is a simple chain scan with a
-// TODO that Phase 3 re-backs it via the indexer.
+// Ported from lib/aura/agents.ts; reads the v2 getAgent tuple (adds creatorResaleBps).
+//
+// PERF (M2): the immutable DNA (getAgent) + live owner (ownerOf) stay on-chain, run in parallel. The
+// per-agent OUTPUT set (outputCount + token ids) is re-backed by the indexer read model (it already
+// derives outputs[] from OutputNFT events), so a read no longer does an O(mints) sequential provenanceOf
+// scan. The chain scan survives ONLY as an indexer-down fallback, behind a short in-process cache.
 import { registryRead, outputRead } from "./contracts.js";
 import { CATALOG, CATALOG_ORDER, metaForName } from "./catalog.js";
+import { INDEXER_URL, INDEXER_TIMEOUT_MS } from "./config.js";
 import type { AgentSummary, AgentDetail, AgentPublicMeta } from "./types.js";
+
+/** Fetch JSON from the indexer read model with a timeout. Throws on non-2xx/timeout (caller falls back). */
+async function indexerGet(pathAndQuery: string): Promise<any> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), INDEXER_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${INDEXER_URL}${pathAndQuery}`, { signal: ctrl.signal, headers: { accept: "application/json" } });
+    if (!res.ok) throw new Error(`indexer ${res.status}`);
+    return await res.json();
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+// Short in-process cache for the chain-scan fallback (only exercised when the indexer is unreachable), so
+// a down indexer degrades to at most one full scan per window rather than one scan per request.
+const OUTPUT_COUNTS_TTL_MS = 30_000;
+let outputCountsCache: { at: number; data: Map<number, number[]> } | null = null;
+
+async function cachedOutputCounts(): Promise<Map<number, number[]>> {
+  const now = Date.now();
+  if (outputCountsCache && now - outputCountsCache.at < OUTPUT_COUNTS_TTL_MS) return outputCountsCache.data;
+  const data = await outputCounts();
+  outputCountsCache = { at: now, data };
+  return data;
+}
+
+/** outputCount + the agent's output token ids. Indexer-first (`/agents/:id` returns outputCount+outputs[]);
+ *  on indexer-down, fall back to the short-cached chain scan. Never throws. */
+async function agentOutputs(agentId: number): Promise<{ outputCount: number; outputs: number[] }> {
+  try {
+    const a = await indexerGet(`/agents/${agentId}`);
+    if (a && Array.isArray(a.outputs)) {
+      const outputs = a.outputs.map((n: unknown) => Number(n)).filter((n: number) => Number.isInteger(n));
+      const outputCount = typeof a.outputCount === "number" ? a.outputCount : outputs.length;
+      return { outputCount, outputs };
+    }
+  } catch {
+    /* indexer unreachable / agent not yet indexed -> chain-scan fallback below */
+  }
+  const counts = await cachedOutputCounts();
+  const outputs = counts.get(agentId) ?? [];
+  return { outputCount: outputs.length, outputs };
+}
+
+/** Just the outputCount, for the chat persona flavor line. Indexer-first, and on indexer-down it uses an
+ *  ALREADY-warm scan cache if present but NEVER triggers a fresh chain scan -> a chat turn cannot pay the
+ *  O(mints) scan under any path. */
+async function agentOutputCount(agentId: number): Promise<number> {
+  try {
+    const a = await indexerGet(`/agents/${agentId}`);
+    if (a && typeof a.outputCount === "number") return a.outputCount;
+    if (a && Array.isArray(a.outputs)) return a.outputs.length;
+  } catch {
+    /* indexer unreachable */
+  }
+  return outputCountsCache?.data.get(agentId)?.length ?? 0;
+}
 
 interface OnChainAgent {
   agentId: number;
@@ -77,7 +139,9 @@ function fallbackMeta(name: string): AgentPublicMeta {
 
 /** All agents for the grid: on-chain agents (minted) + catalog-only agents (available). */
 export async function listAgents(): Promise<AgentSummary[]> {
-  const [chain, counts] = await Promise.all([onChainAgents(), outputCounts()]);
+  // NOTE: this is the indexer-DOWN fallback for GET /agents (routes/indexer.ts prefers the indexer). The
+  // scan is cached (cachedOutputCounts) so a down indexer doesn't re-scan the chain on every request.
+  const [chain, counts] = await Promise.all([onChainAgents(), cachedOutputCounts()]);
   const byName = new Map(chain.map((a) => [a.name.toUpperCase(), a]));
   const summaries: AgentSummary[] = [];
   const seen = new Set<string>();
@@ -129,15 +193,17 @@ function summaryFromChain(oc: OnChainAgent, counts: Map<number, number[]>, meta:
 
 export async function getAgentById(agentId: number): Promise<AgentDetail | null> {
   const reg = registryRead();
+  // immutable DNA + live owner in parallel; the output set comes from the indexer (agentOutputs), not an
+  // O(mints) scan. (This is the root fix that also removes the per-message chat scan -- see getAgentIdentity.)
   let a: any;
+  let owner: string;
   try {
-    a = await reg.getAgent(agentId);
+    [a, owner] = await Promise.all([reg.getAgent(agentId), reg.ownerOf(agentId)]);
   } catch {
     return null;
   }
-  const owner = await reg.ownerOf(agentId);
-  const counts = await outputCounts();
   const meta = metaForName(a.name) ?? fallbackMeta(a.name);
+  const { outputCount, outputs } = await agentOutputs(agentId);
   return {
     agentId,
     name: a.name,
@@ -147,12 +213,46 @@ export async function getAgentById(agentId: number): Promise<AgentDetail | null>
     creatorResaleBps: Number(a.creatorResaleBps),
     styleVersion: Number(a.styleVersion),
     minted: true,
-    outputCount: counts.get(agentId)?.length ?? 0,
+    outputCount,
     meta,
     styleFingerprint: a.styleFingerprint,
     modelAttestation: a.modelAttestation,
     encBrainRoot: a.encBrainRoot,
-    outputs: counts.get(agentId) ?? [],
+    outputs,
+  };
+}
+
+/** SLIM identity read for the chat hot path. POST /chat needs the Aura's identity + persona for the system
+ *  prompt, NOT its full body of work, so this reads only the immutable DNA (getAgent) + live owner (ownerOf)
+ *  in parallel and the outputCount from the indexer -- deliberately NOT scanning outputs on-chain, so a chat
+ *  turn never pays the O(mints) provenanceOf scan (was ~3-6s/message, growing). `outputs` is left empty (the
+ *  persona uses only the count). */
+export async function getAgentIdentity(agentId: number): Promise<AgentDetail | null> {
+  const reg = registryRead();
+  let a: any;
+  let owner: string;
+  try {
+    [a, owner] = await Promise.all([reg.getAgent(agentId), reg.ownerOf(agentId)]);
+  } catch {
+    return null;
+  }
+  const meta = metaForName(a.name) ?? fallbackMeta(a.name);
+  const outputCount = await agentOutputCount(agentId);
+  return {
+    agentId,
+    name: a.name,
+    owner,
+    royaltyBps: Number(a.royaltyBps),
+    royaltyPct: Number(a.royaltyBps) / 100,
+    creatorResaleBps: Number(a.creatorResaleBps),
+    styleVersion: Number(a.styleVersion),
+    minted: true,
+    outputCount,
+    meta,
+    styleFingerprint: a.styleFingerprint,
+    modelAttestation: a.modelAttestation,
+    encBrainRoot: a.encBrainRoot,
+    outputs: [],
   };
 }
 

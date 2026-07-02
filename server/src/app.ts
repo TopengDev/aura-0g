@@ -26,6 +26,12 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   const app = Fastify({
     logger: opts.logger ?? true,
     bodyLimit: 2 * 1024 * 1024, // 2MB JSON bodies (multipart has its own limit)
+    // Behind nginx every request arrives from the loopback, so WITHOUT this the global rate-limiter keys
+    // every browser onto one shared 120/min bucket (verified perf finding: sections silently render empty
+    // + images fall to placeholders under modest demo load). trustProxy makes Fastify resolve the real
+    // client IP from X-Forwarded-For, so the limiter buckets per client. The tight per-address AUTHED
+    // limits (chat/generate, keyed on the JWT address) are unaffected.
+    trustProxy: true,
   });
 
   // CORS - explicit origin allowlist (never "*" because we send a Bearer token). Credentials OFF

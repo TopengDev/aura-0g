@@ -32,6 +32,50 @@ async function indexerGet(pathAndQuery: string): Promise<unknown> {
   }
 }
 
+// ── indexer-DOWN fallback caching (perf) ─────────────────────────────────────────────────────────────
+// The chain-scan fallbacks below are expensive (a full agent/output scan) and were re-run on EVERY request
+// while the indexer was unreachable. Wrap them in a short TTL cache + single-flight so a down indexer
+// degrades to one scan per window (shared across concurrent callers) instead of one scan per request. This
+// is consulted ONLY inside the catch branch, so a recovered indexer is served fresh (the cache is bypassed).
+const FALLBACK_TTL_MS = 45_000;
+const fallbackCache = new Map<string, { at: number; data: unknown }>();
+const fallbackInflight = new Map<string, Promise<unknown>>();
+
+async function cachedFallback<T>(key: string, produce: () => Promise<T>): Promise<T> {
+  const now = Date.now();
+  const hit = fallbackCache.get(key);
+  if (hit && now - hit.at < FALLBACK_TTL_MS) return hit.data as T;
+  const inflight = fallbackInflight.get(key);
+  if (inflight) return inflight as Promise<T>;
+  // register the in-flight promise SYNCHRONOUSLY (no await between the miss and the set) so concurrent
+  // callers dedup onto this single scan.
+  const p = (async () => {
+    try {
+      const data = await produce();
+      fallbackCache.set(key, { at: Date.now(), data });
+      return data;
+    } finally {
+      fallbackInflight.delete(key);
+    }
+  })();
+  fallbackInflight.set(key, p);
+  return p;
+}
+
+/** Map over items with a bounded concurrency (replaces an unbounded Promise.all fan-out over ALL tokens). */
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let idx = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limit), items.length || 1) }, async () => {
+    while (idx < items.length) {
+      const i = idx++;
+      results[i] = await fn(items[i]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 export async function indexerRoutes(app: FastifyInstance): Promise<void> {
   // ── 1. generic passthrough: /api/* -> indexer/* (the single surface for the webapp) ──
   // GET-only (the indexed read surface is read-only). Body methods are intentionally not proxied.
@@ -53,12 +97,16 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
 
   // ── 2. indexer-first re-backing of the Phase-2 list endpoints (graceful fallback to chain-scan) ──
 
-  // GET /agents - prefer the indexer; fall back to the chain scan.
+  // GET /agents - prefer the indexer; fall back to the (cached, single-flighted) chain scan.
   app.get("/agents", async () => {
     try {
       return await indexerGet("/agents");
     } catch {
-      return { agents: await listAgents(), source: "chain-scan-fallback", note: "indexer unreachable" };
+      return await cachedFallback("agents", async () => ({
+        agents: await listAgents(),
+        source: "chain-scan-fallback",
+        note: "indexer unreachable",
+      }));
     }
   });
 
@@ -68,13 +116,16 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
     try {
       return await indexerGet(`/outputs${qs}`);
     } catch {
-      const { outputRead } = await import("../aura/contracts.js");
-      const out = outputRead();
-      const next = Number(await out.nextTokenId());
-      const ids: number[] = [];
-      for (let i = next - 1; i >= 1; i--) ids.push(i);
-      const items = await Promise.all(ids.map((id) => getProvenance(id)));
-      return { outputs: items.filter(Boolean), source: "chain-scan-fallback", note: "indexer unreachable" };
+      return await cachedFallback(`outputs${qs}`, async () => {
+        const { outputRead } = await import("../aura/contracts.js");
+        const out = outputRead();
+        const next = Number(await out.nextTokenId());
+        const ids: number[] = [];
+        for (let i = next - 1; i >= 1; i--) ids.push(i);
+        // bounded fan-out (was an unbounded Promise.all over EVERY token id).
+        const items = await mapWithConcurrency(ids, 8, (id) => getProvenance(id));
+        return { outputs: items.filter(Boolean), source: "chain-scan-fallback", note: "indexer unreachable" };
+      });
     }
   });
 
@@ -83,7 +134,7 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
     try {
       return await indexerGet("/marketplace");
     } catch {
-      return await getMarketplace();
+      return await cachedFallback("marketplace", () => getMarketplace());
     }
   });
 }

@@ -13,22 +13,33 @@ const SAMPLE_PRICE = ethers.parseEther("1");
 export async function getProvenance(tokenId: number): Promise<ProvenanceResponse | null> {
   const out = outputRead();
   const reg = registryRead();
+
+  // provenanceOf gates the read; royaltyInfo depends only on tokenId (not the agentId), so fetch both in
+  // parallel. royaltyReceiver is a display field -> its own catch keeps a royaltyInfo hiccup non-fatal
+  // while provenanceOf still governs the null (token-not-found) result.
   let p: any;
+  let royaltyReceiver: string = ethers.ZeroAddress;
   try {
-    p = await out.provenanceOf(tokenId);
+    const [prov, royalty] = await Promise.all([
+      out.provenanceOf(tokenId),
+      out.royaltyInfo(tokenId, SAMPLE_PRICE).then((r: [string, bigint]) => r[0]).catch(() => ethers.ZeroAddress),
+    ]);
+    p = prov;
+    royaltyReceiver = royalty;
   } catch {
     return null;
   }
   const creatorAgentId = Number(p.creatorAgentId);
 
+  // getAgent + ownerOf both key on creatorAgentId -> independent, so Promise.all them (was serialized).
   let agentName = `agent#${creatorAgentId}`;
   let agentOwner = ethers.ZeroAddress;
   let modelAttestation = ZERO32;
   let styleFingerprint = ZERO32;
   let agentExists = false;
   try {
-    const a = await reg.getAgent(creatorAgentId);
-    agentOwner = await reg.ownerOf(creatorAgentId);
+    const [a, owner] = await Promise.all([reg.getAgent(creatorAgentId), reg.ownerOf(creatorAgentId)]);
+    agentOwner = owner;
     agentName = a.name;
     modelAttestation = a.modelAttestation;
     styleFingerprint = a.styleFingerprint;
@@ -37,7 +48,6 @@ export async function getProvenance(tokenId: number): Promise<ProvenanceResponse
     /* agent missing - verification will flag it */
   }
 
-  const [royaltyReceiver] = await out.royaltyInfo(tokenId, SAMPLE_PRICE);
   const imageOnChain = typeof p.imageRoot === "string" && p.imageRoot.length > 0;
   const teeAttestationPresent = p.teeAttestation && p.teeAttestation !== ZERO32;
 

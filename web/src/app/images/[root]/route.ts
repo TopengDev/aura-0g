@@ -140,25 +140,66 @@ function parseWidth(raw: string | null): number | null {
   return Math.max(16, Math.min(2048, n));
 }
 
-async function transcode(
-  bytes: Buffer,
-  fmt: "avif" | "webp" | null,
-  width: number | null,
+function transcodeKey(cacheKey: string, width: number | null, fmt: "avif" | "webp" | null): string {
+  return `${cacheKey}|w=${width ?? 0}|f=${fmt ?? "orig"}`;
+}
+
+// ── single-flight + a small encode semaphore ─────────────────────────────────────────────────────────
+// A cold key (first load, or first load after a redeploy) needs a 1-6s sharp encode. Without coordination,
+// N concurrent first-viewers of the SAME key each ran their own encode, and a burst of DISTINCT cold keys
+// could spawn N simultaneous encodes and peg CPU / OOM the container. The in-flight Map dedups same-key
+// encoders onto ONE encode (the rest await it); the semaphore caps how many distinct keys encode at once.
+const INFLIGHT = new Map<string, Promise<Optimized | null>>();
+const MAX_CONCURRENT_ENCODES = 2;
+let activeEncodes = 0;
+const encodeWaiters: Array<() => void> = [];
+function acquireEncodeSlot(): Promise<void> {
+  if (activeEncodes < MAX_CONCURRENT_ENCODES) {
+    activeEncodes++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => encodeWaiters.push(resolve));
+}
+function releaseEncodeSlot(): void {
+  const next = encodeWaiters.shift();
+  if (next) next(); // hand the slot straight to the next waiter (activeEncodes stays constant)
+  else activeEncodes--;
+}
+
+// Cache-only lookup (L1 in-process, then L2 disk) for a transcode variant -- NO bytes, NO encode. Returns
+// null on a true miss. If an encode for this exact variant is already in flight, await it (so a concurrent
+// request neither re-encodes NOR re-fetches the original). This is what lets the route serve a warm variant
+// BEFORE paying the (large) backend/original fetch.
+async function cachedVariant(
   cacheKey: string,
+  width: number | null,
+  fmt: "avif" | "webp" | null,
 ): Promise<Optimized | null> {
-  // Nothing to do: browser wants no modern format AND no resize was requested -> serve original.
-  if (!fmt && !width) return null;
-  const ck = `${cacheKey}|w=${width ?? 0}|f=${fmt ?? "orig"}`;
-  // L1: in-process.
+  if (!fmt && !width) return null; // a passthrough request has no cached variant
+  const ck = transcodeKey(cacheKey, width, fmt);
   const hit = XCODE_CACHE.get(ck);
   if (hit) return hit;
-  // L2: on-disk (survives restarts) -- a cold process still skips the expensive encode.
+  const inflight = INFLIGHT.get(ck);
+  if (inflight) return inflight;
   const onDisk = await diskGet(ck, fmt);
   if (onDisk) {
     memPut(ck, onDisk);
     return onDisk;
   }
+  return null;
+}
+
+async function encodeVariant(
+  bytes: Buffer,
+  fmt: "avif" | "webp" | null,
+  width: number | null,
+  ck: string,
+): Promise<Optimized | null> {
+  await acquireEncodeSlot();
   try {
+    // a sibling encoder may have filled the cache while we queued for a slot.
+    const late = XCODE_CACHE.get(ck);
+    if (late) return late;
     let img = sharp(bytes, { failOn: "none" });
     if (width) img = img.resize({ width, withoutEnlargement: true });
     let out: Buffer;
@@ -187,7 +228,42 @@ async function transcode(
     return res;
   } catch {
     return null; // fall back to original bytes -- never break the image
+  } finally {
+    releaseEncodeSlot();
   }
+}
+
+async function transcode(
+  bytes: Buffer,
+  fmt: "avif" | "webp" | null,
+  width: number | null,
+  cacheKey: string,
+): Promise<Optimized | null> {
+  // Nothing to do: browser wants no modern format AND no resize was requested -> serve original.
+  if (!fmt && !width) return null;
+  const ck = transcodeKey(cacheKey, width, fmt);
+  // L1 (sync) fast path.
+  const hit = XCODE_CACHE.get(ck);
+  if (hit) return hit;
+  // single-flight: if an encode/lookup for this exact variant is already running, await it. Registered
+  // SYNCHRONOUSLY (no await between the get-miss and the set) so concurrent callers can't both start one.
+  const existing = INFLIGHT.get(ck);
+  if (existing) return existing;
+  const p = (async () => {
+    try {
+      // L2 (disk) first -- a cold process still skips the expensive encode.
+      const onDisk = await diskGet(ck, fmt);
+      if (onDisk) {
+        memPut(ck, onDisk);
+        return onDisk;
+      }
+      return await encodeVariant(bytes, fmt, width, ck);
+    } finally {
+      INFLIGHT.delete(ck);
+    }
+  })();
+  INFLIGHT.set(ck, p);
+  return p;
 }
 
 // Cache-Control for a resolved image, keyed off the (internal) cacheKey:
@@ -206,6 +282,27 @@ function imageCacheControl(cacheKey: string): string {
   return "public, max-age=86400";
 }
 
+// Build a response for an already-optimized (cached or freshly transcoded) variant.
+function respondOptimized(x: Optimized, cacheKey: string): Response {
+  return new NextResponse(x.body, {
+    headers: {
+      "content-type": x.type,
+      // Content is addressed by root (+ style + w); the chosen format is keyed off Accept, so Vary.
+      "cache-control": imageCacheControl(cacheKey),
+      vary: "Accept",
+    },
+  });
+}
+
+// What transcode the request wants, derived from ?w= + the Accept header.
+function transcodeParams(request: Request): { width: number | null; fmt: "avif" | "webp" | null } {
+  const url = new URL(request.url);
+  return {
+    width: parseWidth(url.searchParams.get("w")),
+    fmt: pickFormat(request.headers.get("accept") || ""),
+  };
+}
+
 // Build the image response, optimizing raster bytes (resize + modern format) when possible. Falls back
 // to the original bytes for non-raster types or on any transcode failure.
 async function serveOptimized(
@@ -215,20 +312,9 @@ async function serveOptimized(
   cacheKey: string,
 ): Promise<Response> {
   if (TRANSCODABLE.test(originalType)) {
-    const url = new URL(request.url);
-    const width = parseWidth(url.searchParams.get("w"));
-    const fmt = pickFormat(request.headers.get("accept") || "");
+    const { width, fmt } = transcodeParams(request);
     const x = await transcode(bytes, fmt, width, cacheKey);
-    if (x) {
-      return new NextResponse(x.body, {
-        headers: {
-          "content-type": x.type,
-          // Content is addressed by root (+ style + w); the chosen format is keyed off Accept, so Vary.
-          "cache-control": imageCacheControl(cacheKey),
-          vary: "Accept",
-        },
-      });
-    }
+    if (x) return respondOptimized(x, cacheKey);
   }
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
@@ -345,13 +431,18 @@ export async function GET(
   const url = new URL(request.url);
   const style = (url.searchParams.get("style") || "custom").toLowerCase();
 
+  const { width, fmt } = transcodeParams(request);
+
   const localFile = SHOWCASE_PORTRAIT[root] || ROOT_TO_FILE[root];
   if (localFile) {
+    const cacheKey = `local:${localFile}`;
+    // cache-key-first: if the transcoded variant is already cached (or being encoded), serve it WITHOUT
+    // even reading the baked file off disk. cacheKey is the file path: immutable for the process lifetime.
+    const ready = await cachedVariant(cacheKey, width, fmt);
+    if (ready) return respondOptimized(ready, cacheKey);
     try {
       const bytes = await readFile(path.join(PUBLIC, localFile));
-      // Optimize (resize + AVIF/WebP) the baked art. cacheKey is the file path: immutable, so the
-      // transcoded variants are reused for the whole process lifetime.
-      return await serveOptimized(bytes, contentTypeFor(localFile), request, `local:${localFile}`);
+      return await serveOptimized(bytes, contentTypeFor(localFile), request, cacheKey);
     } catch {
       // fall through (backend, then placeholder)
     }
@@ -359,13 +450,19 @@ export async function GET(
 
   // USER content -> proxy real bytes from the backend (its durable local cache; 0G is unreliable).
   //   "agent-<id>" -> a user agent's portrait;  any other (non-baked) root -> a generated output/ref image.
+  const cacheKey = `backend:${root}`;
+  // cache-key-first: a content-addressed root's transcoded variant can never change, so if it is already
+  // cached (or in-flight), return it BEFORE the (1-2MB) backend hop. Only a true cold miss fetches the
+  // original. This is the core fix: the old code fetched the full original on EVERY request.
+  const ready = await cachedVariant(cacheKey, width, fmt);
+  if (ready) return respondOptimized(ready, cacheKey);
+
   const agentMatch = /^agent-(\d+)$/.exec(root);
   const backendPath = agentMatch
     ? `/agent-portrait/${agentMatch[1]}`
     : `/image/${encodeURIComponent(root)}`;
   const proxied = await fetchBackendImage(backendPath);
-  // cacheKey is the content-addressed root, so a backend image transcodes once then serves from cache.
-  if (proxied) return await serveOptimized(proxied.bytes, proxied.type, request, `backend:${root}`);
+  if (proxied) return await serveOptimized(proxied.bytes, proxied.type, request, cacheKey);
 
   const svg = placeholderSvg(root, style);
   return new NextResponse(svg, {
