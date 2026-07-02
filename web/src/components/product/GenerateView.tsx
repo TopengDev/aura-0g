@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Reveal } from "@/components/Reveal";
@@ -86,6 +86,9 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
   const TOP_BADGES = 5;
   const [agentSearch, setAgentSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
+  // Keyboard cursor into the agent-search listbox (drives aria-activedescendant + Enter-to-pick).
+  const [searchActive, setSearchActive] = useState(-1);
+  const searchListId = useId();
   const searchBoxRef = useRef<HTMLDivElement>(null);
   const [jobId, setJobId] = useState<string | null>(null);
   const [job, setJob] = useState<GenerateJob | null>(null);
@@ -118,6 +121,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
     setAgentId(id);
     setAgentSearch("");
     setSearchOpen(false);
+    setSearchActive(-1);
   }, []);
 
   const topBadges = agents.slice(0, TOP_BADGES);
@@ -125,6 +129,33 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
     ? agents.filter((a) => a.name.toLowerCase().includes(agentSearch.toLowerCase().trim()))
     : agents;
   const showDropdown = searchOpen && filteredForDropdown.length > 0;
+
+  // Arrow-key navigation for the search combobox: Down/Up move the cursor over the filtered options,
+  // Enter picks the cursored Aura, Escape closes. Makes the listbox keyboard-operable (not mouse-only).
+  const onSearchKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setSearchOpen(false);
+      setSearchActive(-1);
+      return;
+    }
+    if (!showDropdown) {
+      if (e.key === "ArrowDown") setSearchOpen(true);
+      return;
+    }
+    const n = filteredForDropdown.length;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSearchActive((i) => (i + 1) % n);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSearchActive((i) => (i <= 0 ? n - 1 : i - 1));
+    } else if (e.key === "Enter") {
+      if (searchActive >= 0 && searchActive < n) {
+        e.preventDefault();
+        handlePickAgent(filteredForDropdown[searchActive].agentId);
+      }
+    }
+  };
 
   const accent = agent?.meta.accent ?? "#2a3858";
   const portrait = agent ? agentPortraitUrl(agent) : null;
@@ -314,21 +345,25 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       placeholder="Search all Auras..."
                       value={agentSearch}
                       disabled={flow === "generating" || flow === "minting"}
-                      onChange={(e) => { setAgentSearch(e.target.value); setSearchOpen(true); }}
+                      onChange={(e) => { setAgentSearch(e.target.value); setSearchOpen(true); setSearchActive(-1); }}
                       onFocus={() => setSearchOpen(true)}
-                      onKeyDown={(e: KeyboardEvent<HTMLInputElement>) => { if (e.key === "Escape") setSearchOpen(false); }}
+                      onKeyDown={onSearchKeyDown}
                       className="w-full rounded-[14px] border border-[var(--color-border-strong)] py-2.5 pl-9 pr-4 font-medium text-[16px] outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
                       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
                       aria-label="Search Auras"
-                      aria-haspopup="listbox"
+                      role="combobox"
+                      aria-controls={showDropdown ? searchListId : undefined}
                       aria-expanded={showDropdown}
+                      aria-autocomplete="list"
+                      aria-activedescendant={showDropdown && searchActive >= 0 ? `${searchListId}-opt-${searchActive}` : undefined}
                     />
                   </div>
                   {showDropdown && (
                     <div
+                      id={searchListId}
                       role="listbox"
                       aria-label="Aura list"
-                      className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-52 overflow-y-auto rounded-[16px] border shadow-[var(--shadow-doc)]"
+                      className="scroll-affordance absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-52 overflow-y-auto rounded-[16px] border shadow-[var(--shadow-doc)]"
                       style={{ background: "var(--color-paper)", borderColor: "var(--color-border-strong)" }}
                     >
                       {filteredForDropdown.length === 0 ? (
@@ -336,17 +371,20 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                           No Auras match
                         </p>
                       ) : (
-                        filteredForDropdown.map((a) => {
+                        filteredForDropdown.map((a, idx) => {
                           const active = a.agentId === agentId;
+                          const cursored = idx === searchActive;
                           return (
                             <button
                               key={a.agentId}
+                              id={`${searchListId}-opt-${idx}`}
                               role="option"
                               aria-selected={active}
                               type="button"
                               disabled={flow === "generating" || flow === "minting"}
                               onClick={() => handlePickAgent(a.agentId)}
-                              className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors first:rounded-t-[16px] last:rounded-b-[16px] disabled:opacity-50 ${active ? "" : "hover:bg-[var(--color-cream-deep)]"}`}
+                              onMouseEnter={() => setSearchActive(idx)}
+                              className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors first:rounded-t-[16px] last:rounded-b-[16px] disabled:opacity-50 ${active ? "" : cursored ? "bg-[var(--color-cream-deep)]" : "hover:bg-[var(--color-cream-deep)]"}`}
                               style={active ? { background: "var(--color-cream-warm)" } : {}}
                             >
                               <img src={agentPortraitUrl(a)} alt={a.name} className="h-6 w-6 rounded-full object-cover" />
@@ -380,7 +418,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                 <div className="mb-4 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   The prompt
                 </div>
-                <Field label="Describe the work" hint={`${prompt.trim().length} chars`}>
+                <Field label="Describe the work" hint={`${prompt.trim().length} chars`} required>
                   <TextArea
                     value={prompt}
                     onChange={setPrompt}
@@ -453,13 +491,13 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       </p>
                     ) : null}
                     {flow === "error" && error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div role="alert" className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {error}
                       </div>
                     ) : null}
                   </div>
                 ) : flow === "generating" ? (
-                  <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+                  <div role="status" aria-busy="true" className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
                     {job ? jobLabel(job.status) : "Starting the sponsor job"}
                     {job?.progress ? <span className="ml-1" style={{ color: "var(--color-ink-3)" }}>· {job.progress}</span> : null}
                   </div>
@@ -487,14 +525,14 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                       Discard and start over
                     </button>
                     {mintState.phase === "error" && mintState.error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div role="alert" className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {mintState.error}
                       </div>
                     ) : null}
                   </div>
                 ) : flow === "minted" ? (
                   <div className="space-y-3">
-                    <div className="rounded-xl border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
+                    <div role="status" className="rounded-xl border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
                       <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ok)" }}>
                         Minted on-chain ✓
                       </div>

@@ -31,7 +31,9 @@
   --color-cream-warm: #f3efe6;   /* warm accent bg                   */
   --color-ink: #0e0d0a;          /* primary text                     */
   --color-ink-2: #46443d;        /* secondary text                   */
-  --color-ink-3: #8c887e;        /* tertiary / muted                 */
+  /* tertiary / muted. Darkened from #8c887e (3.33:1 on cream, WCAG AA fail for the 12-16px secondary
+     text it colors app-wide) to #736f65 (4.73:1, passes AA) while keeping the warm muted register. */
+  --color-ink-3: #736f65;
   --color-border: rgba(14, 13, 10, 0.14);
   --color-border-strong: rgba(14, 13, 10, 0.28);
   --color-accent: #2a3858;       /* ink-navy (AURA site accent, light) */
@@ -65,6 +67,22 @@
   --font-display: "Ethereal Glamour", "Playfair Display", Georgia, serif;
   --font-display-alt: var(--font-playfair), "Playfair Display", Georgia, serif;
   --font-display-active: var(--font-display);
+
+  /* Rarity-tier tokens (RarityBadge). Light defaults here; the dark swaps below brighten the fg so the
+     tiers keep >=4.5:1 (the audit caught Epic at 3.28:1 in dark) instead of hardcoded hex that only
+     read on cream. A glyph (star/diamond) rides alongside so tiers are never distinguished by hue alone. */
+  --rarity-common-fg: #5c6270;
+  --rarity-common-bg: rgba(107, 114, 128, 0.1);
+  --rarity-common-ring: rgba(107, 114, 128, 0.3);
+  --rarity-rare-fg: #2563eb;
+  --rarity-rare-bg: rgba(37, 99, 235, 0.12);
+  --rarity-rare-ring: rgba(37, 99, 235, 0.34);
+  --rarity-epic-fg: #7c3aed;
+  --rarity-epic-bg: rgba(124, 58, 237, 0.13);
+  --rarity-epic-ring: rgba(124, 58, 237, 0.36);
+  --rarity-legendary-fg: #b45309;
+  --rarity-legendary-bg: rgba(217, 160, 40, 0.16);
+  --rarity-legendary-ring: rgba(217, 160, 40, 0.45);
 }
 html.font-playfair {
   --font-display-active: var(--font-display-alt);
@@ -93,6 +111,18 @@ html.font-playfair {
     --shadow-doc: 0 30px 80px -40px rgba(0, 0, 0, 0.75);
     --shadow-card: 0 20px 50px -30px rgba(0, 0, 0, 0.7);
     --shadow-pill: 0 8px 18px -10px rgba(0, 0, 0, 0.6);
+    --rarity-common-fg: #9aa3b2;
+    --rarity-common-bg: rgba(154, 163, 178, 0.12);
+    --rarity-common-ring: rgba(154, 163, 178, 0.34);
+    --rarity-rare-fg: #7aa2f7;
+    --rarity-rare-bg: rgba(122, 162, 247, 0.14);
+    --rarity-rare-ring: rgba(122, 162, 247, 0.38);
+    --rarity-epic-fg: #c9b3fb;
+    --rarity-epic-bg: rgba(201, 179, 251, 0.14);
+    --rarity-epic-ring: rgba(201, 179, 251, 0.4);
+    --rarity-legendary-fg: #f0c674;
+    --rarity-legendary-bg: rgba(240, 198, 116, 0.16);
+    --rarity-legendary-ring: rgba(240, 198, 116, 0.45);
     color-scheme: dark;
   }
 }
@@ -115,6 +145,18 @@ html.dark {
   --shadow-doc: 0 30px 80px -40px rgba(0, 0, 0, 0.75);
   --shadow-card: 0 20px 50px -30px rgba(0, 0, 0, 0.7);
   --shadow-pill: 0 8px 18px -10px rgba(0, 0, 0, 0.6);
+  --rarity-common-fg: #9aa3b2;
+  --rarity-common-bg: rgba(154, 163, 178, 0.12);
+  --rarity-common-ring: rgba(154, 163, 178, 0.34);
+  --rarity-rare-fg: #7aa2f7;
+  --rarity-rare-bg: rgba(122, 162, 247, 0.14);
+  --rarity-rare-ring: rgba(122, 162, 247, 0.38);
+  --rarity-epic-fg: #c9b3fb;
+  --rarity-epic-bg: rgba(201, 179, 251, 0.14);
+  --rarity-epic-ring: rgba(201, 179, 251, 0.4);
+  --rarity-legendary-fg: #f0c674;
+  --rarity-legendary-bg: rgba(240, 198, 116, 0.16);
+  --rarity-legendary-ring: rgba(240, 198, 116, 0.45);
   color-scheme: dark;
 }
 
@@ -208,6 +250,65 @@ html.dark {
     box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 38%, transparent);
     border-radius: 12px;
   }
+}
+
+/* ── Accessibility utilities ───────────────────────────────────────────────
+   .sr-only visually hides content while keeping it in the a11y tree (labels, skip target text).
+   .skip-link is the keyboard skip-to-content control: off-screen until focused, then it slides into
+   the top-left over the fixed nav. Restores WCAG 2.4.1 bypass-blocks lost by the fixed header. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.skip-link {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 100;
+  transform: translateY(-120%);
+  transition: transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  margin: 10px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  padding: 10px 16px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 15px;
+}
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+  outline: none;
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-accent) 38%, transparent);
+}
+
+/* Restore a thin, theme-toned scrollbar on genuinely-scrollable app regions (chat list/transcript,
+   the model-picker list). The global rule above hides ALL scrollbars for the marketing surfaces; this
+   opt-in class returns the scroll affordance where content actually overflows (WCAG-friendly). */
+.scroll-affordance {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: var(--color-border-strong) transparent;
+}
+.scroll-affordance::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+  display: block;
+}
+.scroll-affordance::-webkit-scrollbar-thumb {
+  background: var(--color-border-strong);
+  border-radius: 8px;
+}
+.scroll-affordance::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Same oklab ambient wash, reusable on any surface that needs the ground 1:1. */

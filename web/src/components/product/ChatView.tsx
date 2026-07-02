@@ -107,6 +107,10 @@ export function ChatView({ agents, initialAgentId }: { agents: Agent[]; initialA
         {/* ── Sidebar (the conversations) ── smooth width collapse on desktop (.chat-sidebar) ── */}
         <aside
           data-collapsed={collapsed}
+          // When collapsed (desktop, width:0) the list is still in the DOM: `inert` takes its links out of
+          // the tab order + a11y tree so keyboard/SR users don't land in an invisible zero-width panel.
+          inert={collapsed}
+          aria-hidden={collapsed || undefined}
           className={`${selected ? "hidden md:flex" : "flex"} chat-sidebar shrink-0 overflow-hidden border-r`}
           style={{ borderColor: "var(--color-border)", background: "var(--color-paper)" }}
         >
@@ -151,6 +155,7 @@ export function ChatView({ agents, initialAgentId }: { agents: Agent[]; initialA
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search Auras..."
+              aria-label="Search your Auras"
               className="mt-3 w-full rounded-[12px] border border-[var(--color-border-strong)] px-3 py-2 text-[16px] font-medium outline-none micro focus:border-[var(--color-accent)]"
               style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
             />
@@ -158,7 +163,7 @@ export function ChatView({ agents, initialAgentId }: { agents: Agent[]; initialA
 
           {/* data-lenis-prevent: the global Lenis smooth-scroll otherwise swallows the wheel here, so the
               list never scrolls with the wheel. This hands wheel/touch back to native scroll for the list. */}
-          <div data-lenis-prevent className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2">
+          <div data-lenis-prevent className="scroll-affordance min-h-0 flex-1 overflow-y-auto overscroll-contain px-2 py-2">
             {filtered.length === 0 ? (
               <p className="px-3 py-6 text-center text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                 {agents.length === 0 ? "No Auras yet." : "No Auras match that search."}
@@ -259,6 +264,7 @@ function ConversationRow({ agent: a, active, hist, onSelect }: { agent: Agent; a
     <button
       type="button"
       onClick={onSelect}
+      aria-current={active ? "true" : undefined}
       className={`group relative mb-1 flex w-full items-center gap-3 rounded-[14px] py-2.5 pl-4 pr-3 text-left micro ${active ? "" : "hover:bg-[color-mix(in_oklab,var(--color-ink)_5%,transparent)]"}`}
       style={active ? { background: `color-mix(in oklab, ${accent} 13%, var(--color-paper))` } : undefined}
     >

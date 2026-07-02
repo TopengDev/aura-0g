@@ -5,12 +5,14 @@ import type { CSSProperties } from "react";
 
 export type RarityTier = "Common" | "Rare" | "Epic" | "Legendary";
 
+// Tasteful, on-brand tints (not neon). Colors resolve through theme tokens (globals.css) so each tier
+// keeps >=4.5:1 in BOTH light and dark (the hardcoded hex failed dark: Epic was 3.28:1). A glyph rides
+// alongside the label so tiers are never distinguished by hue alone.
 const TIERS: Record<RarityTier, { fg: string; bg: string; ring: string; label: string }> = {
-  // Tasteful, on-brand tints (not neon). Each tier reads instantly without fighting the artwork.
-  Common: { fg: "#6b7280", bg: "rgba(107,114,128,0.10)", ring: "rgba(107,114,128,0.30)", label: "Common" },
-  Rare: { fg: "#2563eb", bg: "rgba(37,99,235,0.12)", ring: "rgba(37,99,235,0.34)", label: "Rare" },
-  Epic: { fg: "#7c3aed", bg: "rgba(124,58,237,0.13)", ring: "rgba(124,58,237,0.36)", label: "Epic" },
-  Legendary: { fg: "#b45309", bg: "rgba(217,160,40,0.16)", ring: "rgba(217,160,40,0.45)", label: "Legendary" },
+  Common: { fg: "var(--rarity-common-fg)", bg: "var(--rarity-common-bg)", ring: "var(--rarity-common-ring)", label: "Common" },
+  Rare: { fg: "var(--rarity-rare-fg)", bg: "var(--rarity-rare-bg)", ring: "var(--rarity-rare-ring)", label: "Rare" },
+  Epic: { fg: "var(--rarity-epic-fg)", bg: "var(--rarity-epic-bg)", ring: "var(--rarity-epic-ring)", label: "Epic" },
+  Legendary: { fg: "var(--rarity-legendary-fg)", bg: "var(--rarity-legendary-bg)", ring: "var(--rarity-legendary-ring)", label: "Legendary" },
 };
 
 function normalize(r: string | null | undefined): RarityTier {

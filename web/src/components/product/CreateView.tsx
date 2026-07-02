@@ -234,7 +234,7 @@ export function CreateView() {
                 </div>
                 <ImageDrop imageUrl={imageUrl} onPick={onPickImage} disabled={flow === "building" || flow === "minting"} />
                 {imageError ? (
-                  <p className="mt-2 text-[16px]" style={{ color: "var(--color-warn)" }}>{imageError}</p>
+                  <p role="alert" className="mt-2 text-[16px]" style={{ color: "var(--color-warn)" }}>{imageError}</p>
                 ) : (
                   <p className="mt-2 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
                     PNG or JPEG, {MIN_PX} to {MAX_PX}px each side. This becomes the Aura&apos;s determinism anchor.
@@ -249,10 +249,10 @@ export function CreateView() {
                 <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   Identity
                 </div>
-                <Field label="Aura name" hint={`${name.trim().length}/48`}>
+                <Field label="Aura name" hint={`${name.trim().length}/48`} required>
                   <TextInput value={name} onChange={setName} maxLength={48} placeholder="e.g. NOCTILUCA" disabled={flow === "building" || flow === "minting"} />
                 </Field>
-                <Field label="Style descriptor" hint={`${styleDescriptor.trim().length} chars, min 8`}>
+                <Field label="Style descriptor" hint={`${styleDescriptor.trim().length} chars, min 8`} required>
                   <TextArea value={styleDescriptor} onChange={setStyleDescriptor} rows={3} maxLength={500} placeholder="Describe the Aura's aesthetic: palette, light, texture, mood, subject." disabled={flow === "building" || flow === "minting"} />
                 </Field>
                 <Field label="Signature character (optional)">
@@ -283,10 +283,10 @@ export function CreateView() {
                   Royalties
                 </div>
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <Field label="Relic royalty %" hint="max 20%">
+                  <Field label="Relic royalty %" hint="max 20%" error={!validPct(royaltyPct) ? "Enter a value between 0 and 20%." : undefined}>
                     <TextInput value={royaltyPct} onChange={setRoyaltyPct} inputMode="decimal" type="text" placeholder="7" disabled={flow === "building" || flow === "minting"} />
                   </Field>
-                  <Field label="Aura resale royalty %" hint="max 20%">
+                  <Field label="Aura resale royalty %" hint="max 20%" error={!validPct(resalePct) ? "Enter a value between 0 and 20%." : undefined}>
                     <TextInput value={resalePct} onChange={setResalePct} inputMode="decimal" type="text" placeholder="10" disabled={flow === "building" || flow === "minting"} />
                   </Field>
                 </div>
@@ -294,11 +294,6 @@ export function CreateView() {
                   Relic royalty routes to whoever owns this Aura on every sale of its work through AURA. Aura
                   resale royalty pays you, the original creator, each time the Aura itself is resold.
                 </p>
-                {(!validPct(royaltyPct) || !validPct(resalePct)) ? (
-                  <p className="mt-2 text-[16px]" style={{ color: "var(--color-warn)" }}>
-                    Each royalty must be between 0 and 20%.
-                  </p>
-                ) : null}
               </Panel>
             </Reveal>
           </div>
@@ -341,13 +336,13 @@ export function CreateView() {
                       </p>
                     ) : null}
                     {flow === "error" && error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div role="alert" className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {error}
                       </div>
                     ) : null}
                   </div>
                 ) : flow === "building" ? (
-                  <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+                  <div role="status" aria-busy="true" className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
                     Storing to 0G, encrypting the brain, deriving the attestation. This takes a few seconds.
                   </div>
                 ) : flow === "ready" || flow === "minting" || flow === "confirming" ? (
@@ -362,7 +357,7 @@ export function CreateView() {
                       </dl>
                     ) : null}
                     {flow === "confirming" ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+                      <div role="status" aria-busy="true" className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
                         Activating the Aura brain
                       </div>
                     ) : (
@@ -374,14 +369,14 @@ export function CreateView() {
                       Discard and start over
                     </button>
                     {mintState.phase === "error" && mintState.error ? (
-                      <div className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+                      <div role="alert" className="rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                         {mintState.error}
                       </div>
                     ) : null}
                   </div>
                 ) : flow === "minted" ? (
                   <div className="space-y-3">
-                    <div className="rounded-xl border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
+                    <div role="status" className="rounded-xl border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
                       <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ok)" }}>
                         Aura registered on-chain ✓
                       </div>

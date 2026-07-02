@@ -10,7 +10,7 @@
 //   - AuraChatThread : the full-height column the dedicated /chat page mounts in its main area
 //                      (Claude-AI style: header + flex-1 transcript + composer). Same rendering, no
 //                      fixed max-height, so it fills the page.
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { EASE } from "@/lib/motion";
 import { Panel, Chip, ActionButton } from "@/components/product/primitives";
@@ -267,33 +267,101 @@ function Caret({ open }: { open: boolean }) {
 function ModelPicker({ models, selected, onSelect, accent }: { models: ChatModelInfo[]; selected: string | null; onSelect: (id: string) => void; accent: string }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const listId = useId();
+  // Keyboard cursor: the index of the option the arrow keys have moved to (drives aria-activedescendant).
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const optionId = (i: number) => `${listId}-opt-${i}`;
+  // Only TEE-attested/online models can be chosen; arrow-key nav skips the disabled ones.
+  const nextSelectable = useCallback(
+    (from: number, dir: 1 | -1) => {
+      if (!models.length) return -1;
+      let i = from;
+      for (let step = 0; step < models.length; step++) {
+        i = (i + dir + models.length) % models.length;
+        if (models[i]?.selectable) return i;
+      }
+      return from;
+    },
+    [models],
+  );
 
   useEffect(() => {
     if (!open) return;
     const onDown = (e: PointerEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
     document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("pointerdown", onDown);
   }, [open]);
+
+  // On open, seed the cursor on the selected (or first selectable) option and move focus into the list so
+  // the arrow keys work immediately; the disclosure now behaves like a real single-select listbox.
+  useEffect(() => {
+    if (!open) return;
+    const cur = models.findIndex((m) => m.id === selected && m.selectable);
+    setActiveIdx(cur >= 0 ? cur : nextSelectable(-1, 1));
+    const t = window.setTimeout(() => listRef.current?.focus(), 0);
+    return () => window.clearTimeout(t);
+  }, [open, models, selected, nextSelectable]);
 
   if (!models.length) return null; // discovery not ready / empty -> the backend auto-picks; nothing to choose
 
   const current = models.find((m) => m.id === selected) ?? null;
+
+  const commit = (i: number) => {
+    const m = models[i];
+    if (m?.selectable) {
+      onSelect(m.id);
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+  };
+
+  const onListKeyDown = (e: React.KeyboardEvent<HTMLUListElement>) => {
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setActiveIdx((i) => nextSelectable(i, 1));
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setActiveIdx((i) => nextSelectable(i, -1));
+        break;
+      case "Home":
+        e.preventDefault();
+        setActiveIdx(nextSelectable(-1, 1));
+        break;
+      case "End":
+        e.preventDefault();
+        setActiveIdx(nextSelectable(0, -1));
+        break;
+      case "Enter":
+      case " ":
+        e.preventDefault();
+        if (activeIdx >= 0) commit(activeIdx);
+        break;
+      case "Escape":
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+        break;
+      case "Tab":
+        setOpen(false);
+        break;
+    }
+  };
+
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="listbox"
         aria-expanded={open}
+        aria-controls={open ? listId : undefined}
         className="micro inline-flex items-center gap-2 rounded-[11px] border px-3 py-1.5 hover:-translate-y-px active:scale-[0.98]"
         style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}
       >
@@ -313,31 +381,49 @@ function ModelPicker({ models, selected, onSelect, accent }: { models: ChatModel
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
             transition={{ duration: 0.16, ease: EASE }}
-            role="listbox"
             className="absolute right-0 z-40 mt-2 w-[320px] max-w-[86vw] overflow-hidden rounded-[16px] border"
             style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)", boxShadow: "var(--shadow-card)" }}
           >
             <div className="border-b px-4 py-2.5 label-caps text-[12px] uppercase tracking-[0.14em]" style={{ borderColor: "var(--color-border)", color: "var(--color-ink-3)" }}>
               Chat model
             </div>
-            <ul data-lenis-prevent className="max-h-[320px] overflow-y-auto overscroll-contain py-1">
-              {models.map((m) => {
+            <ul
+              ref={listRef}
+              id={listId}
+              role="listbox"
+              aria-label="Chat model"
+              tabIndex={-1}
+              aria-activedescendant={activeIdx >= 0 ? optionId(activeIdx) : undefined}
+              onKeyDown={onListKeyDown}
+              data-lenis-prevent
+              className="max-h-[320px] overflow-y-auto overscroll-contain py-1 outline-none scroll-affordance"
+            >
+              {models.map((m, i) => {
                 const active = m.id === selected;
+                const cursored = i === activeIdx;
                 return (
                   <li key={m.id}>
                     <button
+                      id={optionId(i)}
                       type="button"
                       role="option"
                       aria-selected={active}
+                      aria-disabled={!m.selectable}
+                      tabIndex={-1}
                       disabled={!m.selectable}
-                      onClick={() => {
-                        if (m.selectable) {
-                          onSelect(m.id);
-                          setOpen(false);
-                        }
-                      }}
+                      onClick={() => commit(i)}
+                      onMouseEnter={() => m.selectable && setActiveIdx(i)}
                       className={`micro relative flex w-full items-start gap-3 px-4 py-2.5 text-left ${m.selectable ? "hover:bg-[color-mix(in_oklab,var(--color-ink)_5%,transparent)]" : ""}`}
-                      style={{ cursor: m.selectable ? "pointer" : "not-allowed", opacity: m.selectable ? 1 : 0.55, background: active ? `color-mix(in oklab, ${accent} 12%, var(--color-paper))` : undefined }}
+                      style={{
+                        cursor: m.selectable ? "pointer" : "not-allowed",
+                        opacity: m.selectable ? 1 : 0.55,
+                        background: active
+                          ? `color-mix(in oklab, ${accent} 12%, var(--color-paper))`
+                          : cursored
+                            ? "color-mix(in oklab, var(--color-ink) 6%, transparent)"
+                            : undefined,
+                        boxShadow: cursored ? `inset 0 0 0 2px color-mix(in oklab, var(--color-accent) 45%, transparent)` : undefined,
+                      }}
                     >
                       {active ? <span className="absolute left-1.5 top-1/2 h-6 w-[3px] -translate-y-1/2 rounded-full" style={{ background: accent }} aria-hidden /> : null}
                       <span className="min-w-0 flex-1">
@@ -457,6 +543,7 @@ function ChatComposer({ c, agentName }: { c: ChatEngine; agentName: string }) {
         }}
         rows={1}
         placeholder={c.token ? `Message ${agentName}...` : `Sign in to talk to ${agentName}`}
+        aria-label={`Message ${agentName}`}
         className="micro min-h-[44px] flex-1 resize-none rounded-[14px] border bg-transparent px-3 py-3 text-[16px] outline-none focus:border-[var(--color-accent)]"
         style={{ borderColor: "var(--color-border)", color: "var(--color-ink)" }}
       />
@@ -476,8 +563,17 @@ export function AuraChat({ agentId, agentName, accent }: { agentId: number; agen
     <Panel className="mt-7 overflow-visible p-0">
       <ChatHeaderBar c={c} agentName={agentName} accent={accent} />
 
-      {/* transcript */}
-      <div ref={c.scrollRef} data-lenis-prevent className="flex max-h-[440px] min-h-[220px] flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-5">
+      {/* transcript: a live log so new replies (and the "thinking" state) are announced to screen readers */}
+      <div
+        ref={c.scrollRef}
+        data-lenis-prevent
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-busy={c.sending}
+        aria-label={`Conversation with ${agentName}`}
+        className="scroll-affordance flex max-h-[440px] min-h-[220px] flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-5"
+      >
         <ChatBody c={c} agentName={agentName} accent={accent} />
       </div>
 
@@ -487,7 +583,7 @@ export function AuraChat({ agentId, agentName, accent }: { agentId: number; agen
       {/* composer */}
       <ChatComposer c={c} agentName={agentName} />
       {c.error ? (
-        <p className="px-5 pb-4 font-mono-x text-[16px]" style={{ color: "#c0392b" }}>
+        <p role="alert" className="px-5 pb-4 font-mono-x text-[16px]" style={{ color: "var(--color-warn)" }}>
           {c.error}
         </p>
       ) : null}
@@ -505,8 +601,17 @@ export function AuraChatThread({ agentId, agentName, accent }: { agentId: number
     <motion.div className="flex h-full min-h-0 flex-col" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35, ease: EASE }}>
       <ChatHeaderBar c={c} agentName={agentName} accent={accent} />
 
-      {/* transcript (fills the available height) */}
-      <div ref={c.scrollRef} data-lenis-prevent className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6">
+      {/* transcript (fills the available height): a live log for screen-reader announcement */}
+      <div
+        ref={c.scrollRef}
+        data-lenis-prevent
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions text"
+        aria-busy={c.sending}
+        aria-label={`Conversation with ${agentName}`}
+        className="scroll-affordance flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-5 py-6 sm:px-6"
+      >
         <ChatBody c={c} agentName={agentName} accent={accent} />
       </div>
 
@@ -516,7 +621,7 @@ export function AuraChatThread({ agentId, agentName, accent }: { agentId: number
       {/* composer */}
       <ChatComposer c={c} agentName={agentName} />
       {c.error ? (
-        <p className="px-5 pb-4 font-mono-x text-[16px]" style={{ color: "#c0392b" }}>
+        <p role="alert" className="px-5 pb-4 font-mono-x text-[16px]" style={{ color: "var(--color-warn)" }}>
           {c.error}
         </p>
       ) : null}
@@ -649,6 +754,16 @@ function RelicMintCard({ jobId, subject, agentName, accent, token, address }: { 
     };
   }, [token, jobId]);
 
+  // Honor fetchJobImageObjectUrl's documented contract: the caller owns the blob URL and must revoke it.
+  // Mirror GenerateView's pattern (revoke on change / unmount) so a chat-driven gen doesn't leak a blob.
+  const previewRef = useRef<string | null>(null);
+  useEffect(() => {
+    previewRef.current = preview;
+    return () => {
+      if (previewRef.current) URL.revokeObjectURL(previewRef.current);
+    };
+  }, [preview]);
+
   const doMint = useCallback(async () => {
     if (!mintArgs) return;
     try {
@@ -667,7 +782,7 @@ function RelicMintCard({ jobId, subject, agentName, accent, token, address }: { 
           New Relic · {agentName}
         </div>
         {done && teeVerified === true ? (
-          <span className="label-caps text-[12px] uppercase tracking-[0.12em]" style={{ color: "#1f9d55" }}>
+          <span className="label-caps text-[12px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ok)" }}>
             TEE-verified
           </span>
         ) : null}
@@ -683,8 +798,8 @@ function RelicMintCard({ jobId, subject, agentName, accent, token, address }: { 
             <img src={preview} alt={subject} className="w-full" />
           </div>
         ) : (
-          <div className="flex h-[160px] items-center justify-center rounded-[12px] border" style={{ borderColor: "var(--color-border)", background: "var(--color-cream-deep)" }}>
-            <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+          <div className="flex h-[160px] items-center justify-center rounded-[12px] border" style={{ borderColor: "var(--color-border)", background: "var(--color-cream-deep)" }} aria-busy={!err}>
+            <span role="status" className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
               {err ? "could not create" : `creating inside the TEE... ${job?.status ?? ""}`}
             </span>
           </div>
@@ -693,7 +808,7 @@ function RelicMintCard({ jobId, subject, agentName, accent, token, address }: { 
         {/* mint (non-custodial) */}
         {done ? (
           mintedId != null || mintState.phase === "success" ? (
-            <p className="mt-3 font-mono-x text-[16px]" style={{ color: "#1f9d55" }}>
+            <p role="status" className="mt-3 font-mono-x text-[16px]" style={{ color: "var(--color-ok)" }}>
               Minted{mintedId != null ? ` · Relic #${mintedId}` : ""}. It is yours.
             </p>
           ) : (
@@ -709,7 +824,7 @@ function RelicMintCard({ jobId, subject, agentName, accent, token, address }: { 
         ) : null}
 
         {err ? (
-          <p className="mt-2 font-mono-x text-[16px]" style={{ color: "#c0392b" }}>
+          <p role="alert" className="mt-2 font-mono-x text-[16px]" style={{ color: "var(--color-warn)" }}>
             {err}{" "}
             {mintState.phase === "error" ? (
               <button onClick={resetMint} className="underline">

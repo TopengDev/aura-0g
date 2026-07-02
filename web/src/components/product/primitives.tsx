@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { createContext, useContext, useId, useState } from "react";
 import { motion } from "framer-motion";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 // Shared product-page primitives. These apply the Technical Editorial system CONSISTENTLY (the per-
 // section variance is Home-only): one display + mono + body type system, the warm token palette, the
@@ -114,6 +114,7 @@ export function Segmented<T extends string>({
             key={o.key}
             type="button"
             onClick={() => onChange(o.key)}
+            aria-pressed={active}
             className="micro relative rounded-[9px] px-3.5 py-1.5 label-caps text-[13px] active:scale-[0.97]"
             style={{ letterSpacing: "0.08em", color: active ? "var(--color-cream)" : "var(--color-ink-2)" }}
           >
@@ -199,6 +200,11 @@ export function CopyValue({
       <span className="truncate" title={full}>
         {display ?? full}
       </span>
+      {/* SR announcement: an aria-label swap is not reliably re-announced, so a polite live region
+          carries the "Copied" confirmation to assistive tech. */}
+      <span className="sr-only" aria-live="polite">
+        {copied ? "Copied to clipboard" : ""}
+      </span>
       <button
         type="button"
         onClick={onCopy}
@@ -222,20 +228,19 @@ export function CopyValue({
   );
 }
 
-// A panel surface (the consistent card language across product pages).
+// A panel surface (the consistent card language across product pages). Forwards arbitrary div attrs
+// (role, aria-*, ...) so a panel can double as a status/alert region without a wrapper.
 export function Panel({
   children,
   className = "",
   style,
-}: {
-  children: ReactNode;
-  className?: string;
-  style?: CSSProperties;
-}) {
+  ...rest
+}: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={`rounded-[22px] border ${className}`}
       style={{ borderColor: "var(--color-border)", background: "var(--color-paper)", ...style }}
+      {...rest}
     >
       {children}
     </div>
@@ -294,31 +299,54 @@ export function ActionButton({
   );
 }
 
+// Field -> input a11y wiring. Field publishes the id of its hint/error text + whether the field is
+// required/invalid; the TextInput/TextArea it wraps read this to set aria-describedby / aria-required /
+// aria-invalid without every call site repeating it. A screen reader then hears the constraint ("min 8")
+// and the error, and required/invalid state, from the input itself.
+type FieldWiring = { descId?: string; required?: boolean; invalid?: boolean };
+const FieldContext = createContext<FieldWiring>({});
+
 // A labelled form field shell (the consistent input language for the create + generate forms). Wraps a
-// mono label + an optional hint over a rounded bordered surface that matches PriceField/TradePanel.
+// mono label + an optional hint over a rounded bordered surface that matches PriceField/TradePanel. When
+// `error` is set it replaces the hint (announced via role="alert") and flags the wrapped input invalid;
+// `required` marks the field required both visually and programmatically.
 export function Field({
   label,
   hint,
+  error,
+  required = false,
   children,
 }: {
   label: string;
   hint?: ReactNode;
+  error?: ReactNode;
+  required?: boolean;
   children: ReactNode;
 }) {
+  const rid = useId();
+  const descId = hint || error ? `${rid}-desc` : undefined;
   return (
-    <label className="block">
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <span className="label-caps text-[13px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
-          {label}
-        </span>
-        {hint ? (
-          <span className="text-[16px] font-medium tabular-nums" style={{ color: "var(--color-ink-3)" }}>
-            {hint}
+    <FieldContext.Provider value={{ descId, required, invalid: !!error }}>
+      <label className="block">
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <span className="label-caps text-[13px] uppercase tracking-[0.14em]" style={{ color: "var(--color-ink-3)" }}>
+            {label}
+            {required ? <span aria-hidden> *</span> : null}
           </span>
+          {hint && !error ? (
+            <span id={descId} className="text-[16px] font-medium tabular-nums" style={{ color: "var(--color-ink-3)" }}>
+              {hint}
+            </span>
+          ) : null}
+        </div>
+        {children}
+        {error ? (
+          <p id={descId} role="alert" className="mt-2 text-[16px]" style={{ color: "var(--color-warn)" }}>
+            {error}
+          </p>
         ) : null}
-      </div>
-      {children}
-    </label>
+      </label>
+    </FieldContext.Provider>
   );
 }
 
@@ -340,6 +368,7 @@ export function TextInput({
   disabled?: boolean;
   maxLength?: number;
 }) {
+  const f = useContext(FieldContext);
   return (
     <input
       type={type}
@@ -349,6 +378,9 @@ export function TextInput({
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      aria-describedby={f.descId}
+      aria-required={f.required || undefined}
+      aria-invalid={f.invalid || undefined}
       // Resting border color lives in the className (not inline style) so the focus: variant can actually
       // win (an inline borderColor would override focus:border-* by specificity and kill the focus ring).
       className="w-full rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 text-[16px] font-medium outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
@@ -373,6 +405,7 @@ export function TextArea({
   disabled?: boolean;
   maxLength?: number;
 }) {
+  const f = useContext(FieldContext);
   return (
     <textarea
       value={value}
@@ -381,6 +414,9 @@ export function TextArea({
       maxLength={maxLength}
       onChange={(e) => onChange(e.target.value)}
       placeholder={placeholder}
+      aria-describedby={f.descId}
+      aria-required={f.required || undefined}
+      aria-invalid={f.invalid || undefined}
       // Resting border color in className (not inline) so focus:border-* is not overridden by inline style.
       className="w-full resize-none rounded-[14px] border border-[var(--color-border-strong)] px-4 py-3 text-[16px] leading-relaxed outline-none transition-colors focus:border-[var(--color-accent)] disabled:opacity-50"
       style={{ background: "var(--color-paper)", color: "var(--color-ink)" }}
@@ -405,7 +441,7 @@ export function StepRail({ steps }: { steps: { label: string; status: StepStatus
                 ? "var(--color-warn)"
                 : "var(--color-ink-3)";
         return (
-          <li key={s.label} className="flex items-center gap-3 py-2">
+          <li key={s.label} className="flex items-center gap-3 py-2" aria-current={s.status === "active" ? "step" : undefined}>
             {/* step marker: a short hairline tick (not a status dot - Christopher bans decorative dots) */}
             <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
               <span

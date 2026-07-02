@@ -130,7 +130,7 @@ export function VerifyView({ initialId }: { initialId?: string }) {
           <div>
             {state.phase === "idle" ? (
               <Reveal delay={0.06}>
-                <IdlePanel />
+                <IdlePanel onTry={(id) => { setInput(id); void verify(id); }} />
               </Reveal>
             ) : state.phase === "checking" ? (
               <CheckingPanel id={state.id} />
@@ -157,7 +157,7 @@ const WHAT_GETS_CHECKED = [
 ];
 
 // The pre-verification calm state: explains the thesis, nudges a sample id.
-function IdlePanel() {
+function IdlePanel({ onTry }: { onTry: (id: string) => void }) {
   return (
     <Panel className="flex h-full flex-col justify-center p-8 text-center" style={{ background: "var(--color-cream-warm)" }}>
       <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border" style={{ borderColor: "var(--color-border-strong)" }}>
@@ -168,7 +168,9 @@ function IdlePanel() {
       </h2>
       <p className="mx-auto mt-3 max-w-[42ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
         Every AURA Relic carries an unforgeable on-chain trail. Enter a token id to re-derive it live.
-        Try <button type="button" className="underline underline-offset-4" style={{ color: "var(--color-accent)" }} onClick={() => { const el = document.querySelector<HTMLInputElement>('input[aria-label="Relic token id"]'); if (el) { el.value = "6"; el.dispatchEvent(new Event("input", { bubbles: true })); el.focus(); } }}>#6</button>{" "}
+        {/* Drives the controlled input via React state (setInput + verify) instead of poking the DOM
+            node's .value directly, which left React's state empty + the submit button disabled. */}
+        Try <button type="button" className="underline underline-offset-4" style={{ color: "var(--color-accent)" }} onClick={() => onTry("6")}>#6</button>{" "}
         to see a fully verified Relic.
       </p>
     </Panel>
@@ -177,7 +179,7 @@ function IdlePanel() {
 
 function CheckingPanel({ id }: { id: string }) {
   return (
-    <Panel className="p-6 sm:p-8">
+    <Panel className="p-6 sm:p-8" role="status" aria-busy="true">
       <div className="flex items-center justify-between">
         <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
           Verifying relic #{id}
@@ -216,7 +218,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
             <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
               {p.agent.name} · relic #{id}
             </div>
-            <div className="font-display mt-1.5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1, color: accent }}>
+            <div role="status" className="font-display mt-1.5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1, color: accent }}>
               {ok ? "Verified on-chain" : "Verification incomplete"}
             </div>
           </div>
@@ -309,7 +311,7 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
 function NotFoundPanel({ id }: { id: string }) {
   return (
     <Reveal>
-      <Panel className="p-8 text-center">
+      <Panel className="p-8 text-center" role="status">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
           <span className="font-mono-x text-[16px]">?</span>
         </div>
@@ -338,7 +340,7 @@ function ErrorPanel({ message }: { message: string }) {
         <h2 className="font-display mt-5" style={{ fontSize: "clamp(22px,3vw,30px)", lineHeight: 1.05 }}>
           Could not verify.
         </h2>
-        <p className="mx-auto mt-3 max-w-[42ch] text-[16px] leading-relaxed" style={{ color: "var(--color-warn)" }}>
+        <p role="alert" className="mx-auto mt-3 max-w-[42ch] text-[16px] leading-relaxed" style={{ color: "var(--color-warn)" }}>
           {message}
         </p>
       </Panel>

@@ -181,7 +181,7 @@ export function SummonPanel({
           <StepRail steps={progressSteps(status?.status ?? "pending", delivered)} />
 
           {!terminal ? (
-            <div className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+            <div role="status" aria-live="polite" className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>
               live generation takes ~42s inside the TEE · {elapsed}s elapsed
             </div>
           ) : null}
@@ -190,7 +190,7 @@ export function SummonPanel({
             <DeliveredCard status={status!} />
           ) : status?.expired ? (
             <div className="space-y-3">
-              <div className="rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+              <div role="alert" className="rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
                 The Aura did not deliver before the deadline. Reclaim your payment (anti-rug).
               </div>
               <ActionButton variant="warn" onClick={() => refund(requestId)} disabled={busy}>
@@ -232,6 +232,7 @@ export function SummonPanel({
               value={priceInput}
               onChange={(e) => setPriceInput(e.target.value)}
               placeholder={summonable ? `Update price (now ${price} 0G)` : "Set a commission price (e.g. 0.05)"}
+              aria-label={summonable ? `Update commission price for ${agentName} in 0G` : `Set a commission price for ${agentName} in 0G`}
               className="w-full bg-transparent py-3 font-medium text-[16px] outline-none"
               style={{ color: "var(--color-ink)" }}
             />
@@ -317,7 +318,7 @@ function WriteStatus({ state, onReset }: { state: ReturnType<typeof useSummon>["
   if (state.phase === "idle") return null;
   if (state.phase === "error") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+      <div role="alert" className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
         <div className="font-medium">{state.error}</div>
         <button type="button" onClick={onReset} className="mt-2 underline underline-offset-4">
           Try again
@@ -327,7 +328,7 @@ function WriteStatus({ state, onReset }: { state: ReturnType<typeof useSummon>["
   }
   if (state.phase === "success" && state.action !== "summon") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
+      <div role="status" className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
         <div className="font-medium">{state.step ?? "Done"} ✓</div>
         <button type="button" onClick={onReset} className="mt-1 underline underline-offset-4">
           Done
@@ -337,7 +338,7 @@ function WriteStatus({ state, onReset }: { state: ReturnType<typeof useSummon>["
   }
   if (state.phase === "pending" || state.phase === "confirming") {
     return (
-      <div className="mt-4 rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+      <div role="status" aria-busy="true" className="mt-4 rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
         {state.step ?? "Working…"}
         {state.txHash ? (
           <a href={`${EXPLORER}/tx/${state.txHash}`} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-accent)" }}>

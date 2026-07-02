@@ -52,20 +52,34 @@ export function DashboardView() {
   const [listings, setListings] = useState<MarketListing[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(false);
+  // Load failure is tracked separately from "empty wallet": fetchCreatorDashboard returns null on a
+  // backend/network failure, but a genuinely-empty wallet 200s with zero counts. Without this, a failed
+  // load rendered the same "No Auras yet" empty state as a real empty wallet (error === empty).
+  const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("agents");
   const [reloadKey, setReloadKey] = useState(0);
 
   const load = useCallback(async (addr: string) => {
     setLoading(true);
-    const [dash, market, feed] = await Promise.all([
-      fetchCreatorDashboard(addr),
-      fetchMarketplace(),
-      fetchActivityFeed(80),
-    ]);
-    setData(dash);
-    setListings(market.filter((l) => l.seller?.toLowerCase() === addr.toLowerCase()));
-    setActivity(activityForAddress(feed, addr));
-    setLoading(false);
+    setError(null);
+    try {
+      const [dash, market, feed] = await Promise.all([
+        fetchCreatorDashboard(addr),
+        fetchMarketplace(),
+        fetchActivityFeed(80),
+      ]);
+      if (!dash) {
+        setError("We couldn't load your portfolio. The indexer may be unreachable.");
+        return;
+      }
+      setData(dash);
+      setListings(market.filter((l) => l.seller?.toLowerCase() === addr.toLowerCase()));
+      setActivity(activityForAddress(feed, addr));
+    } catch {
+      setError("We couldn't load your portfolio. The indexer may be unreachable.");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -74,6 +88,7 @@ export function DashboardView() {
       setData(null);
       setListings([]);
       setActivity([]);
+      setError(null);
     }
   }, [isConnected, address, load, reloadKey]);
 
@@ -159,7 +174,9 @@ export function DashboardView() {
 
         {/* Tab content */}
         <div className="mt-8">
-          {loading && !data ? (
+          {error && !data ? (
+            <LoadError message={error} onRetry={refresh} />
+          ) : loading && !data ? (
             <LoadingGrid />
           ) : tab === "agents" ? (
             <AgentsTab agents={data?.agentsOwned ?? []} />
@@ -314,6 +331,7 @@ function ListingRow({ listing: l, onChanged }: { listing: MarketListing; onChang
               value={price}
               onChange={(e) => setPrice(e.target.value)}
               placeholder={`New price (now ${l.price})`}
+              aria-label={`New price for #${l.tokenId} in 0G`}
               className="w-full bg-transparent py-2 font-medium text-[16px] outline-none"
               style={{ color: "var(--color-ink)" }}
             />
@@ -341,7 +359,7 @@ function ListingRow({ listing: l, onChanged }: { listing: MarketListing; onChang
       </div>
 
       {state.phase !== "idle" ? (
-        <div className="mt-3 font-mono-x text-[16px]" style={{ color: state.phase === "error" ? "var(--color-warn)" : state.phase === "success" ? "var(--color-ok)" : "var(--color-ink-2)" }}>
+        <div role={state.phase === "error" ? "alert" : "status"} className="mt-3 font-mono-x text-[16px]" style={{ color: state.phase === "error" ? "var(--color-warn)" : state.phase === "success" ? "var(--color-ok)" : "var(--color-ink-2)" }}>
           {state.phase === "error" ? state.error : state.phase === "success" ? `${state.step ?? "Done"} ✓` : state.step}
           {state.txHash ? (
             <a href={`${EXPLORER}/tx/${state.txHash}`} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
@@ -422,11 +440,27 @@ function EmptyState({ title, body, cta }: { title: string; body: string; cta: { 
 
 function LoadingGrid() {
   return (
-    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3" role="status" aria-busy="true" aria-label="Loading your portfolio">
       {Array.from({ length: 3 }).map((_, i) => (
         <div key={i} className="aura-skeleton h-[260px] rounded-[22px]" />
       ))}
     </div>
+  );
+}
+
+// A load FAILURE (indexer unreachable) rendered distinctly from an empty wallet, announced to SR, with a
+// retry. Without this the failed load looked identical to a genuinely-empty portfolio ("No Auras yet").
+function LoadError({ message, onRetry }: { message: string; onRetry: () => void }) {
+  return (
+    <Panel className="mx-auto max-w-[560px] p-10 text-center" style={{ borderColor: "color-mix(in oklab, var(--color-warn) 40%, var(--color-border))" }}>
+      <p role="alert" className="font-display" style={{ fontSize: "clamp(22px,3.4vw,30px)", color: "var(--color-warn)" }}>
+        Couldn&apos;t load your studio.
+      </p>
+      <p className="mx-auto mt-3 max-w-[44ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{message}</p>
+      <div className="mx-auto mt-6 max-w-[220px]">
+        <ActionButton onClick={onRetry} variant="outline">Try again</ActionButton>
+      </div>
+    </Panel>
   );
 }
 

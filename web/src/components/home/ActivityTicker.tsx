@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { Activity } from "@/lib/api";
 import { shortHex } from "@/lib/api";
 import { Kicker } from "./Kicker";
@@ -17,6 +18,9 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export function ActivityTicker({ activity }: { activity: Activity[] }) {
+  // A control to pause the auto-scrolling marquee (WCAG 2.2.2: moving content that starts automatically
+  // and lasts >5s must be pausable by more than just hover, which fails keyboard + touch users).
+  const [paused, setPaused] = useState(false);
   // Keep meaningful events; if empty, render nothing (the page still flows).
   const items = activity.filter((a) => a.kind !== "transfer" || a.tokenId != null);
   if (items.length === 0) return null;
@@ -31,11 +35,20 @@ export function ActivityTicker({ activity }: { activity: Activity[] }) {
       <div className="mb-6 px-5 sm:px-8">
         <div className="mx-auto flex w-full max-w-[var(--container-wrap)] items-center gap-3">
           <Kicker label="Live on-chain activity" />
+          <button
+            type="button"
+            onClick={() => setPaused((p) => !p)}
+            aria-pressed={paused}
+            className="micro ml-auto rounded-full border px-3 py-1 label-caps text-[12px] uppercase tracking-[0.1em] hover:-translate-y-px active:scale-[0.97]"
+            style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }}
+          >
+            {paused ? "Play activity" : "Pause activity"}
+          </button>
         </div>
       </div>
 
       <div className="aura-marquee relative w-full" style={{ ["--marquee-dur" as string]: `${dur}s` }}>
-        <div className="aura-marquee-track">
+        <div className="aura-marquee-track" style={{ animationPlayState: paused ? "paused" : undefined }}>
           {loop.map((a, i) => (
             <Chip key={`${a.id}-${i}`} a={a} />
           ))}

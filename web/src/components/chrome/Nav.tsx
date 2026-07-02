@@ -81,6 +81,7 @@ export function Nav() {
               key={l.href}
               href={l.href}
               data-active={isActive(l.href)}
+              aria-current={isActive(l.href) ? "page" : undefined}
               className="navlink micro text-[16px] font-medium tracking-[0.005em] hover:text-[var(--color-ink)]"
               style={{ color: isActive(l.href) ? "var(--color-ink)" : "var(--color-ink-2)" }}
             >
@@ -125,6 +126,7 @@ export function Nav() {
                 <Link
                   key={l.href}
                   href={l.href}
+                  aria-current={isActive(l.href) ? "page" : undefined}
                   className="flex items-center justify-between rounded-xl px-3 py-3 font-display text-[clamp(22px,7vw,30px)] transition-colors"
                   style={{ color: isActive(l.href) ? "var(--color-ink)" : "var(--color-ink-2)" }}
                 >

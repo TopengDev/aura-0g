@@ -142,6 +142,7 @@ function PriceField({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
+        aria-label={placeholder}
         className="w-full bg-transparent py-3 font-medium text-[16px] outline-none"
         style={{ color: "var(--color-ink)" }}
       />
@@ -171,7 +172,7 @@ function TradeStatus({ state, onReset }: { state: ReturnType<typeof useTrade>["s
   const txHash = state.txHash ?? state.approvalTxHash;
   if (state.phase === "error") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
+      <div role="alert" className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
         <div className="font-medium">{state.error}</div>
         <button type="button" onClick={onReset} className="mt-2 underline underline-offset-4">Try again</button>
       </div>
@@ -179,7 +180,7 @@ function TradeStatus({ state, onReset }: { state: ReturnType<typeof useTrade>["s
   }
   if (state.phase === "success") {
     return (
-      <div className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
+      <div role="status" className="mt-4 rounded-xl border p-3 text-[16px]" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)", color: "var(--color-ok)" }}>
         <div className="font-medium">{state.step ?? "Done"} ✓</div>
         {txHash ? (
           <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer" className="mt-1 inline-block font-mono-x underline underline-offset-4">
@@ -192,7 +193,7 @@ function TradeStatus({ state, onReset }: { state: ReturnType<typeof useTrade>["s
   }
   // in-flight
   return (
-    <div className="mt-4 rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
+    <div role="status" aria-busy="true" className="mt-4 rounded-xl border p-3 font-mono-x text-[16px]" style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink-2)" }}>
       {state.step ?? "Working..."}
       {txHash ? (
         <a href={`${EXPLORER}/tx/${txHash}`} target="_blank" rel="noreferrer" className="ml-2 underline underline-offset-4" style={{ color: "var(--color-accent)" }}>
