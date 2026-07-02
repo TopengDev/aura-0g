@@ -18,8 +18,8 @@ import { baseForSeededAgent, fallbackPrompt } from "./catalog.js";
 import { rawAgent } from "./agents.js";
 import { brainByRoot, brainByAgentId } from "./store.js";
 import { decryptBrain } from "./brain.js";
-import { setStatus, setResult, setError, saveGeneratedImage } from "./jobs.js";
-import { genGuardRelease } from "./ratelimit.js";
+import { setStatus, setResult, setError, saveGeneratedImage, getJob } from "./jobs.js";
+import { genGuardRelease, genGuardRefund } from "./ratelimit.js";
 import { REPO_ROOT, ENFORCE_TEE_VERIFICATION } from "./config.js";
 import { metaForName } from "./catalog.js";
 import type { JobStatus } from "./types.js";
@@ -333,6 +333,12 @@ export async function runGeneration(input: GenerateInput): Promise<void> {
     );
   } catch (e: any) {
     setError(jobId, String(e?.message ?? e).slice(0, 300));
+    // A non-completing generation must NOT permanently burn the lifetime gen budget: refund the persisted
+    // gen:global + gen:addr slot acquired by the caller (routes/generate.ts OR chat generate_and_mint, both
+    // of which funnel here). The owner is read from the job row so no unowned caller needs to thread it.
+    // The CONCURRENCY slot is returned in finally; this returns the LIFETIME slot. (Successful gens hit
+    // setResult above and are never refunded: 1 completed gen == 1 consumed slot.)
+    genGuardRefund(getJob(jobId)?.owner);
   } finally {
     genGuardRelease();
   }

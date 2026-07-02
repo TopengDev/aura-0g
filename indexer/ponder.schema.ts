@@ -94,8 +94,10 @@ export const listings = onchainTable(
 // Per SELLING-agent cumulative royalty earned (sum of royaltyPaid over Sold of that agent's outputs).
 export const agentEarnings = onchainTable("agent_earnings", (t) => ({
   agentId: t.bigint().primaryKey(),
-  royaltiesEarned: t.bigint().notNull().default(0n), // wei
+  royaltiesEarned: t.bigint().notNull().default(0n), // wei - resale royalties (EIP-2981 on Sold)
   salesCount: t.integer().notNull().default(0),
+  summonEarned: t.bigint().notNull().default(0n), // wei - PRIMARY summon commissions (ownerCut on Fulfilled)
+  summonCount: t.integer().notNull().default(0), // number of fulfilled summons of this agent
   lastSaleAt: t.bigint(),
 }));
 
@@ -105,8 +107,10 @@ export const walletEarnings = onchainTable(
   "wallet_earnings",
   (t) => ({
     wallet: t.hex().primaryKey(),
-    royaltiesEarned: t.bigint().notNull().default(0n), // wei
+    royaltiesEarned: t.bigint().notNull().default(0n), // wei - resale royalties (point-in-time; survives resale)
     salesCount: t.integer().notNull().default(0),
+    summonEarned: t.bigint().notNull().default(0n), // wei - PRIMARY summon commissions credited to this wallet
+    summonCount: t.integer().notNull().default(0), // number of summons where this wallet was the agent owner
     lastSaleAt: t.bigint(),
   }),
   (table) => ({
@@ -125,7 +129,9 @@ export const agentStats = onchainTable(
     outputCount: t.integer().notNull().default(0), // outputs created by this agent
     salesCount: t.integer().notNull().default(0), // sales of this agent's outputs
     listingsCount: t.integer().notNull().default(0), // listings opened for this agent's outputs
+    summonCount: t.integer().notNull().default(0), // fulfilled summons of this agent (primary commissions)
     royaltiesEarned: t.bigint().notNull().default(0n), // mirror of agent_earnings for one-shot sorts
+    summonEarned: t.bigint().notNull().default(0n), // mirror of agent_earnings.summonEarned for one-shot sorts
     lastActivityAt: t.bigint(),
   }),
   (table) => ({

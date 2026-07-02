@@ -18,6 +18,7 @@ import { fileURLToPath } from "node:url";
 import { AgentRegistryAbi } from "./abis/AgentRegistry";
 import { OutputNFTAbi } from "./abis/OutputNFT";
 import { AuraMarketplaceAbi } from "./abis/AuraMarketplace";
+import { SummonEscrowAbi } from "./abis/SummonEscrow";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +26,9 @@ interface DeployedV2 {
   agentRegistry: string;
   outputNFT: string;
   marketplace: string;
+  summonEscrow: string;
   deployBlock: number;
+  summonStartBlock: number;
   chainId: number;
   rpcUrl: string;
 }
@@ -38,7 +41,11 @@ function loadDeployed(): DeployedV2 {
     agentRegistry: j.agentRegistry,
     outputNFT: j.outputNFT,
     marketplace: j.marketplace,
+    summonEscrow: j.summonEscrow ?? "",
     deployBlock: Number(j.deployBlock),
+    // The SummonEscrow was deployed AFTER the registry (its own start block); scan from there, not the
+    // registry deploy block, to avoid a long empty pre-escrow range. Falls back to deployBlock if unset.
+    summonStartBlock: Number(j.summonStartBlock ?? j.deployBlock),
     chainId: Number(j.chainId),
     rpcUrl: String(j.rpcUrl),
   };
@@ -82,6 +89,15 @@ export default createConfig({
       chain: "galileo",
       address: D.marketplace as `0x${string}`,
       startBlock: D.deployBlock,
+    },
+    // SummonEscrow (demand-pull commissioning). Indexed so the summon fee income (Fulfilled -> ownerCut to
+    // the agent's CURRENT owner + platformFee) lands in the read model - otherwise creator earnings under-
+    // report and "income follows the agent" is invisible. startBlock = its own (later) deploy block.
+    SummonEscrow: {
+      abi: SummonEscrowAbi,
+      chain: "galileo",
+      address: D.summonEscrow as `0x${string}`,
+      startBlock: D.summonStartBlock,
     },
   },
 });

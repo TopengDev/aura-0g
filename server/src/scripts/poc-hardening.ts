@@ -10,6 +10,8 @@
 //                        classification is correct -> a looping revert stops regenerating.
 //   B-5  TEE enforced:   the exact enforce guard treats false / "n/a" / "err:..." as NOT-passed (blocks mint).
 //   B-6  key split:      3 distinct attestor/sponsor/oracle keys; attestor decoupled from the gas wallet.
+//   M2   biz-logic:      genGuardRefund reopens a lifetime slot (a FAILED gen doesn't burn the cap); the
+//                        Summon path has its OWN cost cap (isolated from the free-tier gen cap) + refund.
 //
 // run: cd server && npx tsx src/scripts/poc-hardening.ts
 import { tmpdir } from "node:os";
@@ -28,6 +30,10 @@ process.env.AURA_MAX_CONCURRENT_GEN = "100"; // don't let concurrency gate the l
 process.env.AURA_MAX_CREATES = "6";
 process.env.AURA_PER_ADDRESS_CREATE_QUOTA = "2";
 process.env.AURA_MAX_CONCURRENT_CREATE = "100";
+// M2: small, deterministic SUMMON caps (separate budget from the free-tier gen cap).
+process.env.AURA_MAX_SUMMON_GENERATIONS = "4";
+process.env.AURA_PER_ADDRESS_SUMMON_QUOTA = "2";
+process.env.AURA_MAX_CONCURRENT_SUMMON_GEN = "100";
 // three DISTINCT keys for the B-6 split (deterministic test vectors, NOT real funds).
 const SPONSOR_PK = "0x0000000000000000000000000000000000000000000000000000000000000001";
 const ATTESTOR_PK = "0x0000000000000000000000000000000000000000000000000000000000000002";
@@ -65,6 +71,7 @@ async function main(): Promise<void> {
   const ratelimit = await import("../aura/ratelimit.js");
   const watcher = await import("../aura/summon-watcher.js");
   const generate = await import("../aura/generate.js");
+  const jobs = await import("../aura/jobs.js");
 
   // ────────────────────────────────────────────────────────────── B-1 (fail-closed JWT)
   console.log("\n[B-1] fail-closed JWT (resolveJwtSecret)");
@@ -133,6 +140,15 @@ async function main(): Promise<void> {
     ro.close();
     check("global gen counter PERSISTED on disk (restart is not a reset-and-replay)", (row?.count ?? -1) === 6, `cost_counters[gen:global]=${row?.count}`);
   }
+  // M2-1: genGuardRefund - a FAILED generation must REFUND the lifetime slot, not permanently burn the cap.
+  // The gen cap is fully consumed (6/6) and D is blocked (asserted above). One refund reopens exactly one
+  // global slot (simulates a transient TEE/0G failure), so a run of failed gens can never starve generation.
+  {
+    ratelimit.genGuardRefund(A); // simulate one failed generation
+    const r = ratelimit.genGuardAcquire(D);
+    check("genGuardRefund reopens a global gen slot (a failed gen doesn't burn the lifetime cap)", r.ok, r.reason ?? "");
+    if (r.ok) ratelimit.genGuardRelease(); // re-consumes the slot -> gen:global back to 6 for the isolation check below
+  }
 
   // ────────────────────────────────────────────────────────────── B-3 (create-agent global cap)
   console.log("\n[B-3] create-agent global cost cap (createGuard) + refund");
@@ -191,6 +207,78 @@ async function main(): Promise<void> {
   check('guard BLOCKS mint for verified="err:..."', wouldBlock("err:processResponse failed"));
   check("guard BLOCKS mint for verified=false", wouldBlock(false));
   check("guard ALLOWS mint for verified=true", !wouldBlock(true));
+
+  // ────────────────────────────────────────────────────────────── M2 (summon cost guard)
+  console.log("\n[M2] summon cost guard (SEPARATE cap + refund; isolated from the free-tier gen cap)");
+  const BUYER1 = "0x" + "7".repeat(40);
+  const BUYER2 = "0x" + "8".repeat(40);
+  const BUYER3 = "0x" + "9".repeat(40);
+  // ISOLATION: the free-tier gen cap is fully consumed (6/6 from B-2), yet a summon still acquires -> the
+  // paid path draws from a DIFFERENT budget and cannot be starved by free-tier failures (the core M2 fix).
+  {
+    const r = ratelimit.summonGuardAcquire(BUYER1);
+    check("summon acquires even though the free-tier gen cap is exhausted (separate budget)", r.ok, r.reason ?? "");
+    if (r.ok) ratelimit.summonGuardRelease();
+    ratelimit.summonGuardRefund(BUYER1); // undo that probe so the quota tests below start clean (summon:global -> 0)
+  }
+  // per-address summon quota (2): BUYER1 twice ok, third blocked by the per-address reason.
+  check("summon BUYER1 #1 ok", ratelimit.summonGuardAcquire(BUYER1).ok);
+  ratelimit.summonGuardRelease();
+  check("summon BUYER1 #2 ok", ratelimit.summonGuardAcquire(BUYER1).ok);
+  ratelimit.summonGuardRelease();
+  {
+    const r = ratelimit.summonGuardAcquire(BUYER1);
+    check("summon BUYER1 #3 BLOCKED by per-address summon quota", !r.ok && /per-address summon/.test(r.reason ?? ""), r.reason ?? "");
+  }
+  // global summon cap (4): BUYER2 takes its 2 -> total 4 = cap -> BUYER3 hits the GLOBAL summon cap.
+  check("summon BUYER2 #1 ok", ratelimit.summonGuardAcquire(BUYER2).ok);
+  ratelimit.summonGuardRelease();
+  check("summon BUYER2 #2 ok", ratelimit.summonGuardAcquire(BUYER2).ok);
+  ratelimit.summonGuardRelease();
+  {
+    const r = ratelimit.summonGuardAcquire(BUYER3);
+    check("summon BUYER3 BLOCKED by GLOBAL summon cap once 4 consumed", !r.ok && /global summon generation cap/.test(r.reason ?? ""), r.reason ?? "");
+  }
+  // refund reopens a global summon slot: a non-fulfilling attempt (transient failure / settled-elsewhere)
+  // must not permanently burn the summon cap.
+  {
+    ratelimit.summonGuardRefund(BUYER2);
+    const r = ratelimit.summonGuardAcquire(BUYER3);
+    check("summonGuardRefund reopens a global summon slot (non-fulfilling attempt doesn't burn the cap)", r.ok, r.reason ?? "");
+    if (r.ok) ratelimit.summonGuardRelease();
+  }
+  // ISOLATION (persisted): all the summon churn above did NOT touch the free-tier gen counter -> two fully
+  // separate on-disk budgets, so free-tier failures can never starve summons (or vice-versa).
+  {
+    const ro = new Database(DB_PATH, { readonly: true });
+    const g = ro.prepare(`SELECT count FROM cost_counters WHERE scope='gen:global'`).get() as { count: number } | undefined;
+    const s = ro.prepare(`SELECT count FROM cost_counters WHERE scope='summon:global'`).get() as { count: number } | undefined;
+    ro.close();
+    check(
+      "gen:global untouched by summon churn (fully separate persisted budgets)",
+      (g?.count ?? -1) === 6 && s !== undefined,
+      `gen:global=${g?.count} summon:global=${s?.count}`,
+    );
+  }
+
+  // ────────────────────────────────────────────────────────────── M2b (single-mint sentinel)
+  console.log("\n[M2b] single-mint sentinel (claimMintAttestation is single-writer -> 1 generation = 1 Relic)");
+  {
+    const JOB = "gen_poc_singlemint";
+    const OWNER = "0x" + "a".repeat(40);
+    const N1 = "0x" + "11".repeat(32); // first attestation nonce
+    const N2 = "0x" + "22".repeat(32); // a would-be SECOND distinct nonce (must be rejected)
+    jobs.createJob(JOB, OWNER, 1, "NOKTURNE", "a test piece");
+    check("no attestation before first mint-args (happy path is open)", jobs.getMintAttestation(JOB) === null);
+    const first = jobs.claimMintAttestation(JOB, N1, OWNER);
+    check("first claim records + returns the fresh nonce (legit first mint)", first === N1);
+    // a SECOND call (concurrent first call, or a re-issue attempt with a NEW nonce) must NOT create a
+    // second distinct attestation - it returns the ALREADY-issued nonce, so only one sig can ever exist.
+    const second = jobs.claimMintAttestation(JOB, N2, "0x" + "b".repeat(40));
+    check("second claim CANNOT mint a new distinct nonce (returns the original -> 1 gen = 1 Relic)", second === N1, `returned ${second.slice(0, 10)}`);
+    const rec = jobs.getMintAttestation(JOB);
+    check("stored attestation is the FIRST nonce + FIRST recipient (second recipient ignored)", rec?.nonce === N1 && rec?.to === OWNER, `${rec?.nonce?.slice(0, 10)} / ${rec?.to?.slice(0, 10)}`);
+  }
 
   // ── summary ──
   console.log(`\n================  ${fail === 0 ? "ALL GREEN" : "RED"}  ${pass} passed, ${fail} failed  ================`);

@@ -146,6 +146,15 @@ function migrate(d: Database.Database): void {
   // The watcher fetches that block's hash at gen-time to root the deterministic pull seed (closes buyer
   // grinding). Nullable so a pre-cutover row (no captured block) cleanly falls back. Idempotent ALTER.
   addColumnIfMissing(d, "summon_requests", "summon_block", "INTEGER");
+
+  // M2 (single-mint sentinel): a done job may be minted AT MOST ONCE. mint-args records the single
+  // attestation nonce it issued for a job (+ the bound recipient) so it never signs a SECOND distinct
+  // nonce - one generation can back at most one OutputNFT (on-chain usedNonce is the ultimate backstop;
+  // this stops a second sig from ever being minted). Nullable so pre-M2 jobs (no attestation yet) upgrade
+  // cleanly. Idempotent ALTER.
+  addColumnIfMissing(d, "jobs", "mint_nonce", "TEXT");     // the single bytes32 nonce issued for this job
+  addColumnIfMissing(d, "jobs", "mint_to", "TEXT");        // the recipient bound into that attestation (lowercased)
+  addColumnIfMissing(d, "jobs", "mint_issued_at", "TEXT"); // ISO time the attestation was first issued
 }
 
 /** Idempotently add a column (better-sqlite3 ALTER throws if it already exists). */

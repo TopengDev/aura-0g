@@ -516,3 +516,79 @@ ponder.on("AuraMarketplace:Withdrawal", async ({ event, context }) => {
     price: amount,
   });
 });
+
+// ───────────────────────── SummonEscrow ─────────────────────────
+// Demand-pull commissioning. On Fulfilled, the escrow minted an OutputNFT to the buyer and SPLIT the fee:
+// ownerCut -> the agent's CURRENT owner (agentOwner, resolved on-chain at fulfill time = "income follows the
+// agent"), platformFee -> the platform. We credit BOTH the selling agent's earnings and the current-owner
+// wallet's earnings under DEDICATED summon fields (kept separate from resale royalties), and log a 'summon'
+// activity event, consistent with the Sold handler. Without this, summon income never reaches the read model:
+// creator earnings under-report and the ownership thesis ("income follows the agent") is invisible.
+//
+// IDEMPOTENCY: the aggregate credits are read-modify-write increments (like Sold). Beyond Ponder's own
+// reorg-revert, we additionally guard against a replay/re-index over existing PGlite state by no-op'ing if
+// this exact log (id = block-logIndex) was already ingested - so the increments can never double-count.
+ponder.on("SummonEscrow:Fulfilled", async ({ event, context }) => {
+  const { agentId, buyer, tokenId, agentOwner, ownerCut, platformFee } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  const id = eventId(event.block.number, event.log.logIndex);
+
+  // idempotency guard: if this log was already ingested, do NOT re-apply the aggregate increments below.
+  const already = await context.db.find(events, { id });
+  if (already) return;
+
+  const ownerAddr = agentOwner.toLowerCase() as `0x${string}`;
+
+  // 1. credit the selling agent's summon earnings (dedicated fields; a base row exists from AgentMinted).
+  await context.db
+    .insert(agentEarnings)
+    .values({ agentId, summonEarned: ownerCut, summonCount: 1, lastSaleAt: ts })
+    .onConflictDoUpdate((row) => ({
+      summonEarned: row.summonEarned + ownerCut,
+      summonCount: row.summonCount + 1,
+      lastSaleAt: ts,
+    }));
+
+  // 2. credit the agent's CURRENT owner wallet (income follows the agent to whoever owns it now).
+  await context.db
+    .insert(walletEarnings)
+    .values({ wallet: ownerAddr, summonEarned: ownerCut, summonCount: 1, lastSaleAt: ts })
+    .onConflictDoUpdate((row) => ({
+      summonEarned: row.summonEarned + ownerCut,
+      summonCount: row.summonCount + 1,
+      lastSaleAt: ts,
+    }));
+
+  // 3. mirror onto agent_stats for one-shot sorts + activity recency.
+  await context.db
+    .insert(agentStats)
+    .values({ agentId, name: "", summonEarned: ownerCut, summonCount: 1, lastActivityAt: ts })
+    .onConflictDoUpdate((row) => ({
+      summonEarned: row.summonEarned + ownerCut,
+      summonCount: row.summonCount + 1,
+      lastActivityAt: ts,
+    }));
+
+  // 4. log the summon activity (feed + audit). The minted Relic lives on OutputNFT; agentOwner earned
+  //    ownerCut (point-in-time), platform earned platformFee, buyer paid ownerCut + platformFee.
+  await context.db.insert(events).values({
+    id,
+    kind: "summon",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: ADDR_OUTPUT as `0x${string}`,
+    collectionKind: "output",
+    tokenId,
+    agentId,
+    actor: buyer.toLowerCase() as `0x${string}`,
+    counterparty: ownerAddr,
+    price: ownerCut + platformFee, // the gross summon fee the buyer paid
+    royaltyReceiver: ownerAddr, // who earned from this summon (the agent's current owner)
+    royaltyPaid: ownerCut, // the owner's take (dedicated accounting lives in *_earnings.summonEarned)
+    platformFee,
+  });
+});

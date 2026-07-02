@@ -45,7 +45,19 @@ export function rateLimit(key: string, limit = 5, windowMs = 60_000): RateLimitR
 // The LIFETIME spend budget (global total + per-address total) is PERSISTED in SQLite (cost_counters),
 // so a restart is NOT a reset-and-replay of the budget (B-2/B-3). The CONCURRENCY semaphore (inFlight) is
 // in-process - it bounds only the live process, which is exactly what a semaphore is for.
-const inFlight = { gen: 0, create: 0 };
+const inFlight = { gen: 0, create: 0, summon: 0 };
+
+// ── SUMMON-path cost guard caps (SEPARATE from the free-tier gen cap) ──
+// Paid summons must NOT draw from the same lifetime budget as the free /generate + chat generate_and_mint
+// path: a burst of transient free-tier TEE/0G failures (which increment gen:global) could otherwise
+// permanently erode the shared cap and STARVE the paid summon path. The summon path therefore gets its OWN
+// persisted lifetime cap + per-address quota + in-process concurrency ceiling. Summons are paid on-chain
+// (the buyer escrows a real fee), so this cap is purely a sponsor-compute-spend bound, decoupled from the
+// free tier. Env-overridable knobs; the higher default reflects that summon demand is fee-gated. (Co-located
+// with the guard that uses them rather than in config.ts to keep this M2 fix self-contained.)
+const SUMMON_GEN_CAP = Number(process.env.AURA_MAX_SUMMON_GENERATIONS ?? 200);
+const MAX_CONCURRENT_SUMMON_GEN = Number(process.env.AURA_MAX_CONCURRENT_SUMMON_GEN ?? 2);
+const PER_ADDRESS_SUMMON_QUOTA = Number(process.env.AURA_PER_ADDRESS_SUMMON_QUOTA ?? 50);
 
 // ── persisted lifetime counters (cost_counters table) ──
 function counterGet(scope: string): number {
@@ -93,6 +105,23 @@ export function genGuardAcquire(address?: string): { ok: boolean; reason?: strin
 
 export function genGuardRelease(): void {
   inFlight.gen = Math.max(0, inFlight.gen - 1);
+}
+
+/**
+ * Refund a generation LIFETIME slot (NOT the concurrency count - use genGuardRelease for that). Called when
+ * a guarded generation does NOT complete (transient TEE/0G failure, brain-unavailable, TEE-verify refusal,
+ * storage error) so a non-producing gen cannot permanently erode the global cap or the caller's per-address
+ * quota - otherwise transient flakiness would burn the sponsor's lifetime budget forever + charge a user's
+ * quota for nothing. Decrements the persisted global + per-address counters, floored at 0. Mirrors
+ * createGuardRefund. Successful generations are NEVER refunded (1 completed gen == 1 consumed slot).
+ */
+export function genGuardRefund(address?: string): void {
+  const aScope = addrScope("gen", address);
+  const d = db();
+  d.transaction(() => {
+    d.prepare(`UPDATE cost_counters SET count = MAX(0, count - 1) WHERE scope = ?`).run("gen:global");
+    if (aScope) d.prepare(`UPDATE cost_counters SET count = MAX(0, count - 1) WHERE scope = ?`).run(aScope);
+  })();
 }
 
 export function genStats() {
@@ -154,5 +183,64 @@ export function createStats() {
     cap: GLOBAL_CREATE_CAP,
     maxConcurrent: MAX_CONCURRENT_CREATE,
     perAddressQuota: PER_ADDRESS_CREATE_QUOTA,
+  };
+}
+
+// ── SUMMON generation guard (paid path) ──
+// A DEDICATED cost guard for the demand-pull Summon path, isolated from the free-tier gen guard so free-tier
+// failures cannot exhaust the paid summon budget (and vice-versa). Same shape as genGuardAcquire: persisted
+// global + per-address lifetime caps ('summon:global' / 'summon:addr:<buyer>') + an in-process concurrency
+// ceiling. The watcher acquires per fulfillment attempt (attributes the per-address quota to the BUYER) and,
+// on any non-fulfilling exit, REFUNDS via summonGuardRefund so a transient failure + its bounded retries
+// never erode the cap - only a summon that actually fulfilled (minted to the buyer) consumes a slot.
+
+/**
+ * Acquire a SUMMON generation slot (paid path). Atomically (better-sqlite3 is synchronous) enforces the
+ * persisted summon lifetime cap, the in-process concurrency ceiling, and the per-address (buyer) lifetime
+ * quota. Increments the persisted counters + in-flight count only on success.
+ */
+export function summonGuardAcquire(address?: string): { ok: boolean; reason?: string } {
+  const d = db();
+  const aScope = addrScope("summon", address);
+  const tx = d.transaction((): { ok: boolean; reason?: string } => {
+    if (counterGet("summon:global") >= SUMMON_GEN_CAP)
+      return { ok: false, reason: `global summon generation cap reached (${SUMMON_GEN_CAP})` };
+    if (inFlight.summon >= MAX_CONCURRENT_SUMMON_GEN)
+      return { ok: false, reason: `too many concurrent summon generations (max ${MAX_CONCURRENT_SUMMON_GEN}) - retry shortly` };
+    if (aScope && counterGet(aScope) >= PER_ADDRESS_SUMMON_QUOTA)
+      return { ok: false, reason: `per-address summon quota reached (${PER_ADDRESS_SUMMON_QUOTA})` };
+    counterIncr("summon:global");
+    if (aScope) counterIncr(aScope);
+    inFlight.summon += 1;
+    return { ok: true };
+  });
+  return tx();
+}
+
+export function summonGuardRelease(): void {
+  inFlight.summon = Math.max(0, inFlight.summon - 1);
+}
+
+/**
+ * Refund a SUMMON lifetime slot (NOT the concurrency count - use summonGuardRelease for that). Called when a
+ * summon attempt does NOT fulfill (transient gen/fulfill failure, settled-elsewhere, expired). Decrements the
+ * persisted global + per-address counters, floored at 0. Mirrors genGuardRefund/createGuardRefund.
+ */
+export function summonGuardRefund(address?: string): void {
+  const aScope = addrScope("summon", address);
+  const d = db();
+  d.transaction(() => {
+    d.prepare(`UPDATE cost_counters SET count = MAX(0, count - 1) WHERE scope = ?`).run("summon:global");
+    if (aScope) d.prepare(`UPDATE cost_counters SET count = MAX(0, count - 1) WHERE scope = ?`).run(aScope);
+  })();
+}
+
+export function summonStats() {
+  return {
+    totalSummonGenerations: counterGet("summon:global"),
+    inFlight: inFlight.summon,
+    cap: SUMMON_GEN_CAP,
+    maxConcurrent: MAX_CONCURRENT_SUMMON_GEN,
+    perAddressQuota: PER_ADDRESS_SUMMON_QUOTA,
   };
 }

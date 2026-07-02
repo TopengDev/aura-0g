@@ -23,7 +23,7 @@ import { signSettlementMintAuth, type MintAuthParams } from "./attestation.js";
 import { generateAndProve, type GenProof } from "./generate.js";
 import { pullSeedRoot, mapSubject, ZERO_BYTES32 } from "./gacha.js";
 import { rawAgent } from "./agents.js";
-import { genGuardAcquire, genGuardRelease } from "./ratelimit.js";
+import { summonGuardAcquire, summonGuardRelease, summonGuardRefund } from "./ratelimit.js";
 import {
   CONTRACTS,
   GAS,
@@ -184,6 +184,7 @@ export class SummonWatcher {
     const id = row.request_id;
     this.inFlight.add(id);
     let acquired = false;
+    let fulfilledOk = false; // only a summon that actually minted to the buyer keeps its lifetime slot
     try {
       const esc = summonRead();
       const onChain = await esc.requests(id);
@@ -216,10 +217,12 @@ export class SummonWatcher {
       }
       if (decision === "backoff") return "deferred";
 
-      // shared cost guard (protects the funded sponsor wallet). If no slot, leave 'pending' + retry later.
-      // Attribute the per-address quota to the buyer (B-2); summons are paid on-chain so this is extra
-      // defense-in-depth on top of the global cap.
-      const guard = genGuardAcquire(row.buyer);
+      // DEDICATED summon cost guard (isolated from the free-tier gen cap so free-tier failures cannot
+      // starve the paid summon path). If no slot, leave 'pending' + retry later. Attribute the per-address
+      // quota to the buyer (B-2); summons are paid on-chain so this is extra defense-in-depth on top of the
+      // global cap. Refunded on any non-fulfilling exit (see finally) so transient failures + their bounded
+      // retries never permanently erode the cap.
+      const guard = summonGuardAcquire(row.buyer);
       if (!guard.ok) {
         this.setStatus(id, "pending", `awaiting a gen slot: ${guard.reason ?? "busy"}`);
         return "deferred";
@@ -300,6 +303,7 @@ export class SummonWatcher {
 
       const tokenId = this.tokenIdFromReceipt(rcpt);
       this.markFulfilled(id, tokenId, rcpt.hash);
+      fulfilledOk = true; // minted to the buyer -> this attempt legitimately consumed a summon slot (no refund)
       this.log(`summon #${id} fulfilled -> output #${tokenId ?? "?"} tx ${rcpt.hash}`);
       return "fulfilled";
     } catch (e: unknown) {
@@ -322,7 +326,14 @@ export class SummonWatcher {
       }
       return "failed";
     } finally {
-      if (acquired) genGuardRelease();
+      if (acquired) {
+        summonGuardRelease(); // return the concurrency slot
+        // return the LIFETIME slot too UNLESS this attempt actually fulfilled (minted to the buyer): a
+        // transient gen/fulfill failure, a settled-elsewhere reconcile, or an expiry must not permanently
+        // burn the summon cap. The gen may have run (sponsor compute), but the cap is a starvation guard,
+        // not exact compute accounting - erring toward availability is correct here.
+        if (!fulfilledOk) summonGuardRefund(row.buyer);
+      }
       this.inFlight.delete(id);
     }
   }

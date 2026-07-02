@@ -8,7 +8,7 @@
 // recipient; the attestation binds whatever `to` is signed, so a tampered `to` is rejected on-chain).
 import type { FastifyInstance } from "fastify";
 import { ethers } from "ethers";
-import { getJobForOwner } from "../aura/jobs.js";
+import { getJobForOwner, getMintAttestation, claimMintAttestation } from "../aura/jobs.js";
 import { signMintAuth, eip712Block, type MintAuthParams } from "../aura/attestation.js";
 import { outputRead } from "../aura/contracts.js";
 import { CONTRACTS, GALILEO } from "../aura/config.js";
@@ -29,21 +29,60 @@ export async function mintArgsRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(409).send({ error: `job not mintable (status=${job.status})` });
       }
 
-      // recipient: default to the authed owner; allow an explicit override (validated as an address).
-      let to = owner;
-      if (req.body?.to) {
-        if (!ethers.isAddress(req.body.to)) return reply.code(400).send({ error: "invalid `to` address" });
-        to = req.body.to.toLowerCase();
+      // SINGLE-MINT SENTINEL (M2): a done job may back AT MOST ONE OutputNFT. Without this, /mint-args
+      // signs a FRESH nonce every call, so one sponsored generation could be re-attested into N Relics to
+      // any recipient - breaking 1-generation=1-Relic scarcity. We record the ONE nonce (+ bound recipient)
+      // issued per job and never sign a SECOND distinct one:
+      //   - already-issued + consumed on-chain -> 409 (the Relic exists).
+      //   - already-issued + NOT yet consumed  -> re-serve the SAME nonce/recipient (idempotent retry; a
+      //     differing `to` is ignored so a second distinct sig can never be produced).
+      //   - never issued -> atomically claim a fresh nonce (the WHERE mint_nonce IS NULL claim also makes
+      //     two concurrent first calls converge on ONE nonce). The on-chain usedNonce guard is the ultimate
+      //     backstop; this stops a second SIGNATURE from ever existing.
+      let to: `0x${string}`;
+      let nonce: `0x${string}`;
+      const existing = getMintAttestation(jobId);
+      if (existing) {
+        let consumed = false;
+        try {
+          consumed = Boolean(await outputRead().usedNonce(existing.nonce));
+        } catch {
+          consumed = false; // cannot confirm -> re-serve the SAME nonce (on-chain usedNonce still prevents a double mint)
+        }
+        if (consumed) {
+          return reply
+            .code(409)
+            .send({ error: "already minted: this generation's Relic was already minted (1 generation = 1 Relic)" });
+        }
+        // outstanding-but-unconsumed: re-serve the SAME attestation (never a new distinct nonce).
+        to = ethers.getAddress(existing.to && ethers.isAddress(existing.to) ? existing.to : owner) as `0x${string}`;
+        nonce = existing.nonce as `0x${string}`;
+      } else {
+        // first issuance: recipient defaults to the authed owner; allow an explicit override (validated).
+        let toRaw = owner;
+        if (req.body?.to) {
+          if (!ethers.isAddress(req.body.to)) return reply.code(400).send({ error: "invalid `to` address" });
+          toRaw = req.body.to.toLowerCase();
+        }
+        const fresh = ethers.hexlify(ethers.randomBytes(32));
+        const claimed = claimMintAttestation(jobId, fresh, toRaw); // atomic single-writer claim
+        if (claimed === fresh) {
+          nonce = fresh as `0x${string}`;
+          to = ethers.getAddress(toRaw) as `0x${string}`;
+        } else {
+          // a concurrent first call won the claim -> use ITS attestation (never issue a 2nd distinct nonce).
+          const won = getMintAttestation(jobId);
+          nonce = (won?.nonce ?? claimed) as `0x${string}`;
+          to = ethers.getAddress(won?.to && ethers.isAddress(won.to) ? won.to : toRaw) as `0x${string}`;
+        }
       }
 
       const r = job.result;
       const creatorAgentId = BigInt(job.agentId);
       const seed = BigInt(r.seed);
-      // fresh single-use nonce (bytes32). The contract's usedNonce guard blocks replay.
-      const nonce = ethers.hexlify(ethers.randomBytes(32)) as `0x${string}`;
 
       const params: MintAuthParams = {
-        to: ethers.getAddress(to) as `0x${string}`,
+        to,
         creatorAgentId,
         imageRoot: r.imageRoot,
         provenanceHash: r.provenanceHash as `0x${string}`,

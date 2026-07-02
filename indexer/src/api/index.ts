@@ -93,6 +93,11 @@ function ether(wei: bigint | null | undefined): string {
 // Shape an indexed agent row + its stats/earnings + catalog style into the API agent object.
 function shapeAgent(a: typeof schema.agents.$inferSelect, stats?: typeof schema.agentStats.$inferSelect | null, earn?: typeof schema.agentEarnings.$inferSelect | null) {
   const style = styleForName(a.name);
+  // earnings: resale royalties (Sold) + PRIMARY summon commissions (Fulfilled), tracked separately, plus a
+  // convenience total. Prefer the earnings table; fall back to the agent_stats mirror.
+  const royWei = earn?.royaltiesEarned ?? stats?.royaltiesEarned ?? 0n;
+  const summonWei = earn?.summonEarned ?? stats?.summonEarned ?? 0n;
+  const totalWei = royWei + summonWei;
   return {
     agentId: Number(a.agentId),
     name: a.name,
@@ -105,8 +110,13 @@ function shapeAgent(a: typeof schema.agents.$inferSelect, stats?: typeof schema.
     minted: true,
     outputCount: stats?.outputCount ?? 0,
     salesCount: stats?.salesCount ?? 0,
-    royaltiesEarned: ether(earn?.royaltiesEarned ?? stats?.royaltiesEarned ?? 0n),
-    royaltiesEarnedWei: (earn?.royaltiesEarned ?? stats?.royaltiesEarned ?? 0n).toString(),
+    summonCount: earn?.summonCount ?? stats?.summonCount ?? 0,
+    royaltiesEarned: ether(royWei),
+    royaltiesEarnedWei: royWei.toString(),
+    summonEarned: ether(summonWei),
+    summonEarnedWei: summonWei.toString(),
+    totalEarned: ether(totalWei), // royalties + summon commissions (the full "income follows the agent")
+    totalEarnedWei: totalWei.toString(),
     mintedAt: Number(a.mintedAt),
     style: style.style,
     meta: {
@@ -268,11 +278,18 @@ app.get("/creators/:wallet", async (c) => {
     ...outputsCreatedByMyAgents.map((o) => o.creatorAgentId),
   ]);
 
+  const weRoy = we?.royaltiesEarned ?? 0n;
+  const weSummon = we?.summonEarned ?? 0n;
   return c.json({
     wallet,
-    royaltiesEarned: ether(we?.royaltiesEarned ?? 0n),
-    royaltiesEarnedWei: (we?.royaltiesEarned ?? 0n).toString(),
+    royaltiesEarned: ether(weRoy),
+    royaltiesEarnedWei: weRoy.toString(),
     salesAsReceiver: we?.salesCount ?? 0,
+    summonEarned: ether(weSummon), // PRIMARY summon commissions earned by this wallet (income follows the agent)
+    summonEarnedWei: weSummon.toString(),
+    summonsFulfilled: we?.summonCount ?? 0,
+    totalEarned: ether(weRoy + weSummon), // royalties + summon commissions
+    totalEarnedWei: (weRoy + weSummon).toString(),
     agentsOwned: agentsOwnedRows.map((a) => shapeAgent(a, statsBy.get(a.agentId), earnBy.get(a.agentId))),
     outputsOwned: outputsOwnedRows.map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId))),
     outputsCreatedByMyAgents: outputsCreatedByMyAgents.map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId))),
@@ -349,41 +366,51 @@ app.get("/discover", async (c) => {
   }
 
   if (sort === "top-earners") {
-    // expose BOTH dimensions: by-agent (SUM royaltyPaid for that agent's output sales) and by-wallet
-    // (GROUP BY royaltyReceiver). Both are precomputed cumulative tables -> just sort + limit.
-    const byAgentRows = await db
-      .select()
-      .from(schema.agentEarnings)
-      .orderBy(desc(schema.agentEarnings.royaltiesEarned))
-      .limit(limit);
-    const byWalletRows = await db
-      .select()
-      .from(schema.walletEarnings)
-      .orderBy(desc(schema.walletEarnings.royaltiesEarned))
-      .limit(limit);
+    // expose BOTH dimensions: by-agent (that agent's output-sale royalties + summon commissions) and
+    // by-wallet (GROUP BY receiver). Rank by TOTAL income (royalties + summon): the tables are small on this
+    // testnet, so fetch + sort by the computed total in JS - a single-column DB orderBy would drop a
+    // summon-only earner (royalties == 0) past the royalty-ranked limit.
+    const totalOf = (r: { royaltiesEarned: bigint; summonEarned: bigint }): bigint => r.royaltiesEarned + r.summonEarned;
+    const byTotalDesc = (a: { royaltiesEarned: bigint; summonEarned: bigint }, b: { royaltiesEarned: bigint; summonEarned: bigint }): number => {
+      const ta = totalOf(a);
+      const tb = totalOf(b);
+      return tb > ta ? 1 : tb < ta ? -1 : 0; // bigint-safe (avoid Number() precision loss on wei)
+    };
+    const [allAgentRows, allWalletRows] = await Promise.all([
+      db.select().from(schema.agentEarnings),
+      db.select().from(schema.walletEarnings),
+    ]);
+    const byAgentRows = allAgentRows.filter((r) => totalOf(r) > 0n).sort(byTotalDesc).slice(0, limit);
+    const byWalletRows = allWalletRows.filter((r) => totalOf(r) > 0n).sort(byTotalDesc).slice(0, limit);
     const nameBy = await agentNameMap(byAgentRows.map((r) => r.agentId));
     const agentMetaBy = await agentRowMap(byAgentRows.map((r) => r.agentId));
     return c.json({
       sort,
-      byAgent: byAgentRows
-        .filter((r) => r.royaltiesEarned > 0n)
-        .map((r) => ({
-          agentId: Number(r.agentId),
-          name: nameBy.get(r.agentId) ?? null,
-          owner: agentMetaBy.get(r.agentId)?.owner ?? null,
-          style: styleForName(nameBy.get(r.agentId)).style,
-          royaltiesEarned: ether(r.royaltiesEarned),
-          royaltiesEarnedWei: r.royaltiesEarned.toString(),
-          salesCount: r.salesCount,
-        })),
-      byWallet: byWalletRows
-        .filter((r) => r.royaltiesEarned > 0n)
-        .map((r) => ({
-          wallet: r.wallet,
-          royaltiesEarned: ether(r.royaltiesEarned),
-          royaltiesEarnedWei: r.royaltiesEarned.toString(),
-          salesCount: r.salesCount,
-        })),
+      byAgent: byAgentRows.map((r) => ({
+        agentId: Number(r.agentId),
+        name: nameBy.get(r.agentId) ?? null,
+        owner: agentMetaBy.get(r.agentId)?.owner ?? null,
+        style: styleForName(nameBy.get(r.agentId)).style,
+        royaltiesEarned: ether(r.royaltiesEarned),
+        royaltiesEarnedWei: r.royaltiesEarned.toString(),
+        summonEarned: ether(r.summonEarned),
+        summonEarnedWei: r.summonEarned.toString(),
+        totalEarned: ether(totalOf(r)),
+        totalEarnedWei: totalOf(r).toString(),
+        salesCount: r.salesCount,
+        summonCount: r.summonCount,
+      })),
+      byWallet: byWalletRows.map((r) => ({
+        wallet: r.wallet,
+        royaltiesEarned: ether(r.royaltiesEarned),
+        royaltiesEarnedWei: r.royaltiesEarned.toString(),
+        summonEarned: ether(r.summonEarned),
+        summonEarnedWei: r.summonEarned.toString(),
+        totalEarned: ether(totalOf(r)),
+        totalEarnedWei: totalOf(r).toString(),
+        salesCount: r.salesCount,
+        summonCount: r.summonCount,
+      })),
       source: "indexer",
     });
   }

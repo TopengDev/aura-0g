@@ -71,6 +71,37 @@ export function setError(jobId: string, error: string): void {
     .run(error.slice(0, 300), new Date().toISOString(), jobId);
 }
 
+// ── M2 single-mint sentinel ──
+// A done job may issue AT MOST ONE distinct mint attestation. claimMintAttestation atomically records the
+// nonce+recipient the FIRST time (guarded by `mint_nonce IS NULL`, so two concurrent /mint-args calls for
+// the same job cannot both claim a fresh nonce) and returns the AUTHORITATIVE (winning) nonce; a caller that
+// lost the race, or a re-issue for an unconsumed attestation, gets back the already-stored nonce. Because
+// only one nonce is ever issued per job, one generation can back at most one OutputNFT.
+
+/** The single mint attestation recorded for a job (nonce + bound recipient), or null if none issued yet. */
+export function getMintAttestation(jobId: string): { nonce: string; to: string } | null {
+  const r = db().prepare(`SELECT mint_nonce, mint_to FROM jobs WHERE job_id=?`).get(jobId) as
+    | { mint_nonce?: string | null; mint_to?: string | null }
+    | undefined;
+  if (!r?.mint_nonce) return null;
+  return { nonce: r.mint_nonce, to: (r.mint_to ?? "").toLowerCase() };
+}
+
+/**
+ * Atomically claim the single mint nonce for a job. Sets (mint_nonce, mint_to, mint_issued_at) ONLY if not
+ * already set (single-writer), then returns the authoritative stored nonce - which is `nonce` if this call
+ * won the claim, or the pre-existing nonce if one was already recorded (lost race / re-issue). The recipient
+ * is lowercased to match the on-chain-address convention used elsewhere.
+ */
+export function claimMintAttestation(jobId: string, nonce: string, to: string): string {
+  const d = db();
+  d.prepare(
+    `UPDATE jobs SET mint_nonce=?, mint_to=?, mint_issued_at=? WHERE job_id=? AND mint_nonce IS NULL`,
+  ).run(nonce, to.toLowerCase(), new Date().toISOString(), jobId);
+  const r = d.prepare(`SELECT mint_nonce FROM jobs WHERE job_id=?`).get(jobId) as { mint_nonce?: string } | undefined;
+  return r?.mint_nonce ?? nonce;
+}
+
 // ── generated image persistence (on disk; the path is recorded on the job row) ──
 export function saveGeneratedImage(jobId: string, bytes: Buffer): string {
   mkdirSync(GEN_DIR, { recursive: true });
