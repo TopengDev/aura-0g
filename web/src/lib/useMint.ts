@@ -28,6 +28,7 @@ const MINT_ERRORS: Array<[RegExp, string]> = [
   [/insufficient funds/i, "Insufficient 0G balance for the gas fee."],
   [/nonce used/i, "This attestation was already minted. Generate a fresh piece to mint again."],
   [/bad attestation/i, "The attestation signature was rejected on-chain. Try regenerating."],
+  [/bad TEE attestation|tee text mismatch|bad envelope/i, "On-chain 0G TEE verification failed. Regenerate to mint."],
   [/royalty too high|resale royalty too high/i, "Royalty exceeds the 20% on-chain cap."],
 ];
 
@@ -66,23 +67,49 @@ export function useMint() {
       try {
         if (!address) throw new Error("Connect a wallet first.");
         await ensureChain();
-        setState({ ...IDLE, phase: "pending", step: "Confirm the mint in your wallet" });
-        const hash = await writeContract(config, {
-          address: CONTRACTS.outputNFT,
-          abi: outputNftAbi,
-          functionName: "mintOutput",
-          args: [
-            args.to as `0x${string}`,
-            BigInt(args.creatorAgentId),
-            args.imageRoot,
-            args.provenanceHash as `0x${string}`,
-            args.teeAttestation as `0x${string}`,
-            BigInt(args.seed),
-            args.nonce as `0x${string}`,
-            args.attestationSig as `0x${string}`,
-          ],
-          chainId: APP_CHAIN.id,
+        // On-chain-verified mint when the backend surfaced 0G's raw signed envelope (teeText + teeSig); the
+        // contract ecrecovers 0G's enclave signature and reverts on forgery. Else the testnet mintOutput fallback.
+        const teeVerified = Boolean(args.teeText && args.teeSig);
+        setState({
+          ...IDLE,
+          phase: "pending",
+          step: teeVerified ? "Confirm the on-chain TEE-verified mint in your wallet" : "Confirm the mint in your wallet",
         });
+        const hash = teeVerified
+          ? await writeContract(config, {
+              address: CONTRACTS.outputNFT,
+              abi: outputNftAbi,
+              functionName: "mintOutputVerified",
+              args: [
+                args.to as `0x${string}`,
+                BigInt(args.creatorAgentId),
+                args.imageRoot,
+                args.provenanceHash as `0x${string}`,
+                args.teeAttestation as `0x${string}`,
+                BigInt(args.seed),
+                args.nonce as `0x${string}`,
+                args.attestationSig as `0x${string}`,
+                args.teeText as string,
+                args.teeSig as `0x${string}`,
+              ],
+              chainId: APP_CHAIN.id,
+            })
+          : await writeContract(config, {
+              address: CONTRACTS.outputNFT,
+              abi: outputNftAbi,
+              functionName: "mintOutput",
+              args: [
+                args.to as `0x${string}`,
+                BigInt(args.creatorAgentId),
+                args.imageRoot,
+                args.provenanceHash as `0x${string}`,
+                args.teeAttestation as `0x${string}`,
+                BigInt(args.seed),
+                args.nonce as `0x${string}`,
+                args.attestationSig as `0x${string}`,
+              ],
+              chainId: APP_CHAIN.id,
+            });
         setState((s) => ({ ...s, txHash: hash, phase: "confirming", step: "Minting on-chain" }));
         const receipt = await pollReceipt(config, hash, APP_CHAIN.id, { timeoutMs: 180_000 });
         if (receipt.status !== "success") throw new Error("The mint reverted on-chain.");

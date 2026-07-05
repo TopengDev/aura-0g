@@ -52,6 +52,10 @@ export const INFT_ABI = [
 // NEW: authDigest (compute the EIP-712 digest), attestor, usedNonce.
 export const OUT_ABI = [
   "function mintOutput(address to,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,bytes32 nonce,bytes attestationSig) returns (uint256)",
+  "function mintOutputVerified(address to,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,bytes32 nonce,bytes attestationSig,string teeText,bytes teeSig) returns (uint256)",
+  "function teeSigner() view returns (address)",
+  "function setTeeSigner(address newSigner)",
+  "function dataHashOf(uint256) view returns (bytes32)",
   "function authDigest(address to,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,bytes32 nonce) view returns (bytes32)",
   "function provenanceOf(uint256) view returns (tuple(uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed))",
   "function royaltyInfo(uint256,uint256) view returns (address,uint256)",
@@ -62,6 +66,7 @@ export const OUT_ABI = [
   "function getApproved(uint256) view returns (address)",
   "function nextTokenId() view returns (uint256)",
   "event OutputMinted(uint256 indexed tokenId,uint256 indexed creatorAgentId,address indexed owner,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed)",
+  "event OutputTeeVerified(uint256 indexed tokenId,uint256 indexed creatorAgentId,address teeSigner,bytes32 dataHash)",
 ] as const;
 
 // AuraMarketplace v2: generalized multi-collection. ONE buy() entrypoint keyed by (collection,tokenId).

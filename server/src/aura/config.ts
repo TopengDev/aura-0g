@@ -149,6 +149,34 @@ export function chatMainnetKey(): string {
   return normalizePk(pk);
 }
 
+// ── IMAGE dual-network (mainnet z-image-turbo text-to-image) ─────────────────────────────────────────
+// The IMAGE-GEN path can run on 0G MAINNET (chainId 16661) while the on-chain economy + storage stay on
+// TESTNET Galileo - the exact same dual-network shape as CHAT above. 0G mainnet serves ONE genuine in-enclave
+// TeeML image provider (z-image-turbo, provider 0xE29a..cdF974, signer 0x592056..; verified live 2026-07-05),
+// which lets a mint's provenance be verified ON-CHAIN by OutputNFT.mintOutputVerified. Toggle with
+// AURA_IMAGE_MAINNET=1. UNSET (default) => today's EXACT testnet image-editing behavior, zero regression. The
+// mainnet image broker is built from a DEDICATED key (compute.ts imageSigner), ISOLATED from the testnet sponsor.
+export const IMAGE_MAINNET_RPC = process.env.AURA_IMAGE_MAINNET_RPC ?? "https://evmrpc.0g.ai";
+export const IMAGE_MAINNET_CHAIN_ID = Number(process.env.AURA_IMAGE_MAINNET_CHAIN_ID ?? 16661);
+// The pinned mainnet z-image provider + its 0G-published enclave signer (verified live). Env-overridable so a
+// 0G provider/enclave rotation is a config flip, not a code change. The on-chain teeSigner (OutputNFT) must be
+// set to IMAGE_MAINNET_TEE_SIGNER for the verified mint to recover.
+export const IMAGE_MAINNET_PROVIDER = process.env.AURA_IMAGE_MAINNET_PROVIDER ?? "0xE29a72c7629815Eb480aE5b1F2dfA06f06cdF974";
+export const IMAGE_MAINNET_TEE_SIGNER = process.env.AURA_IMAGE_MAINNET_TEE_SIGNER ?? "0x592056E413aB456646a50441e52D5BA89527877D";
+
+// The dedicated MAINNET image signer key. Pays ONLY the mainnet z-image compute ledger (isolated from the
+// testnet SPONSOR key). ENV-INJECTED at deploy, NEVER committed. Consulted ONLY when AURA_IMAGE_MAINNET=1;
+// if the toggle is on but the key is missing it THROWS rather than build a mainnet broker without a key.
+export function imageMainnetKey(): string {
+  const pk = process.env.AURA_IMAGE_MAINNET_KEY;
+  if (!pk || !pk.trim()) {
+    throw new Error(
+      "AURA_IMAGE_MAINNET=1 but AURA_IMAGE_MAINNET_KEY is unset - set the dedicated mainnet image signer key in the deploy env (injected at deploy, never committed).",
+    );
+  }
+  return normalizePk(pk);
+}
+
 // ── runtime knobs ──
 export const PORT = Number(process.env.PORT ?? 8787);
 export const HOST = process.env.HOST ?? "0.0.0.0";
