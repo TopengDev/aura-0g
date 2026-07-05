@@ -17,6 +17,10 @@ import {AuraINFT} from "../src/AuraINFT.sol";
 import {OutputNFT} from "../src/OutputNFT.sol";
 import {AuraMarketplace} from "../src/AuraMarketplace.sol";
 import {SummonEscrow} from "../src/SummonEscrow.sol";
+import {ArenaVote} from "../src/ArenaVote.sol";
+import {AuraFusion} from "../src/AuraFusion.sol";
+import {ArenaReputation} from "../src/ArenaReputation.sol";
+import {PersonhoodGate} from "../src/PersonhoodGate.sol";
 import {AuraMigration} from "../script/AuraMigration.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -28,6 +32,16 @@ contract DeployCutoverTest is Test {
     OutputNFT outNft;
     AuraMarketplace mkt;
     SummonEscrow escrow;
+    // ── game layer (folded into the SAME cutover) ──
+    ArenaVote arena;
+    AuraFusion fusion;
+    ArenaReputation reputation;
+    PersonhoodGate personhood;
+    address anchorer = makeAddr("anchorer");
+    uint256 constant ARENA_QUORUM = 3;
+    uint256 constant FUSION_FEE = 0.01 ether;
+    uint256 constant FUSION_COOLDOWN = 1 days;
+    uint256 constant MIN_CONVICTION = 0.01 ether;
 
     uint256 oraclePk = 0x0AAC1E;
     uint256 attestorPk = 0xA11CE;
@@ -65,6 +79,12 @@ contract DeployCutoverTest is Test {
         outNft.setTeeSigner(OPTION_A_TEE);
         mkt.setAllowedCollection(address(inft), true);
         mkt.setAllowedCollection(address(outNft), true);
+
+        // ── game layer, ALL bound to the SAME registry = AuraINFT (mirrors DeployCutover.s.sol step 4b) ──
+        arena = new ArenaVote(address(inft), ARENA_QUORUM);
+        fusion = new AuraFusion(address(inft), FUSION_FEE, FUSION_COOLDOWN);
+        reputation = new ArenaReputation(address(inft), anchorer);
+        personhood = new PersonhoodGate(address(inft), MIN_CONVICTION);
 
         // ── migrate the catalog onto AuraINFT (id-preserving) via the shared library ──
         for (uint256 id = 1; id <= N; id++) {
@@ -218,5 +238,53 @@ contract DeployCutoverTest is Test {
         (address receiver, uint256 amount) = outNft.royaltyInfo(relic, 1 ether);
         assertEq(receiver, deployer, "verified Relic royalty routes to AuraINFT agent#2 owner (deployer)");
         assertEq(amount, 0.08 ether, "8% output royalty (agent#2) via AuraINFT");
+    }
+
+    // ── GAME LAYER: all four contracts fold into THIS deploy, ALL bound to the ONE registry = AuraINFT. ──
+
+    // 8: ArenaVote resolves ownerOf on the cutover AuraINFT (registry wired + quorum set at deploy).
+    function test_Game_ArenaVoteWiredToAuraINFT() public view {
+        assertEq(address(arena.registry()), address(inft), "ArenaVote.registry == AuraINFT");
+        assertEq(arena.quorum(), ARENA_QUORUM, "ArenaVote quorum set at deploy");
+    }
+
+    // 9: ArenaVote's structural self-match guard resolves owners THROUGH AuraINFT: a same-owner pairing reverts,
+    //    a distinct-owner pairing (agent1=deployer vs agent3=alice) is accepted. Proves the registry read is live.
+    function test_Game_ArenaVoteSelfMatchGuardViaAuraINFT() public {
+        // agents 1 and 2 are both owned by the deployer post-migration -> same-owner self-match reverts.
+        vm.expectRevert(bytes("same-owner self-match"));
+        arena.createBattle(1, 2, 1 hours, 1 hours);
+        // agent 1 (deployer) vs agent 3 (alice) -> distinct owners on AuraINFT -> accepted.
+        uint256 battleId = arena.createBattle(1, 3, 1 hours, 1 hours);
+        assertEq(battleId, 1, "distinct-owner battle created (owners resolved via AuraINFT.ownerOf)");
+    }
+
+    // 10: AuraFusion mints children through the SAME AuraINFT (auraINFT wired). registerGenesis reads ownerOf +
+    //     getAgent.styleFingerprint from the migrated AuraINFT -> proves the child-mint read-path IS the cutover registry.
+    function test_Game_AuraFusionWiredToAuraINFT() public {
+        assertEq(address(fusion.auraINFT()), address(inft), "AuraFusion.auraINFT == AuraINFT (children mint through it)");
+        // the deployer owns migrated agent 1 -> can anchor its genome (fusion resolves ownerOf via AuraINFT).
+        uint16[8] memory genome; // all-zero alleles are always in range (< pool size)
+        vm.prank(deployer);
+        fusion.registerGenesis(1, genome);
+        assertTrue(fusion.isFusable(1), "migrated AuraINFT agent#1 fusable (fusion read AuraINFT ownerOf+getAgent)");
+        assertEq(fusion.generationOf(1), 1, "genesis generation pinned to 1");
+    }
+
+    // 11: ArenaReputation keys ratings to AuraINFT.ownerOf so a rating FOLLOWS the iNFT (registry wired + anchorer set).
+    function test_Game_ArenaReputationWiredAndFollowsOwner() public view {
+        assertEq(address(reputation.registry()), address(inft), "ArenaReputation.registry == AuraINFT");
+        assertEq(reputation.anchorer(), anchorer, "season anchorer set at deploy");
+        assertEq(reputation.currentHolderOf(3), alice, "agent#3 rating holder == AuraINFT owner (alice); reputation follows the iNFT");
+    }
+
+    // 12: PersonhoodGate Floor-1 (hold-an-Aura) IS the cutover AuraINFT => the Arena sybil floor resolves over the
+    //     SAME registry the battles are about. A migrated-agent owner clears it; a non-holder is honest-closed.
+    function test_Game_PersonhoodGateFloorOverAuraINFT() public view {
+        assertEq(address(personhood.aura()), address(inft), "PersonhoodGate.aura == AuraINFT (Floor-1 over the same registry)");
+        assertTrue(personhood.holdsAura(deployer), "deployer holds migrated Auras -> clears Floor-1");
+        assertTrue(personhood.isPerson(deployer), "deployer is a person via Floor-1 (hold-an-Aura)");
+        assertFalse(personhood.holdsAura(buyer), "buyer holds no Aura -> does not clear Floor-1");
+        assertFalse(personhood.isPerson(buyer), "buyer is not a person (no Aura, no conviction) -> honest-closed");
     }
 }

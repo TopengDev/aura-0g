@@ -14,6 +14,7 @@ import { agentsRead, readProvider, parseEvent } from "../aura/contracts.js";
 import { arenaVoteRead, arenaVoteWrite, arenaVoteConfigured, ARENA_VOTE_ABI } from "../aura/game/contracts.js";
 import { createBattleFlow, prepareVote, buildCommitment, finalizeArgs, claimArgs, ArenaError, type BattleAgent, type CreateBattleDeps } from "../aura/game/arena.js";
 import { recomputeBattleTally, defaultTallyDeps } from "../aura/game/arena-tally.js";
+import { saveBattleArt, getBattleArt } from "../aura/game/battle-store.js";
 
 function parseId(v: unknown): number | null {
   if (typeof v === "number" && Number.isInteger(v) && v >= 1) return v;
@@ -75,6 +76,13 @@ export async function gameArenaRoutes(app: FastifyInstance): Promise<void> {
           revealDur: parseId(req.body?.revealDur) ?? undefined,
           deps: realCreateBattleDeps(),
         });
+        // Journal the blind art + shared theme so a battle BROWSED later renders the pieces (not just the tally).
+        // Best-effort: the battle is already on-chain, so a persist hiccup must NEVER fail the created battle.
+        try {
+          saveBattleArt(result);
+        } catch (e) {
+          req.log.warn(`arena: battle-art persist failed for #${result.battleId}: ${String((e as any)?.message).slice(0, 120)}`);
+        }
         return result;
       } catch (e) {
         if (e instanceof ArenaError) return reply.code(e.status).send({ error: e.message });
@@ -93,7 +101,7 @@ export async function gameArenaRoutes(app: FastifyInstance): Promise<void> {
       if (Number(b.commitEnd) === 0) return reply.code(404).send({ error: `no such battle #${battleId}` });
       const now = Math.floor(Date.now() / 1000);
       const phase = now < Number(b.commitEnd) ? "commit" : now < Number(b.revealEnd) ? "reveal" : b.finalized ? "finalized" : "awaiting-finalize";
-      return {
+      const onChain = {
         battleId,
         agentA: Number(b.agentA),
         agentB: Number(b.agentB),
@@ -108,6 +116,16 @@ export async function gameArenaRoutes(app: FastifyInstance): Promise<void> {
         pool: b.pool.toString(),
         phase,
       };
+      // Attach the blind art + shared theme journaled at createBattle so a BROWSED battle shows the two pieces +
+      // theme (the phase-3-flagged gap), not just the on-chain tally. Best-effort: a battle created on another
+      // instance / after a DB reset has no journal -> the read cleanly degrades to on-chain-only (unchanged).
+      try {
+        const art = getBattleArt(battleId);
+        if (art) return { ...onChain, theme: art.theme, images: art.images };
+      } catch {
+        /* journal unavailable -> serve on-chain state only (degrade-safe) */
+      }
+      return onChain;
     } catch (e) {
       return reply.code(502).send({ error: `battle read failed: ${String((e as any)?.message).slice(0, 120)}` });
     }

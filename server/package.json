@@ -17,7 +17,7 @@
     "verify:catalog:xcheck": "tsx src/scripts/verify-catalog-crosscheck.ts",
     "verify:memory:0g": "tsx src/scripts/demo-memory-0g-storage.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "test": "tsx src/scripts/poc-hardening.ts && tsx src/scripts/test-memory-core.ts && tsx src/scripts/test-chat-memory-wall.ts && tsx src/scripts/test-memory-0g-wiring.ts && tsx src/scripts/verify-gacha-crosscheck.ts && tsx src/scripts/verify-catalog-crosscheck.ts && tsx src/scripts/test-fuse-genome.ts && tsx src/scripts/test-fuse-pipeline.ts && tsx src/scripts/test-arena-vote.ts && tsx src/scripts/test-glicko.ts && tsx src/scripts/test-ladder.ts"
+    "test": "tsx src/scripts/poc-hardening.ts && tsx src/scripts/test-memory-core.ts && tsx src/scripts/test-chat-memory-wall.ts && tsx src/scripts/test-memory-0g-wiring.ts && tsx src/scripts/verify-gacha-crosscheck.ts && tsx src/scripts/verify-catalog-crosscheck.ts && tsx src/scripts/test-fuse-genome.ts && tsx src/scripts/test-fuse-pipeline.ts && tsx src/scripts/test-arena-vote.ts && tsx src/scripts/test-arena-battle-store.ts && tsx src/scripts/test-glicko.ts && tsx src/scripts/test-ladder.ts"
   },
   "dependencies": {
     "@0gfoundation/0g-compute-ts-sdk": "0.8.4",

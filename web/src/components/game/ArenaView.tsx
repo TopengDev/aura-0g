@@ -286,8 +286,19 @@ function OpenBattle({ onOpen, enabled }: { onOpen: (b: CreateBattleResult) => vo
     const r = await fetchBattle(n);
     setLoading(false);
     if (r.state === "ok") {
-      // Reconstruct a display battle from the on-chain read (no art available for a looked-up battle).
-      onOpen({ battleId: r.data.battleId, agentA: r.data.agentA, agentB: r.data.agentB, theme: { seed: "", subjectProse: "" }, commitDur: 0, revealDur: 0, images: [], seedBlind: true });
+      // Reconstruct a display battle from the on-chain read, now WITH the blind art + shared theme the backend
+      // journaled at createBattle (phase-4 read-gap close). Absent (older battle / other instance) => the UI
+      // cleanly falls back to on-chain state only, exactly as before.
+      onOpen({
+        battleId: r.data.battleId,
+        agentA: r.data.agentA,
+        agentB: r.data.agentB,
+        theme: r.data.theme ?? { seed: "", subjectProse: "" },
+        commitDur: 0,
+        revealDur: 0,
+        images: r.data.images ?? [],
+        seedBlind: true,
+      });
     } else if (r.state === "gated") {
       setErr(null);
     } else if (r.state === "notfound") {

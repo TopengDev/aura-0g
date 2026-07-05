@@ -74,6 +74,11 @@ export interface BattleView {
   revealCount: number;
   pool: string;
   phase: "commit" | "reveal" | "finalized" | "awaiting-finalize" | string;
+  // Present when the backend journaled the battle's blind art at createBattle (phase-4 close of the read gap):
+  // a BROWSED battle then renders the two pieces + shared theme, not just the on-chain tally. Absent (a battle
+  // created on another instance / after a DB reset) => the UI degrades to the on-chain state only.
+  theme?: { seed: string; subjectProse: string };
+  images?: BattleImage[]; // [A, B]
 }
 
 export interface TallyReport {
