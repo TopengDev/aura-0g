@@ -46,13 +46,15 @@ contract DeployIntegrated is Script {
         uint16 platformBps = uint16(vm.envOr("PLATFORM_BPS", uint256(250)));
         uint256 summonPrice = vm.envOr("SUMMON_PRICE", uint256(0.01 ether));
         uint256 summonAgentCount = vm.envOr("SUMMON_AGENT_COUNT", uint256(12));
+        // Base URL the OutputNFT tokenURI() image field is built on (image = baseImageURI + imageRoot).
+        string memory imageBaseURI = vm.envOr("IMAGE_BASE_URI", string("https://aura.topengdev.com/images/"));
 
         AgentRegistry reg = AgentRegistry(registryAddr); // ATTACH to the existing deployed registry
 
         vm.startBroadcast(pk);
 
         // New OutputNFT bound to the EXISTING registry: mintForSettlement (H-1) for summon + mintOutput for gen.
-        OutputNFT outNft = new OutputNFT(registryAddr, attestor);
+        OutputNFT outNft = new OutputNFT(registryAddr, attestor, imageBaseURI);
         AuraMarketplace mkt = new AuraMarketplace(platform, platformBps);
         SummonEscrow escrow = new SummonEscrow(registryAddr, address(outNft), platform, platformBps);
 
@@ -90,6 +92,7 @@ contract DeployIntegrated is Script {
         console.log("attestor                      :", attestor);
         console.log("platform                      :", platform);
         console.log("platformBps                   :", platformBps);
+        console.log("tokenURI image base           :", imageBaseURI);
         console.log("agents priced for summon      :", priced);
         console.log("summonPrice (wei)             :", summonPrice);
     }

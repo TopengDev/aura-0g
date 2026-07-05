@@ -40,7 +40,7 @@ abstract contract SummonBase is Test {
     function setUp() public virtual {
         attestor = vm.addr(attestorPk);
         reg = new AgentRegistry();
-        outNft = new OutputNFT(address(reg), attestor); // runner/attestor settles mints
+        outNft = new OutputNFT(address(reg), attestor, "https://aura.topengdev.com/images/"); // runner/attestor settles mints
         mkt = new AuraMarketplace(platform, PLATFORM_BPS);
         mkt.setAllowedCollection(address(outNft), true);
         escrow = new SummonEscrow(address(reg), address(outNft), platform, PLATFORM_BPS); // this test == owner
