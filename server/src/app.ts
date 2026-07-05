@@ -19,6 +19,7 @@ import { agentTransferRoutes } from "./routes/agent-transfer.js";
 import { imageRoutes } from "./routes/image.js";
 import { readsRoutes } from "./routes/reads.js";
 import { indexerRoutes } from "./routes/indexer.js";
+import { verifyPublicRoutes } from "./routes/verify-public.js";
 import { summonRoutes } from "./routes/summon.js";
 import { chatRoutes } from "./routes/chat.js";
 
@@ -66,6 +67,11 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(agentsCreateRoutes);
   await app.register(agentTransferRoutes); // ERC-7857 secure-transfer flow (oracle proof + memory reseal)
   await app.register(imageRoutes); // public GET /image/:root -> real bytes (local cache, 0G fallback)
+  // Public KEYLESS verify endpoint (GET /api/verify?token=). A STATIC route, so find-my-way gives it
+  // precedence over the /api/* indexer wildcard below (static beats wildcard): it intercepts before the
+  // request would fall through to the Ponder proxy. Registered before indexerRoutes for readable intent
+  // (precedence is order-independent for static-vs-wildcard, but this reads clearest).
+  await app.register(verifyPublicRoutes);
   // Phase-3 indexer integration: /api/* passthrough + indexer-first /agents,/outputs,/marketplace
   // (with a graceful chain-scan fallback). Registered before readsRoutes; their paths don't overlap
   // (indexer owns the lists + /api/*, reads owns the per-id /agents/:id, /outputs/:id, etc.).

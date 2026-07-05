@@ -216,6 +216,65 @@ export interface Royalty {
   thesis: string;
 }
 
+// The KEYLESS public verify surface (GET /api/verify?token=<id>). Machine-readable, no wallet: the on-chain
+// facts, the 5-7 verification checks, a copy-paste self-check script (grouped Tier 1 / Tier 2), the honest
+// trust boundaries, and the network-aware model + agent-standard - all assembled from live chain reads. The
+// SSR /verify/[id] page renders this; the shape mirrors server/src/routes/verify-public.ts.
+export interface PublicVerifyCheck {
+  label: string;
+  ok: boolean;
+}
+export interface PublicVerify {
+  token: number;
+  found: boolean;
+  error?: string;
+  network: { chainId: number; name: string; explorer: string; rpc: string };
+  contract?: string;
+  onchain?: {
+    owner: string;
+    creatorAgentId: number;
+    agentName: string;
+    agentOwner: string;
+    imageRoot: string;
+    provenanceHash: string;
+    teeAttestation: string;
+    seed: string;
+    rarity: string;
+    dataHash: string;
+    teeSigner: string;
+    teeSignerExpected: string;
+    onchainTeeVerified: boolean;
+  };
+  image?: { url: string; sha256Expected: string | null };
+  royalty?: { standard: string; pct: number; bps: number; receiver: string; receiverIsAgentOwner: boolean } | null;
+  model?: { name: string; verifiability: string; computeNetwork: string; teeSigner: string };
+  agent?: { standard: "erc7857" | "erc721"; contract: string; owner: string };
+  verify?: { ok: boolean; checks: PublicVerifyCheck[]; summary: string };
+  selfCheck?: Record<string, string>;
+  tiers?: {
+    tier1: { label: string; keyless: boolean; active: boolean; checks: string[] };
+    tier2: { label: string; keyless: boolean; active: boolean; note: string; checks: string[] };
+  };
+  trustBoundaries?: string[];
+  generatedAt?: string;
+}
+
+// UNLIKE the fail-soft getJson fetchers, this returns the STRUCTURED body for 200 (found) AND 404/400
+// (`{found:false}` / `{error}`) so the page can render a real not-found state; it returns null ONLY on a 5xx
+// or a network/parse failure (backend genuinely unavailable). Same-origin on the main domain in prod (nginx
+// proxies /api/* to the backend), so an SSR fetch has no CORS.
+export async function fetchPublicVerify(id: number | string, revalidate?: number): Promise<PublicVerify | null> {
+  try {
+    const init: RequestInit =
+      revalidate != null ? ({ next: { revalidate } } as RequestInit) : { cache: "no-store" };
+    const res = await fetch(`${API_BASE}/api/verify?token=${id}`, init);
+    if (res.status >= 500) return null;
+    return (await res.json()) as PublicVerify;
+  } catch {
+    return null;
+  }
+}
+
 // One active marketplace listing. collectionName tells which collection (agent iNFT or output NFT);
 // price is an ether string. From GET /marketplace (indexer-first, chain-scan fallback).
 export interface MarketListing {
