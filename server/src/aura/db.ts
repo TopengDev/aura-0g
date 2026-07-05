@@ -128,6 +128,23 @@ function migrate(d: Database.Database): void {
       cursor_block  INTEGER NOT NULL
     );
 
+    -- Creative Arena: the off-chain ART JOURNAL for a battle (the on-chain ArenaVote state is the source of
+    -- truth for the VOTE; this table holds the blind art + shared theme generated at createBattle so a battle
+    -- BROWSED later - not just freshly created in-session - can render the two pieces + the theme, not only the
+    -- on-chain tally. Keyed by the on-chain battleId. Nothing here is secret (the theme derives from the public
+    -- createBattle block hash; the agents A/B are public on-chain); the VOTE stays blind via commit-reveal.
+    CREATE TABLE IF NOT EXISTS arena_battles (
+      battle_id     INTEGER PRIMARY KEY,
+      agent_a       INTEGER NOT NULL,
+      agent_b       INTEGER NOT NULL,
+      theme_seed    TEXT NOT NULL,
+      subject_prose TEXT NOT NULL,
+      commit_dur    INTEGER NOT NULL,
+      reveal_dur    INTEGER NOT NULL,
+      images_json   TEXT NOT NULL,            -- JSON of BattleImage[] [A,B] (imageRoot + provenance + tee)
+      created_at    TEXT NOT NULL
+    );
+
     -- ERC-7857 de-mock: each owner's recovered secp256k1 PUBKEY (recovered from their SIWE login sig).
     -- ECIES sealing (sealing.ts) seals the data-key to this pubkey; the re-encryption oracle needs the
     -- BUYER's pubkey to seal a transferred key to them.

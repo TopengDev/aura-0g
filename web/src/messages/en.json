@@ -1,0 +1,237 @@
+{
+  "game": {
+    "nav": {
+      "fusion": "Fusion",
+      "arena": "Arena",
+      "ladder": "Ladder",
+      "layer": "Game layer",
+      "tagline": "On-chain, verifiable, deploy-gated"
+    },
+    "locale": {
+      "label": "Language",
+      "id": "ID",
+      "en": "EN",
+      "switchToId": "Ganti ke Bahasa Indonesia",
+      "switchToEn": "Switch to English"
+    },
+    "common": {
+      "verifyYourself": "Verify it yourself",
+      "verifyYourselfNote": "No wallet, no login. Recompute the result from public chain data alone.",
+      "noWalletNote": "no wallet, no login",
+      "connectWallet": "Connect a wallet",
+      "connectToStart": "Connect your wallet to begin.",
+      "keyless": "Keyless",
+      "onChain": "On-chain",
+      "generation": "Generation",
+      "lineage": "Lineage",
+      "genome": "Genome",
+      "parents": "Parents",
+      "child": "Child",
+      "learnHow": "How this works",
+      "copy": "Copy",
+      "copied": "Copied",
+      "openExplorer": "Open on 0G Scan",
+      "loading": "Reading on-chain state",
+      "backendUnreachable": "The AURA API is unreachable right now. This is a network issue, not fake data. Try again shortly.",
+      "reload": "Retry",
+      "honest": "Honest by design",
+      "builtTested": "Built and tested; activates at the mainnet deploy"
+    },
+    "gate": {
+      "chip": "Activates at deploy",
+      "title": "This activates at the mainnet deploy.",
+      "body": "The game-layer contracts (ArenaVote and AuraFusion) fold into the same mainnet deploy as the ERC-7857 cutover. Until their addresses are wired, the backend returns a 501 for every game action, so this page renders the honest not-yet-armed state instead of fake data. Everything below is built, Foundry-tested, and ready; it goes live the moment the deploy sets the addresses.",
+      "whatWorksNow": "What you can do now",
+      "whatWorksNowBody": "Read the mechanism, copy the exact self-check commands you will run against the live contracts, and (for Fusion) browse the real Auras you own. No result is invented.",
+      "statusReading": "Checking whether this deploy has the contract wired",
+      "notConfigured": "Not configured on this deploy",
+      "sourceOfTruth": "This state is read live from the backend (a 501 means the address is empty), exactly like the ERC-7857 claim on the Proof page renders from live contract state."
+    },
+    "fuse": {
+      "kicker": "Fusion",
+      "title": "Fuse two Auras into a descendant.",
+      "lede": "Pick two Auras you own. A blind, un-grindable seed derives the child's genome on-chain, both parents persist, and the descendant is born with provable lineage and a rising generation. Fusion, never breeding.",
+      "entryCta": "Fuse this Aura",
+      "entryNote": "Combine this Aura with another you own to mint a descendant with inherited style and on-chain lineage.",
+      "rules": {
+        "ownBoth": "You must own both parents",
+        "ownBothNote": "Fusion is own-both. Cross-owner siring is a post-cup economy.",
+        "persist": "Parents persist",
+        "persistNote": "Neither parent is burned. They keep fusing, subject to a per-Aura cooldown.",
+        "siblings": "Same pair, different child",
+        "siblingsNote": "Fusing the same pair again yields a different descendant: the per-fusion seed varies, so siblings are not clones. Scarcity is economic (fee, cooldown, generation), not a one-per-pair cap.",
+        "fee": "Fee and cooldown",
+        "feeNote": "Each fusion charges a fee and starts a cooldown on both parents, and raises the child's generation."
+      },
+      "steps": {
+        "pick": "Pick parents",
+        "review": "Review",
+        "commit": "Commit",
+        "reveal": "Reveal",
+        "child": "Child"
+      },
+      "pick": {
+        "title": "Choose two parent Auras",
+        "body": "These are the Auras this wallet owns on-chain. Select exactly two.",
+        "empty": "This wallet does not own two Auras yet. Create or collect Auras first, then come back to fuse them.",
+        "selectA": "Select parent A",
+        "selectB": "Select parent B",
+        "chosen": "Chosen",
+        "you": "You own",
+        "needTwo": "Select two distinct Auras to continue.",
+        "sameParent": "A parent cannot fuse with itself. Pick a different second Aura."
+      },
+      "review": {
+        "title": "Review the fusion",
+        "fee": "Fusion fee",
+        "cooldown": "Cooldown per parent",
+        "generation": "Child generation",
+        "generationFormula": "max(parent generations) + 1",
+        "genesisNeeded": "One or both parents need a one-time genesis registration (their genome, derived from their on-chain style fingerprint) before they can fuse. This is owner-signed and recomputable by anyone.",
+        "registerGenesis": "Register genesis",
+        "requestFusion": "Request fusion",
+        "requestNote": "This is the commit step: it locks the pairing to a future block whose hash seeds the child. You cannot grind the outcome."
+      },
+      "commit": {
+        "title": "Commit the fusion",
+        "body": "Your wallet signs requestFusion and sends the fusion fee. The server signs nothing: it only computes the exact call arguments for your wallet (non-custodial).",
+        "waiting": "Waiting for the target block that seeds the descendant",
+        "requestId": "Fusion request",
+        "toReveal": "Once the target block is mined, reveal to generate and mint the child."
+      },
+      "reveal": {
+        "title": "Reveal the descendant",
+        "body": "Your wallet signs executeFusion with the computed child arguments. The child portrait is generated in a 0G TEE, its brain is sealed to your wallet, and the descendant mints with on-chain lineage.",
+        "generating": "Generating the descendant in a 0G TEE",
+        "execute": "Execute fusion"
+      },
+      "child": {
+        "title": "The descendant",
+        "descendedFrom": "Descended from #{a} and #{b}",
+        "generationBadge": "Generation {gen}",
+        "genomeTitle": "On-chain genome",
+        "genomeNote": "Eight loci, Mendelian, derived bit-exact from both parents and the un-grindable fuse seed.",
+        "lineageTitle": "Lineage",
+        "dynastyTitle": "Family tree",
+        "dynastyNote": "The descendant's ancestry, read from on-chain lineage.",
+        "styleTitle": "Blended style",
+        "memoryTitle": "Inherited memory",
+        "memoryNote": "The descendant inherits a blend of both parents' foundational memory (L1) and starts a fresh relationship memory (L2).",
+        "portraitAlt": "Generated portrait of the descendant",
+        "verifyTitle": "Verify the child genome yourself",
+        "verifyBody": "Anyone can recompute the descendant's genome from the parents' on-chain genomes and the on-chain fuse seed, then assert it equals the minted child. A hand-picked child is impossible.",
+        "verifyNote": "recompute the child genome from public chain data and assert it equals AuraFusion.genomeOf(childId)"
+      }
+    },
+    "arena": {
+      "kicker": "Creative Arena",
+      "title": "Auras battle on art. The crowd decides.",
+      "lede": "Two Auras render the same secret theme, each in its own style, shown blind. Voters stake a blind, commit-reveal ballot; the winner is a pure function of the on-chain tally, not our database. The tally is anyone's to recompute.",
+      "list": {
+        "title": "Battles",
+        "body": "Every battle is a like-for-like style contest on one shared, un-grindable theme.",
+        "lookupTitle": "Open a battle",
+        "lookupBody": "Enter a battle number to load its live on-chain state.",
+        "lookupPlaceholder": "Battle number",
+        "open": "Open battle",
+        "none": "No battles are live on this deploy yet. Battles are created by the operator once the arena contract is wired at the mainnet deploy."
+      },
+      "battle": {
+        "title": "Battle #{id}",
+        "theme": "Shared theme",
+        "themeNote": "Both Auras rendered this one subject, derived from the create-battle block hash, so neither side could grind a favourable prompt.",
+        "blind": "Blind",
+        "blindNote": "Which piece is which Aura stays hidden until the battle finalizes, so you vote on the art, not the name.",
+        "sideA": "Piece A",
+        "sideB": "Piece B",
+        "pieceAlt": "Battle art piece",
+        "revealedAs": "Revealed as Aura #{id}",
+        "phase": {
+          "commit": "Voting open (commit)",
+          "reveal": "Reveal window",
+          "awaitingFinalize": "Awaiting finalize",
+          "finalized": "Finalized"
+        },
+        "stats": {
+          "weightA": "Weight for A",
+          "weightB": "Weight for B",
+          "revealCount": "Reveals",
+          "pool": "Reward pool",
+          "winner": "Winner"
+        }
+      },
+      "vote": {
+        "title": "Cast a blind, staked vote",
+        "body": "Pick a side and a stake. Your ballot is committed as a hash (blind), then revealed after voting closes. Weight is linear in your stake, so nobody buys a square-root discount.",
+        "choose": "Your pick",
+        "chooseA": "Piece A",
+        "chooseB": "Piece B",
+        "stake": "Stake (0G)",
+        "commit": "Commit vote",
+        "reveal": "Reveal vote",
+        "committing": "Committing your blind ballot",
+        "revealing": "Revealing your vote",
+        "keepSalt": "Store this salt. You need it to reveal. Losing it forfeits part of your stake (a non-reveal).",
+        "salt": "Your reveal salt",
+        "commitmentHash": "Commitment hash",
+        "committedNote": "Your ballot is committed and blind. Return in the reveal window to reveal it with the salt above.",
+        "nonReveal": "Committed but unrevealed ballots forfeit part of their stake and do not count. This kills straddling."
+      },
+      "result": {
+        "title": "Result",
+        "winner": "Winner",
+        "winnerA": "Piece A wins",
+        "winnerB": "Piece B wins",
+        "tie": "Tie",
+        "finalize": "Finalize battle",
+        "claim": "Claim your share",
+        "notFinal": "The winner is set on finalize, once the reveal window closes."
+      },
+      "verify": {
+        "title": "Verify the tally yourself",
+        "body": "The winner is a deterministic function of the on-chain Revealed events: sum the linear weight per side, take the argmax. A separate process can re-tally from the log alone, with no AURA database in the loop. This is the anti-SQLite-theater proof.",
+        "curlNote": "the keyless GET /api/arena/tally surface: recompute the winner from public chain data",
+        "castNote": "read the contract's own enforced tally, then sum the Revealed logs yourself and assert they match",
+        "agree": "Independent tally must equal the contract's enforced tally",
+        "trustRoot": "The trust root is the deployed ArenaVote bytecode, not AURA's database."
+      }
+    },
+    "ladder": {
+      "kicker": "Rating Ladder",
+      "title": "A rank you can recompute.",
+      "lede": "A fixed-point Glicko-1 ladder over the on-chain battle verdicts, anchored by a single Merkle root and re-derivable by anyone. Rank is a reputation signal that feeds price and matchmaking. It never pays an emission.",
+      "board": {
+        "title": "Leaderboard",
+        "body": "Agents ranked by conservative rating (rating minus twice the deviation) among rating-eligible Auras.",
+        "rank": "Rank",
+        "agent": "Aura",
+        "rating": "Rating",
+        "rd": "Deviation",
+        "conservative": "Conservative",
+        "empty": "No rated verdicts on this deploy yet. The ladder fills from finalized, rated battles once the arena contract is wired at the mainnet deploy.",
+        "lookupTitle": "Look up an Aura's rank",
+        "lookupPlaceholder": "Aura number",
+        "lookup": "Look up rank"
+      },
+      "badge": {
+        "rank": "Rank #{rank}",
+        "rating": "Rating {rating}",
+        "provisional": "Provisional",
+        "provisionalNote": "Rating deviation is still too high to rank. Play more rated battles to become eligible.",
+        "signal": "Signal only",
+        "unrated": "Not yet rated",
+        "unratedNote": "This Aura has no finalized, rated battle verdicts yet."
+      },
+      "signal": {
+        "title": "Rank is a signal, never a reward",
+        "body": "Rank feeds price, matchmaking, and siring value. There is deliberately no token or emission on rank, because paying rank is the regime that becomes about 90% wash trading."
+      },
+      "verify": {
+        "title": "Verify the ladder yourself",
+        "body": "Recompute the whole ladder from the on-chain verdicts, rebuild the Merkle root, and assert it equals the anchored root. Zero trust in AURA.",
+        "curlNote": "the keyless GET /api/arena/ladder/verify surface: recompute the ladder and assert its root matches the anchor",
+        "note": "ladder = fixed-point Glicko-1 over the on-chain rated verdicts; root = OpenZeppelin StandardMerkleTree of the sorted rows"
+      }
+    }
+  }
+}

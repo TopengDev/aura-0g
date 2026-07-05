@@ -22,6 +22,9 @@ import { indexerRoutes } from "./routes/indexer.js";
 import { verifyPublicRoutes } from "./routes/verify-public.js";
 import { summonRoutes } from "./routes/summon.js";
 import { chatRoutes } from "./routes/chat.js";
+import { gameFuseRoutes } from "./routes/game-fuse.js";
+import { gameArenaRoutes } from "./routes/game-arena.js";
+import { gameReputationRoutes } from "./routes/game-reputation.js";
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -79,6 +82,12 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(readsRoutes);
   await app.register(summonRoutes); // public Summon reads (agent price + request status)
   await app.register(chatRoutes); // chat-with-an-Aura: 0G TEE chat + command-surface tools + L2 memory
+  // Game layer (phase 2): FUSION (own-both hybrid mint w/ on-chain genome + L1-inherit/L2-reset memory) +
+  // Creative Arena (2-gen shared-theme battle, blind staked commit-reveal vote, keyless tally recompute).
+  // Every flow is graceful-off (501) until the phase-4 deploy wires AuraFusion / ArenaVote.
+  await app.register(gameFuseRoutes);
+  await app.register(gameArenaRoutes);
+  await app.register(gameReputationRoutes); // Tier-2: Glicko rating ladder + Merkle anchor + keyless recompute
 
   // boot housekeeping: any job left mid-flight by a previous process can never finish -> mark failed.
   const reaped = reapOrphanJobs();

@@ -7,9 +7,13 @@ import {AuraINFT} from "../src/AuraINFT.sol";
 import {OutputNFT} from "../src/OutputNFT.sol";
 import {AuraMarketplace} from "../src/AuraMarketplace.sol";
 import {SummonEscrow} from "../src/SummonEscrow.sol";
+import {ArenaVote} from "../src/ArenaVote.sol";
+import {AuraFusion} from "../src/AuraFusion.sol";
+import {ArenaReputation} from "../src/ArenaReputation.sol";
+import {PersonhoodGate} from "../src/PersonhoodGate.sol";
 import {AuraMigration} from "./AuraMigration.sol";
 
-/// @title DeployCutover - the ATOMIC AuraINFT cutover deploy (closes overclaim O1).
+/// @title DeployCutover - the ATOMIC AuraINFT cutover deploy (closes overclaim O1) + the GAME LAYER.
 /// @notice Deploys the FULL v2 stack against ONE registry = the REAL ERC-7857 AuraINFT (not the AgentRegistry
 ///         stub), so agents ARE real iNFTs everywhere the stack touches ownership + royalty:
 ///           AuraINFT(oracle, baseImageURI)
@@ -19,6 +23,16 @@ import {AuraMigration} from "./AuraMigration.sol";
 ///         then pins the Option A on-chain TEE-verify signer (OutputNFT.setTeeSigner), allowlists the trade
 ///         collections, and MIGRATES the existing catalog agents from the live AgentRegistry onto AuraINFT
 ///         (id-preserving, income-follows-owner), pricing the deployer-owned ones for Summon.
+///
+///         GAME LAYER (folded into THIS SAME atomic deploy, all bound to the ONE registry = AuraINFT):
+///           ArenaVote(registry = AuraINFT, quorum)          // ownerOf() -> same-owner self-match guard
+///           AuraFusion(auraINFT = AuraINFT, fee, cooldown)  // children mint through AuraINFT.mintAgent (real seal)
+///           ArenaReputation(registry = AuraINFT, anchorer)  // ownerOf() -> the rating follows the iNFT on sale
+///           PersonhoodGate(aura = AuraINFT, minConviction)  // Floor-1 hold-an-Aura = the ArenaVote sybil floor
+///         All four are constructor-wired (no post-deploy setter is required) and DEGRADE-SAFE: they stay inert
+///         until their addresses are published in deployed-v2.json / NEXT_PUBLIC_* AND a user interacts (the
+///         backend flows 501 and the web shows the DeployGate until then). Their owner is the deployer, which is
+///         the same operator the backend signs createBattle / anchorSeason with (single-key testnet deploy).
 ///
 ///         This is the SINGLE-registry atomic redeploy the audit tripwire requires: reads, indexer, memory
 ///         gate, web mint, and transfers ALL move to AuraINFT together (the server flips on auraInftConfigured()
@@ -41,6 +55,12 @@ import {AuraMigration} from "./AuraMigration.sol";
 ///                          (a fresh, empty AuraINFT - e.g. a clean local run).
 ///   MIGRATE_AGENT_COUNT  - migrate source ids 1..N (contiguous catalog). Default 30. Halts at the first gap.
 ///   SUMMON_PRICE         - per-agent summon price in wei for deployer-owned migrated agents. Default 0.01 ether.
+///   --- game layer ---
+///   ARENA_QUORUM         - min DISTINCT revealed voters for a battle to confer a RATED verdict. Default 3.
+///   FUSION_FEE_WEI       - per-request fusion fee (wei), escrowed at requestFusion. Default 0.01 ether.
+///   FUSION_COOLDOWN_SECS - per-parent fusion cooldown (seconds), rate-limits how often a parent fuses. Default 1 days.
+///   ARENA_ANCHORER_ADDR  - the off-chain fixed-point Glicko-1 compute service that anchors season roots. Default: deployer.
+///   PERSONHOOD_MIN_CONVICTION_WEI - min conviction stake (wei) to clear PersonhoodGate Floor-2. Default 0.01 ether.
 contract DeployCutover is Script {
     // Option A (proven, smoke test wjr88st0x): the 0G TESTNET image-edit TeeML enclave signer. Every Relic's
     // REAL base-anchored art is on-chain-verifiable against this signer inside the mainnet contract.
@@ -59,6 +79,13 @@ contract DeployCutover is Script {
         uint256 migrateCount = vm.envOr("MIGRATE_AGENT_COUNT", uint256(30));
         uint256 summonPrice = vm.envOr("SUMMON_PRICE", uint256(0.01 ether));
 
+        // ── game-layer params (folded into this same cutover; all wired to the ONE registry = AuraINFT) ──
+        uint256 arenaQuorum = vm.envOr("ARENA_QUORUM", uint256(3));
+        uint256 fusionFee = vm.envOr("FUSION_FEE_WEI", uint256(0.01 ether));
+        uint256 fusionCooldown = vm.envOr("FUSION_COOLDOWN_SECS", uint256(1 days));
+        address anchorer = vm.envOr("ARENA_ANCHORER_ADDR", me);
+        uint256 minConviction = vm.envOr("PERSONHOOD_MIN_CONVICTION_WEI", uint256(0.01 ether));
+
         vm.startBroadcast(pk);
 
         // 1..4: the whole stack, ALL bound to ONE registry = AuraINFT.
@@ -67,6 +94,22 @@ contract DeployCutover is Script {
         OutputNFT outNft = new OutputNFT(address(inft), attestor, imageBaseURI);
         AuraMarketplace mkt = new AuraMarketplace(platform, platformBps);
         SummonEscrow escrow = new SummonEscrow(address(inft), address(outNft), platform, platformBps);
+
+        // 4b: the GAME LAYER, all bound to the SAME registry = AuraINFT (folded into this ONE atomic cutover).
+        //   - AuraFusion mints hybrid CHILDREN through the REAL AuraINFT.mintAgent sealed-key path (permissionless,
+        //     no minter role) -> children are genuine ERC-7857 iNFTs, not a vanity mechanism.
+        //   - ArenaVote resolves ownerOf(agentId) on AuraINFT for its same-owner self-match guard (structural anti-wash).
+        //   - ArenaReputation keys each rating to AuraINFT.ownerOf so reputation FOLLOWS the iNFT when the agent sells.
+        //   - PersonhoodGate's Floor-1 (hold-an-Aura) IS the AuraINFT (balanceOf >= 1) => the Arena's 0G-native sybil
+        //     floor over the SAME registry the battles are about (ArenaVote stays LINEAR/sybil-neutral for the cup;
+        //     the floor gates sqrt weighting Tier-3/post-cup + is available to the backend for isPerson checks).
+        //   All four are constructor-wired (immutable registry/auraINFT/aura) so NO post-deploy setter is needed, and
+        //   they stay INERT (backend 501 / web DeployGate) until published in deployed-v2.json + NEXT_PUBLIC_*.
+        uint256 gameDeployBlock = block.number; // same broadcast as the stack above (== auraInftDeployBlock)
+        ArenaVote arena = new ArenaVote(address(inft), arenaQuorum);
+        AuraFusion fusion = new AuraFusion(address(inft), fusionFee, fusionCooldown);
+        ArenaReputation reputation = new ArenaReputation(address(inft), anchorer);
+        PersonhoodGate personhood = new PersonhoodGate(address(inft), minConviction);
 
         // 5: pin the Option A on-chain TEE-verify signer. setTeeSigner is attestor-gated; the broadcast can call
         //    it only when the deployer IS the attestor. When attestor is split off, pin it in a follow-up
@@ -124,6 +167,17 @@ contract DeployCutover is Script {
         console.log("auraInft deploy block         :", auraInftDeployBlock);
         console.log("agents migrated onto AuraINFT :", migrated);
         console.log("agents priced for summon      :", priced);
+        console.log("--- game layer (bound to AuraINFT) ---");
+        console.log("ArenaVote     (reg=INFT)      :", address(arena));
+        console.log("AuraFusion    (auraINFT=INFT) :", address(fusion));
+        console.log("ArenaReputation (reg=INFT)    :", address(reputation));
+        console.log("PersonhoodGate (aura=INFT)    :", address(personhood));
+        console.log("arena quorum                  :", arenaQuorum);
+        console.log("fusion fee (wei)              :", fusionFee);
+        console.log("fusion cooldown (secs)        :", fusionCooldown);
+        console.log("arena anchorer                :", anchorer);
+        console.log("personhood minConviction (wei):", minConviction);
+        console.log("game deploy block             :", gameDeployBlock);
         console.log("");
         console.log("--- paste into contracts/deployed-v2.json (coherent single source of truth) ---");
         console.log('  "agentRegistry": "', sourceRegistry, '",  // kept for history; agents now on auraINFT');
@@ -133,7 +187,17 @@ contract DeployCutover is Script {
         console.log('  "outputNFT": "', address(outNft), '",');
         console.log('  "marketplace": "', address(mkt), '",');
         console.log('  "summonEscrow": "', address(escrow), '",');
+        console.log('  "arenaVote": "', address(arena), '",');
+        console.log('  "auraFusion": "', address(fusion), '",');
+        console.log('  "arenaReputation": "', address(reputation), '",');
+        console.log('  "personhoodGate": "', address(personhood), '",');
+        console.log('  "gameDeployBlock": ', gameDeployBlock, ',');
         console.log("  (also: set deployBlock/outputNftDeployBlock/summonStartBlock =", auraInftDeployBlock, ")");
+        console.log("");
+        console.log("--- web build args (NEXT_PUBLIC_*, baked into the prod web image; the game flips LIVE when set) ---");
+        console.log("  NEXT_PUBLIC_AURA_FUSION       =", address(fusion));
+        console.log("  NEXT_PUBLIC_ARENA_VOTE        =", address(arena));
+        console.log("  NEXT_PUBLIC_ARENA_REPUTATION  =", address(reputation));
         if (!teePinned && teeSigner != address(0)) {
             console.log("");
             console.log("NOTE: attestor is split from deployer - pin the TEE signer post-deploy with an attestor tx:");
