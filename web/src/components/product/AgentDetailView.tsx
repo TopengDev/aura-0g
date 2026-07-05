@@ -7,6 +7,7 @@ import { PageHeader, Panel, ProvLine, Chip, MetaRow, StatFigure, ActionButton } 
 import { TradePanel } from "@/components/product/TradePanel";
 import { SummonPanel } from "@/components/product/SummonPanel";
 import { ShareOnX } from "@/components/product/ShareOnX";
+import { RatingBadge } from "@/components/game/RatingBadge";
 import { absoluteUrl, auraShareText } from "@/lib/share";
 import { EXPLORER } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
@@ -71,6 +72,13 @@ export function AgentDetailView({
                   url={absoluteUrl(`/agents/${a.agentId}`)}
                   label="Share this Aura"
                 />
+              </div>
+            </Reveal>
+
+            {/* Game layer: this Aura's Arena rank (Ladder Tier-2), deploy-gated + honest. */}
+            <Reveal delay={0.07}>
+              <div className="mt-5">
+                <RatingBadge agentId={a.agentId} />
               </div>
             </Reveal>
 
@@ -185,6 +193,16 @@ export function AgentDetailView({
                     </>
                   }
                 />
+              </div>
+            </Reveal>
+            <Reveal delay={0.1}>
+              <div className="mt-4">
+                <ActionButton href={`/fuse?a=${a.agentId}`} variant="outline">
+                  Fuse {a.name} -&gt;
+                </ActionButton>
+                <p className="mt-2 text-center text-[16px]" style={{ color: "var(--color-ink-3)" }}>
+                  Combine with another Aura you own to mint a descendant with inherited style and on-chain lineage.
+                </p>
               </div>
             </Reveal>
             <Reveal delay={0.12}>

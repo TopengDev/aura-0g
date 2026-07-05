@@ -1,0 +1,237 @@
+{
+  "game": {
+    "nav": {
+      "fusion": "Fusion",
+      "arena": "Arena",
+      "ladder": "Ladder",
+      "layer": "Lapisan game",
+      "tagline": "On-chain, bisa diverifikasi, aktif saat deploy"
+    },
+    "locale": {
+      "label": "Bahasa",
+      "id": "ID",
+      "en": "EN",
+      "switchToId": "Ganti ke Bahasa Indonesia",
+      "switchToEn": "Switch to English"
+    },
+    "common": {
+      "verifyYourself": "Verifikasi sendiri",
+      "verifyYourselfNote": "Tanpa wallet, tanpa login. Hitung ulang hasilnya hanya dari data on-chain yang publik.",
+      "noWalletNote": "tanpa wallet, tanpa login",
+      "connectWallet": "Hubungkan wallet",
+      "connectToStart": "Hubungkan wallet dulu untuk mulai.",
+      "keyless": "Tanpa kunci",
+      "onChain": "On-chain",
+      "generation": "Generasi",
+      "lineage": "Garis keturunan",
+      "genome": "Genom",
+      "parents": "Induk",
+      "child": "Anak",
+      "learnHow": "Cara kerjanya",
+      "copy": "Salin",
+      "copied": "Tersalin",
+      "openExplorer": "Buka di 0G Scan",
+      "loading": "Membaca status on-chain",
+      "backendUnreachable": "API AURA sedang tidak bisa dijangkau. Ini masalah jaringan, bukan data palsu. Coba lagi sebentar.",
+      "reload": "Coba lagi",
+      "honest": "Jujur sejak awal",
+      "builtTested": "Sudah dibangun dan diuji; aktif saat deploy mainnet"
+    },
+    "gate": {
+      "chip": "Aktif saat deploy",
+      "title": "Fitur ini aktif saat deploy mainnet.",
+      "body": "Kontrak lapisan game (ArenaVote dan AuraFusion) menyatu dalam deploy mainnet yang sama dengan cutover ERC-7857. Sampai alamatnya terpasang, backend mengembalikan 501 untuk setiap aksi game, jadi halaman ini menampilkan status jujur yang belum aktif, bukan data palsu. Semua di bawah sudah dibangun, diuji dengan Foundry, dan siap; langsung aktif begitu deploy memasang alamatnya.",
+      "whatWorksNow": "Yang bisa dilakukan sekarang",
+      "whatWorksNowBody": "Baca mekanismenya, salin perintah cek mandiri yang persis akan kamu jalankan ke kontrak live, dan (untuk Fusion) telusuri Aura yang benar benar kamu miliki. Tidak ada hasil yang dikarang.",
+      "statusReading": "Mengecek apakah deploy ini sudah memasang kontraknya",
+      "notConfigured": "Belum dikonfigurasi di deploy ini",
+      "sourceOfTruth": "Status ini dibaca langsung dari backend (501 berarti alamatnya kosong), persis seperti klaim ERC-7857 di halaman Proof yang dirender dari status kontrak live."
+    },
+    "fuse": {
+      "kicker": "Fusion",
+      "title": "Gabungkan dua Aura jadi keturunan.",
+      "lede": "Pilih dua Aura milikmu. Seed buta yang tidak bisa diakali menurunkan genom anak secara on-chain, kedua induk tetap ada, dan keturunan lahir dengan garis keturunan yang bisa dibuktikan serta generasi yang naik. Fusion, bukan breeding.",
+      "entryCta": "Fusion Aura ini",
+      "entryNote": "Gabungkan Aura ini dengan Aura lain milikmu untuk mencetak keturunan dengan gaya warisan dan garis keturunan on-chain.",
+      "rules": {
+        "ownBoth": "Kamu harus memiliki kedua induk",
+        "ownBothNote": "Fusion mensyaratkan memiliki keduanya. Sewa lintas pemilik adalah ekonomi pasca cup.",
+        "persist": "Induk tetap ada",
+        "persistNote": "Tidak ada induk yang dibakar. Keduanya bisa terus difusi, dengan cooldown per Aura.",
+        "siblings": "Pasangan sama, anak berbeda",
+        "siblingsNote": "Memfusi pasangan yang sama lagi menghasilkan keturunan berbeda: seed per fusion bervariasi, jadi saudara bukan klon. Kelangkaan bersifat ekonomi (biaya, cooldown, generasi), bukan batas satu per pasangan.",
+        "fee": "Biaya dan cooldown",
+        "feeNote": "Tiap fusion mengenakan biaya dan memulai cooldown pada kedua induk, serta menaikkan generasi anak."
+      },
+      "steps": {
+        "pick": "Pilih induk",
+        "review": "Tinjau",
+        "commit": "Commit",
+        "reveal": "Reveal",
+        "child": "Anak"
+      },
+      "pick": {
+        "title": "Pilih dua Aura induk",
+        "body": "Ini Aura yang dimiliki wallet ini secara on-chain. Pilih tepat dua.",
+        "empty": "Wallet ini belum memiliki dua Aura. Buat atau kumpulkan Aura dulu, lalu kembali untuk memfusinya.",
+        "selectA": "Pilih induk A",
+        "selectB": "Pilih induk B",
+        "chosen": "Terpilih",
+        "you": "Kamu punya",
+        "needTwo": "Pilih dua Aura berbeda untuk lanjut.",
+        "sameParent": "Induk tidak bisa difusi dengan dirinya sendiri. Pilih Aura kedua yang berbeda."
+      },
+      "review": {
+        "title": "Tinjau fusion",
+        "fee": "Biaya fusion",
+        "cooldown": "Cooldown tiap induk",
+        "generation": "Generasi anak",
+        "generationFormula": "maks(generasi induk) + 1",
+        "genesisNeeded": "Satu atau kedua induk perlu registrasi genesis sekali (genomnya, diturunkan dari sidik gaya on-chain) sebelum bisa difusi. Ini ditandatangani pemilik dan bisa dihitung ulang siapa pun.",
+        "registerGenesis": "Daftarkan genesis",
+        "requestFusion": "Ajukan fusion",
+        "requestNote": "Ini langkah commit: mengunci pasangan ke blok masa depan yang hash-nya jadi seed anak. Kamu tidak bisa mengakali hasilnya."
+      },
+      "commit": {
+        "title": "Commit fusion",
+        "body": "Wallet-mu menandatangani requestFusion dan mengirim biaya fusion. Server tidak menandatangani apa pun: ia hanya menghitung argumen panggilan persis untuk wallet-mu (non-kustodian).",
+        "waiting": "Menunggu blok target yang jadi seed keturunan",
+        "requestId": "Permintaan fusion",
+        "toReveal": "Begitu blok target ditambang, lakukan reveal untuk menghasilkan dan mencetak anak."
+      },
+      "reveal": {
+        "title": "Reveal keturunan",
+        "body": "Wallet-mu menandatangani executeFusion dengan argumen anak yang sudah dihitung. Potret anak dihasilkan di TEE 0G, otaknya disegel ke wallet-mu, dan keturunan dicetak dengan garis keturunan on-chain.",
+        "generating": "Menghasilkan keturunan di TEE 0G",
+        "execute": "Eksekusi fusion"
+      },
+      "child": {
+        "title": "Keturunan",
+        "descendedFrom": "Turunan dari #{a} dan #{b}",
+        "generationBadge": "Generasi {gen}",
+        "genomeTitle": "Genom on-chain",
+        "genomeNote": "Delapan lokus, Mendelian, diturunkan persis dari kedua induk dan seed fusi yang tidak bisa diakali.",
+        "lineageTitle": "Garis keturunan",
+        "dynastyTitle": "Pohon keluarga",
+        "dynastyNote": "Silsilah keturunan, dibaca dari garis keturunan on-chain.",
+        "styleTitle": "Gaya campuran",
+        "memoryTitle": "Memori warisan",
+        "memoryNote": "Keturunan mewarisi campuran memori dasar (L1) dari kedua induk dan memulai memori relasi (L2) yang baru.",
+        "portraitAlt": "Potret keturunan yang dihasilkan",
+        "verifyTitle": "Verifikasi genom anak sendiri",
+        "verifyBody": "Siapa pun bisa menghitung ulang genom keturunan dari genom on-chain kedua induk dan seed fusi on-chain, lalu memastikannya sama dengan anak yang dicetak. Anak yang dipilih manual mustahil.",
+        "verifyNote": "hitung ulang genom anak dari data on-chain publik dan pastikan sama dengan AuraFusion.genomeOf(childId)"
+      }
+    },
+    "arena": {
+      "kicker": "Creative Arena",
+      "title": "Aura bertarung lewat seni. Massa yang memutuskan.",
+      "lede": "Dua Aura menggambar tema rahasia yang sama, masing masing dengan gayanya, ditampilkan buta. Pemilih menaruh suara buta bergaya commit-reveal; pemenang adalah fungsi murni dari tally on-chain, bukan database kami. Tally-nya bisa dihitung ulang siapa saja.",
+      "list": {
+        "title": "Pertarungan",
+        "body": "Tiap pertarungan adalah kontes gaya yang setara di satu tema bersama yang tidak bisa diakali.",
+        "lookupTitle": "Buka pertarungan",
+        "lookupBody": "Masukkan nomor pertarungan untuk memuat status on-chain-nya.",
+        "lookupPlaceholder": "Nomor pertarungan",
+        "open": "Buka pertarungan",
+        "none": "Belum ada pertarungan live di deploy ini. Pertarungan dibuat oleh operator setelah kontrak arena terpasang di deploy mainnet."
+      },
+      "battle": {
+        "title": "Pertarungan #{id}",
+        "theme": "Tema bersama",
+        "themeNote": "Kedua Aura menggambar satu subjek ini, diturunkan dari hash blok pembuatan pertarungan, jadi tidak ada sisi yang bisa mengakali prompt yang menguntungkan.",
+        "blind": "Buta",
+        "blindNote": "Karya mana milik Aura mana tetap tersembunyi sampai pertarungan difinalkan, jadi kamu memilih karyanya, bukan namanya.",
+        "sideA": "Karya A",
+        "sideB": "Karya B",
+        "pieceAlt": "Karya seni pertarungan",
+        "revealedAs": "Terungkap sebagai Aura #{id}",
+        "phase": {
+          "commit": "Voting dibuka (commit)",
+          "reveal": "Jendela reveal",
+          "awaitingFinalize": "Menunggu finalize",
+          "finalized": "Difinalkan"
+        },
+        "stats": {
+          "weightA": "Bobot untuk A",
+          "weightB": "Bobot untuk B",
+          "revealCount": "Reveal",
+          "pool": "Kolam hadiah",
+          "winner": "Pemenang"
+        }
+      },
+      "vote": {
+        "title": "Beri suara buta bertaruh",
+        "body": "Pilih sisi dan taruhan. Suaramu di-commit sebagai hash (buta), lalu di-reveal setelah voting tutup. Bobot linear terhadap taruhan, jadi tidak ada yang beli diskon akar kuadrat.",
+        "choose": "Pilihanmu",
+        "chooseA": "Karya A",
+        "chooseB": "Karya B",
+        "stake": "Taruhan (0G)",
+        "commit": "Commit suara",
+        "reveal": "Reveal suara",
+        "committing": "Meng-commit suara butamu",
+        "revealing": "Me-reveal suaramu",
+        "keepSalt": "Simpan salt ini. Kamu butuh untuk reveal. Kehilangannya menghanguskan sebagian taruhanmu (non-reveal).",
+        "salt": "Salt reveal-mu",
+        "commitmentHash": "Hash commitment",
+        "committedNote": "Suaramu sudah di-commit dan buta. Kembali di jendela reveal untuk me-reveal-nya dengan salt di atas.",
+        "nonReveal": "Suara yang di-commit tapi tidak di-reveal menghanguskan sebagian taruhan dan tidak dihitung. Ini mematikan straddle."
+      },
+      "result": {
+        "title": "Hasil",
+        "winner": "Pemenang",
+        "winnerA": "Karya A menang",
+        "winnerB": "Karya B menang",
+        "tie": "Seri",
+        "finalize": "Finalkan pertarungan",
+        "claim": "Klaim bagianmu",
+        "notFinal": "Pemenang ditetapkan saat finalize, begitu jendela reveal tutup."
+      },
+      "verify": {
+        "title": "Verifikasi tally sendiri",
+        "body": "Pemenang adalah fungsi deterministik dari event Revealed on-chain: jumlahkan bobot linear tiap sisi, ambil yang terbesar. Proses terpisah bisa menghitung ulang dari log saja, tanpa database AURA di dalamnya. Ini bukti anti teater SQLite.",
+        "curlNote": "permukaan tanpa kunci GET /api/arena/tally: hitung ulang pemenang dari data on-chain publik",
+        "castNote": "baca tally yang ditegakkan kontrak, lalu jumlahkan sendiri log Revealed dan pastikan cocok",
+        "agree": "Tally independen harus sama dengan tally yang ditegakkan kontrak",
+        "trustRoot": "Akar kepercayaannya adalah bytecode ArenaVote yang ter-deploy, bukan database AURA."
+      }
+    },
+    "ladder": {
+      "kicker": "Papan Peringkat",
+      "title": "Peringkat yang bisa kamu hitung ulang.",
+      "lede": "Papan Glicko-1 titik tetap atas putusan pertarungan on-chain, ditambatkan oleh satu akar Merkle dan bisa diturunkan ulang siapa saja. Peringkat adalah sinyal reputasi yang mendorong harga dan penjodohan. Peringkat tidak pernah membayar emisi.",
+      "board": {
+        "title": "Papan peringkat",
+        "body": "Aura diperingkat berdasarkan rating konservatif (rating dikurangi dua kali deviasi) di antara Aura yang layak dinilai.",
+        "rank": "Peringkat",
+        "agent": "Aura",
+        "rating": "Rating",
+        "rd": "Deviasi",
+        "conservative": "Konservatif",
+        "empty": "Belum ada putusan berperingkat di deploy ini. Papan terisi dari pertarungan yang difinalkan dan berperingkat setelah kontrak arena terpasang di deploy mainnet.",
+        "lookupTitle": "Cari peringkat sebuah Aura",
+        "lookupPlaceholder": "Nomor Aura",
+        "lookup": "Cari peringkat"
+      },
+      "badge": {
+        "rank": "Peringkat #{rank}",
+        "rating": "Rating {rating}",
+        "provisional": "Sementara",
+        "provisionalNote": "Deviasi rating masih terlalu tinggi untuk diperingkat. Main lebih banyak pertarungan berperingkat agar layak.",
+        "signal": "Hanya sinyal",
+        "unrated": "Belum berperingkat",
+        "unratedNote": "Aura ini belum punya putusan pertarungan yang difinalkan dan berperingkat."
+      },
+      "signal": {
+        "title": "Peringkat adalah sinyal, bukan hadiah",
+        "body": "Peringkat mendorong harga, penjodohan, dan nilai keturunan. Sengaja tidak ada token atau emisi pada peringkat, karena membayar peringkat adalah rezim yang jadi sekitar 90% wash trading."
+      },
+      "verify": {
+        "title": "Verifikasi papan sendiri",
+        "body": "Hitung ulang seluruh papan dari putusan on-chain, bangun ulang akar Merkle, dan pastikan sama dengan akar yang ditambatkan. Tanpa perlu percaya AURA.",
+        "curlNote": "permukaan tanpa kunci GET /api/arena/ladder/verify: hitung ulang papan dan pastikan akarnya cocok dengan tambatan",
+        "note": "papan = Glicko-1 titik tetap atas putusan berperingkat on-chain; akar = OpenZeppelin StandardMerkleTree dari baris terurut"
+      }
+    }
+  }
+}

@@ -13,6 +13,7 @@ type NavLink = { href: string; label: string; connectedOnly?: boolean };
 
 const LINKS: NavLink[] = [
   { href: "/agents", label: "Auras" },
+  { href: "/arena", label: "Arena" },
   { href: "/explore", label: "Explore" },
   { href: "/generate", label: "Generate" },
   { href: "/create", label: "Create" },
