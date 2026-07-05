@@ -42,6 +42,16 @@ const GH = "https://github.com/TopengDev/aura-0g/blob/v2";
 // deliberately DIFFERENT from EXPLORER (Galileo testnet) used for the app's contracts. Two networks, on purpose.
 const MAINNET_EXPLORER = "https://chainscan.0g.ai";
 
+// Rival repos + on-chain contracts a juror can open to check the "check theirs" claims, pinned to the EXACT
+// commit our source-read verified so the file:line can't drift. Heckle: winsznx/heckle @ b0c8cc3 (the verified
+// 2026-07-05 re-analysis; HeckleCharacters.sol:22 = the 0x7857a001 vanity id, HeckleTakes.sol:72 = commitTake).
+// 0G Sentinel: dmustapha/0g-sentinel @ 5d8b9eb (its 2026-07-01 HEAD, re-verified 2026-07-05 line-by-line). Every
+// cited line was opened in the real repo before shipping, never inferred.
+const HECKLE_GH = "https://github.com/winsznx/heckle/blob/b0c8cc3";
+const HECKLE_CHARACTERS = "0xfFB4A91Ff9C8dD16d9b0e0665d869392C8fCC0bc"; // HeckleCharacters (ERC-721) on 0G mainnet
+const SENTINEL_GH = "https://github.com/dmustapha/0g-sentinel/blob/5d8b9eb";
+const SENTINEL_REGISTRY = "0xB3E7048cef229fF5043CD2dBba296bF278d3F88d"; // AttestationRegistry on 0G mainnet
+
 // The chain the marketplace contracts live on (verified live via /health).
 const CHAIN_ID = 16602;
 
@@ -171,6 +181,29 @@ export default async function ProofPage() {
   const agentStandard: "erc7857" | "erc721" = pv?.agent?.standard ?? "erc721";
   const isInft = agentStandard === "erc7857";
 
+  // Deploy-gate for the DEEPER on-chain-TEE tier. The mint ecrecovering 0G's OWN enclave signature
+  // (mintOutputVerified/_verifyTee, OutputNFT.sol:315) is ARMED only after setTeeSigner at the mainnet deploy;
+  // pre-deploy dataHash is 0, onchainTeeVerified is false, and AURA's LIVE verify is the on-chain attestor-
+  // signature mint-gate (mintOutput ecrecovers + reverts, :163) PLUS the off-chain TeeML allowlist - both of which
+  // are ALSO off-chain-rooted, exactly like the rivals' TEE. So we must NOT assert "we verify 0G's TEE on-chain,
+  // they don't" as a live fact pre-deploy. This mirrors the exact signal the backend derives (verify-public.ts:
+  // onchainTeeVerified = dataHash != 0), the same way isInft mirrors auraInftConfigured(); the comparison renders
+  // "arms at the deploy" until it flips true.
+  const onchainTeeLive = !!pv?.onchain?.onchainTeeVerified;
+
+  // Deploy-gated tail clauses for the rival comparison (rendered live, never hardcoded). Plain strings so the JSX
+  // interpolates them without escaping; each describes a not-yet-armed capability as "arms at the deploy" until
+  // its live signal (isInft / onchainTeeLive) is true.
+  const auraSealClause = isInft
+    ? "It is live on AuraINFT now."
+    : "It is built + Foundry-tested in isolation and activates at the cutover (this line renders from live contract state, never hardcoded).";
+  const auraTeeClauseHeckle = onchainTeeLive
+    ? "And the mint now also ecrecovers 0G's OWN enclave signature and reverts on a forged envelope, binding dataHash to the attested sha256(image) (OutputNFT.sol:315)."
+    : "The deeper tier, the contract ecrecovering 0G's OWN enclave signature (OutputNFT.sol:315), arms at the mainnet deploy; until then AURA's TEE verify, like Heckle's, is rooted off-chain, but AURA still binds it to the on-chain attestor-signature gate above.";
+  const auraTeeClauseSentinel = onchainTeeLive
+    ? "The mint also ecrecovers 0G's OWN enclave TEE signature and reverts on a forged envelope (OutputNFT.sol:315), binding the Relic to the attested sha256(image)."
+    : "The deeper tier, the mint contract ecrecovering 0G's OWN enclave TEE signature and reverting on forgery (OutputNFT.sol:315), arms at the mainnet deploy (setTeeSigner). Until then AURA's verify is the on-chain attestor-signature gate above plus the off-chain TeeML allowlist, both enforced, and the write itself is what they gate.";
+
   // The WORKING 0G Storage proof for the featured image root (indexer file/info; storagescan /tx never resolves
   // a data root). Prefer the network-aware URL the endpoint built; fall back to the testnet indexer.
   const RELIC_STORAGE_PROOF =
@@ -237,14 +270,14 @@ export default async function ProofPage() {
         <>
           Ownership moves ONLY through <span className="font-mono-x">transfer()</span> with a signed
           re-encryption proof: the brain is re-keyed and ECIES-sealed to the buyer, and a raw ERC-721 transfer
-          reverts. The interface id is the computed <span className="font-mono-x">type(IERC7857).interfaceId</span>,
-          not a self-invented constant.
+          reverts. This is the ERC-7857 secure-transfer MECHANISM (re-encryption + sealed-key rotation), not a
+          registered interface id.
         </>
       ) : (
         <>
-          The real ERC-7857 AuraINFT (proof-gated sealed transfer, computed interface id, replay + expiry
-          guards) is built and Foundry-tested in isolation; live Auras still trade as ERC-721 on AgentRegistry.
-          We render this claim from the live contract state and do not assert what is not yet wired.
+          The real ERC-7857 AuraINFT (proof-gated sealed transfer, replay + expiry guards) is built and
+          Foundry-tested in isolation; live Auras still trade as ERC-721 on AgentRegistry. We render this claim
+          from the live contract state and do not assert what is not yet wired.
         </>
       ),
       reads: [
@@ -594,9 +627,9 @@ export default async function ProofPage() {
                 <>
                   Live Auras are real ERC-7857 iNFTs on AuraINFT: a transfer recovers a signed re-encryption proof,
                   the brain is re-keyed and ECIES-sealed to the buyer so the old owner cannot open it, and a raw
-                  ERC-721 transfer reverts. The interface id is the computed{" "}
-                  <span className="font-mono-x">type(IERC7857).interfaceId</span>. Honest framing: the oracle is a
-                  trusted ECDSA signer, not a hardware-TEE enclave, which is the bar the field ships today.
+                  ERC-721 transfer reverts - the ERC-7857 secure-transfer mechanism, not a registered interface id.
+                  Honest framing: the oracle is a trusted ECDSA signer, not a hardware-TEE enclave, which is the bar
+                  the field ships today.
                 </>
               ) : (
                 <>
@@ -704,38 +737,47 @@ export default async function ProofPage() {
         {/* ── Check theirs, check ours (factual, cited) ──────────────────── */}
         <SectionHead index="06" kicker="The field" title="Check theirs. Check ours." />
         <p className="mt-5 max-w-[70ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-          Factual, not mudslinging. For AURA we link the exact on-chain read or source line. For a rival we point
-          you to their public repo + the contract on 0G Scan and state what our source-read found - we do not invent
-          line numbers for a repo we did not read. Go check both.
+          Factual, not mudslinging. Every rival here is a real, deployed 0G app, so we credit what each one ships,
+          then point to the exact file and line where the headline claim stops - each cited line was opened in the
+          rival&apos;s own repo before we shipped it. For AURA we link the on-chain read or source line, and we
+          deploy-gate anything not yet live rather than assert a not-yet-armed capability as a current fact. None of
+          these are frauds; they are honest but shallow at the one layer that matters. Go check both.
         </p>
         <div className="mt-8 grid gap-4">
           {/* Heckle */}
           <Panel className="p-6 sm:p-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-display" style={{ fontSize: "clamp(20px,2.6vw,28px)", lineHeight: 1.05 }}>Heckle</h3>
-              <Chip>iNFT + &quot;TEE-verified takes&quot;</Chip>
+              <Chip>Real ERC-721 · off-chain-verified TEE</Chip>
             </div>
+            <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              Credit first: Heckle is a real four-contract 0G-mainnet app with genuine mints and a correct off-chain
+              TEE pipeline, and its own code discloses what it deferred. The gap is depth, not honesty.
+            </p>
             <div className="mt-5 grid gap-6 lg:grid-cols-2">
               <div>
                 <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-warn)" }}>Our source-read found</div>
                 <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-                  <li>· Interface id is a self-invented <span className="font-mono-x">0x7857a001</span>, not the computed <span className="font-mono-x">type(IERC7857).interfaceId</span>.</li>
-                  <li>· Sealed transfer is &quot;deferred&quot;, never built.</li>
-                  <li>· <span className="font-mono-x">commitTake</span> stores a bare root with ZERO on-chain checks - no ecrecover, no revert-on-forgery.</li>
+                  <li>· It markets an ERC-7857 iNFT, but <span className="font-mono-x">HeckleCharacters.sol</span> is a plain OpenZeppelin ERC-721: its ERC-7857 support is a hardcoded vanity id <span className="font-mono-x">0x7857a001</span> (line 22) with none of the mechanism - no encrypted metadata, no sealed re-encryption, no oracle transfer. Its own NatSpec calls that deferred; the R32 commit never shipped it.</li>
+                  <li>· Its TEE attestation is REAL but verified OFF-CHAIN. On-chain <span className="font-mono-x">commitTake</span> (HeckleTakes.sol:72) stores the 0G Storage root with no signature or attestation check and trusts a whitelisted committer (<span className="font-mono-x">onlyCommitter</span>) - nothing on-chain enforces that a take came from the TEE.</li>
+                  <li>· Reputation is real but centrally graded (owner/whitelist-gated), and <span className="font-mono-x">votesReceived</span> is a permanently-zero unused field - voting is disclosed as deferred, not hidden.</li>
                 </ul>
-                <p className="mt-3 text-[13px]" style={{ color: "var(--color-ink-3)" }}>
-                  Check it in Heckle&apos;s public hackathon repo + its iNFT contract on 0G Scan (look for the interface id + the take-commit function).
-                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <SrcLink href={`${HECKLE_GH}/packages/contracts/src/HeckleCharacters.sol#L22`}>HeckleCharacters.sol:22</SrcLink>
+                  <SrcLink href={`${HECKLE_GH}/packages/contracts/src/HeckleTakes.sol#L72`}>HeckleTakes.sol:72</SrcLink>
+                  <SrcLink href={`${MAINNET_EXPLORER}/address/${HECKLE_CHARACTERS}`}>iNFT on 0G Scan</SrcLink>
+                </div>
               </div>
               <div>
                 <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ok)" }}>Check ours</div>
                 <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-                  <li>· AuraINFT interface id is the REAL computed selector; <span className="font-mono-x">transfer()</span> ecrecovers an oracle proof and REVERTS.</li>
-                  <li>· <span className="font-mono-x">mintOutputVerified</span> ecrecovers 0G&apos;s enclave sig and reverts on forgery.</li>
+                  <li>· AURA closes the iNFT gap with the actual ERC-7857 MECHANISM, not an interface id: <span className="font-mono-x">transfer()</span> recovers an oracle re-encryption proof and reverts on a bad one, the sealed key + dataHash must rotate, and a raw ERC-721 <span className="font-mono-x">transferFrom</span> REVERTS so the brain can never move un-re-keyed. {auraSealClause}</li>
+                  <li>· AURA closes the TEE gap by enforcing a signature ON-CHAIN at mint: <span className="font-mono-x">mintOutput</span> ecrecovers the attestor&apos;s EIP-712 MintAuth and REVERTS on a bad one (OutputNFT.sol:163), single-use nonce, so a forged mint reverts on 0G today. {auraTeeClauseHeckle}</li>
                 </ul>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <SrcLink href={`${GH}/contracts/src/AuraINFT.sol#L190`}>AuraINFT.sol:190</SrcLink>
-                  <SrcLink href={`${GH}/contracts/src/OutputNFT.sol#L315`}>OutputNFT.sol:315</SrcLink>
+                  <SrcLink href={`${GH}/contracts/src/AuraINFT.sol#L327`}>raw-transfer reverts :327</SrcLink>
+                  <SrcLink href={`${GH}/contracts/src/OutputNFT.sol#L163`}>OutputNFT.sol:163</SrcLink>
                 </div>
               </div>
             </div>
@@ -745,26 +787,37 @@ export default async function ProofPage() {
           <Panel className="p-6 sm:p-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h3 className="font-display" style={{ fontSize: "clamp(20px,2.6vw,28px)", lineHeight: 1.05 }}>0G Sentinel</h3>
-              <Chip>&quot;verified&quot; security agent · 3 mainnet contracts</Chip>
+              <Chip>security agent · 3 mainnet contracts · 89 tests</Chip>
             </div>
+            <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              Credit first: Sentinel is the most deeply-engineered rival - a genuine deterministic static analyzer,
+              three verified mainnet contracts, 89 tests, and a real 0G Compute broker path that does check the
+              provider&apos;s TEE signature. The gap is that its headline &quot;verified&quot; claim is enforced nowhere.
+            </p>
             <div className="mt-5 grid gap-6 lg:grid-cols-2">
               <div>
                 <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-warn)" }}>Our source-read found</div>
                 <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-                  <li>· Real static analysis, but the on-chain &quot;verified&quot; bit is computed then DISCARDED.</li>
-                  <li>· <span className="font-mono-x">isSafe()</span> trusts blindly; a centralized bearer fallback overrides it. The flag gates nothing.</li>
+                  <li>· The scanner computes its <span className="font-mono-x">verified</span> bit AFTER it has already written the attestation on-chain (<span className="font-mono-x">writeAttestation</span> at scanner.ts:627, verified at :682), so it cannot gate the write; on any broker error it silently falls back to a centralized bearer-key call to 0G&apos;s hosted router (compute.ts:39) whose result has no verified field yet still counts as verified.</li>
+                  <li>· On-chain, <span className="font-mono-x">writeAttestation</span> (AttestationRegistry.sol:91, <span className="font-mono-x">onlyAuthorized</span>) does only range and consistency checks - no ecrecover, no signature check - and the attestation struct has no verified field at all. <span className="font-mono-x">AgentGate.isSafe()</span> then gates on the stored verdict + freshness only; it trusts whatever the authorized scanner wrote.</li>
+                  <li>· And the public attestation API returns <span className="font-mono-x">verified: true</span> as a hardcoded constant (route.ts:30), regardless of chain state.</li>
                 </ul>
-                <p className="mt-3 text-[13px]" style={{ color: "var(--color-ink-3)" }}>
-                  Check it in Sentinel&apos;s public repo + its 3 contracts on 0G Scan (look for where the &quot;verified&quot; bit is actually used).
-                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <SrcLink href={`${SENTINEL_GH}/frontend/app/api/v1/attestation/[address]/route.ts#L30`}>route.ts:30</SrcLink>
+                  <SrcLink href={`${SENTINEL_GH}/contracts/AttestationRegistry.sol#L91`}>AttestationRegistry.sol:91</SrcLink>
+                  <SrcLink href={`${SENTINEL_GH}/frontend/scanner/scanner.ts#L627`}>scanner.ts:627</SrcLink>
+                  <SrcLink href={`${MAINNET_EXPLORER}/address/${SENTINEL_REGISTRY}`}>registry on 0G Scan</SrcLink>
+                </div>
               </div>
               <div>
                 <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ok)" }}>Check ours</div>
                 <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-                  <li>· AURA&apos;s verified bit is BINDING: the mint itself REVERTS if the attestation / TEE-sig does not recover. It is not stored-and-ignored; it gates the write.</li>
+                  <li>· AURA&apos;s mint enforces a cryptographic signature ON-CHAIN, and the write is the thing gated: <span className="font-mono-x">mintOutput</span> ecrecovers the attestor&apos;s EIP-712 MintAuth and REVERTS on a bad one (OutputNFT.sol:163), single-use nonce. It is not a flag computed after the write, and it is not hardcoded.</li>
+                  <li>· {auraTeeClauseSentinel}</li>
                 </ul>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <SrcLink href={`${GH}/contracts/src/OutputNFT.sol#L163`}>OutputNFT.sol:163</SrcLink>
+                  <SrcLink href={`${GH}/contracts/src/OutputNFT.sol#L315`}>OutputNFT.sol:315</SrcLink>
                   <SrcLink href={verifyCurl.replace(/^curl -s /, "")}>/api/verify?token={RELIC.tokenId}</SrcLink>
                 </div>
               </div>
@@ -774,10 +827,13 @@ export default async function ProofPage() {
           {/* Honest positioning note */}
           <Panel className="p-6 sm:p-7" style={{ background: "color-mix(in oklab, var(--color-ink) 3%, var(--color-paper))" }}>
             <p className="text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              <strong style={{ color: "var(--color-ink)" }}>Honest note:</strong> Turing Pits also enforces verify
-              on-chain (its <span className="font-mono-x">settle()</span> ecrecovers each move) - we do not attack its
-              verify. AURA is in the enforce camp with Turing Pits, ahead of the claim camp. That is more credible
-              than a clean sweep.
+              <strong style={{ color: "var(--color-ink)" }}>Honest note:</strong> the rivals are honest but shallow,
+              not frauds - a real ERC-721 (just not the ERC-7857 mechanism), a real TEE (just verified off-chain),
+              real-but-unenforced attestations. AURA closes those exact gaps: the real sealed-transfer iNFT, an
+              on-chain signature gate at mint today, and 0G&apos;s own enclave signature ecrecovered on-chain at the
+              deploy. And we do not attack Turing Pits - it enforces verify on-chain too (its{" "}
+              <span className="font-mono-x">settle()</span> ecrecovers each move) - so AURA stands in the enforce camp
+              with it, ahead of the claim camp. That is more credible than a clean sweep.
             </p>
           </Panel>
         </div>
