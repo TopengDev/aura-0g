@@ -30,6 +30,7 @@ import { registryRead } from "./contracts.js";
 import { pubkeyOf } from "./pubkey.js";
 import { newEpochKey, sealEpochKey } from "./memory/keyring.js";
 import { sealSegment, tryOpenSegment } from "./memory/segment.js";
+import { zgBackend } from "./memory/zg-store.js";
 import type { RelationshipRecord } from "./memory/types.js";
 
 let _inited = false;
@@ -60,7 +61,34 @@ function ensureTables(): void {
     );
     CREATE INDEX IF NOT EXISTS idx_chatrel_seg ON chat_rel_segments(agent_id, epoch);
   `);
+  // ADDITIVE (feat/memory-0g-storage): the 0G Storage content root each envelope is pinned to. Idempotent +
+  // backward-compatible: pre-existing rows stay NULL until (re)pinned; the column enables the embedding proof.
+  const segCols = db().prepare(`PRAGMA table_info(chat_rel_segments)`).all() as Array<{ name: string }>;
+  if (!segCols.some((c) => c.name === "zg_root")) {
+    db().exec(`ALTER TABLE chat_rel_segments ADD COLUMN zg_root TEXT`);
+  }
   _inited = true;
+}
+
+/** OPT-IN: embed each sealed chat memory envelope on 0G Storage (durable, iNFT-embedded). Default OFF so
+ *  tests/CI stay offline + existing behavior is unchanged. Set MEMORY_0G_PIN=1 on the live server to enable. */
+function memory0gPinEnabled(): boolean {
+  const v = (process.env.MEMORY_0G_PIN ?? "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "on";
+}
+
+/**
+ * Best-effort, FAIL-OPEN pin of one sealed envelope to 0G Storage, recording its content root on the row.
+ * NEVER throws + never blocks the chat write: 0G embedding is a durability ENHANCEMENT, so a pin failure
+ * (network, funds, testnet eviction) must not break relationship memory. The SQLite envelope stays the read copy.
+ */
+async function pinSegmentTo0G(segId: number, envelope: Buffer): Promise<void> {
+  try {
+    const root = await zgBackend("chat-mem").store(envelope);
+    db().prepare(`UPDATE chat_rel_segments SET zg_root=? WHERE id=?`).run(root, segId);
+  } catch {
+    /* fail-open: the local envelope remains the durable read copy; the pin is a best-effort embedding */
+  }
 }
 
 /** One stored relationship record (the decrypted per-turn payload) - the adapter shape the chat route uses. */
@@ -193,9 +221,11 @@ export async function appendTurn(agentId: number, caller: string, record: Memory
   const ep = ensureEpochForOwner(agentId, owner);
   const key = Buffer.from(ep.l2KeyHex!, "hex");
   const envelope = sealSegment(key, [toModuleRecord(record)]); // module AES-256-GCM segment (iv||tag||ct)
-  db()
+  const info = db()
     .prepare(`INSERT INTO chat_rel_segments (agent_id, epoch, envelope, created_at) VALUES (?,?,?,?)`)
     .run(agentId, ep.epoch, envelope.toString("hex"), new Date().toISOString());
+  // ADDITIVE: when enabled, embed the sealed envelope on 0G Storage in the background (fail-open, non-blocking).
+  if (memory0gPinEnabled()) void pinSegmentTo0G(Number(info.lastInsertRowid), envelope);
 }
 
 /**
@@ -250,6 +280,46 @@ export async function loadOwnerMemory(
 export function resealRelationshipForNewOwner(agentId: number, newOwner: string): { epoch: number } {
   const ep = ensureEpochForOwner(agentId, newOwner.toLowerCase());
   return { epoch: ep.epoch };
+}
+
+/**
+ * PROOF-OF-EMBEDDING (read-only): for the caller's CURRENT epoch, re-download each 0G-pinned segment and
+ * assert it is byte-identical to the local sealed envelope. GATED identically to loadOwnerMemory (only the
+ * live on-chain owner). It does NOT decrypt - it proves the ENCRYPTED bytes are embedded + retrievable on
+ * 0G Storage (the ERC-7857 "intelligence on decentralized storage" leg), never anything about their contents.
+ */
+export async function verifyOwnerMemoryOn0G(
+  agentId: number,
+  caller: string,
+): Promise<{ notOwner: boolean; checked: number; embedded: number; mismatched: number; roots: string[] }> {
+  ensureTables();
+  const callerLower = caller.toLowerCase();
+  const owner = await resolveOwnerOnChain(agentId);
+  if (!owner || owner !== callerLower) return { notOwner: true, checked: 0, embedded: 0, mismatched: 0, roots: [] };
+
+  const ep = ensureEpochForOwner(agentId, owner);
+  const rows = db()
+    .prepare(`SELECT envelope, zg_root FROM chat_rel_segments WHERE agent_id=? AND epoch=? AND zg_root IS NOT NULL ORDER BY id ASC`)
+    .all(agentId, ep.epoch) as Array<{ envelope: string; zg_root: string }>;
+
+  const backend = zgBackend("chat-mem");
+  const roots: string[] = [];
+  let embedded = 0;
+  let mismatched = 0;
+  for (const r of rows) {
+    try {
+      const on0G = await backend.download(r.zg_root);
+      if (Buffer.compare(on0G, Buffer.from(r.envelope, "hex")) === 0) {
+        embedded++;
+        roots.push(r.zg_root);
+      } else {
+        mismatched++;
+      }
+    } catch {
+      /* a root that will not download counts as neither embedded-verified nor mismatched (transient/evicted) */
+    }
+  }
+  return { notOwner: false, checked: rows.length, embedded, mismatched, roots };
 }
 
 // ── retrieval (v1: keyword + recency top-k over the decrypted set; scale = embedding index) ──
