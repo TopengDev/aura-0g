@@ -377,7 +377,7 @@ export async function fetchOutputById(id: number | string, revalidate?: number):
 
 export async function fetchMarketplace(revalidate?: number): Promise<MarketListing[]> {
   const data = await getJson<MarketplaceView>("/marketplace", revalidate != null ? { revalidate } : undefined);
-  return data?.activeListings ?? [];
+  return (data?.activeListings ?? []).map((l) => ({ ...l, collectionName: l.collectionName ?? (l as MarketListing & { collectionKind: string }).collectionKind }));
 }
 
 // ── Generate flow (authed; Bearer JWT from SIWE) ───────────────────────────
