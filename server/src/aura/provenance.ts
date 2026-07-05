@@ -3,7 +3,7 @@
 // index where available. Ported + simplified from lib/aura/provenance.ts (re-backed on chain; the
 // indexer enrichment is Phase 3).
 import { ethers } from "ethers";
-import { outputRead, registryRead, storageScanUrl } from "./contracts.js";
+import { outputRead, agentsRead, storageScanUrl } from "./contracts.js";
 import { deriveRarity } from "./gacha.js";
 import type { ProvenanceResponse } from "./types.js";
 
@@ -12,7 +12,7 @@ const SAMPLE_PRICE = ethers.parseEther("1");
 
 export async function getProvenance(tokenId: number): Promise<ProvenanceResponse | null> {
   const out = outputRead();
-  const reg = registryRead();
+  const reg = agentsRead();
 
   // provenanceOf gates the read; royaltyInfo depends only on tokenId (not the agentId), so fetch both in
   // parallel. royaltyReceiver is a display field -> its own catch keeps a royaltyInfo hiccup non-fatal

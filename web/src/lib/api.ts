@@ -635,6 +635,12 @@ export interface CreateAgentArgs {
   canonicalBaseRoot: string;
   publicStyle: Record<string, unknown>;
   styleVersionHint: number;
+  // ERC-7857 (AuraINFT) mint fields. Present when the backend targets the real iNFT (standard === "erc7857"):
+  // the 9-arg AuraINFT.mintAgent additionally needs dataHash (sha256 of the brain envelope) + the per-owner
+  // sealedKey. Absent/"erc721" => the legacy 7-arg AgentRegistry mint. useMint dispatches on `standard`.
+  standard?: "erc7857" | "erc721";
+  dataHash?: string;
+  sealedKey?: string | null;
 }
 
 export interface CreateAgentFields {

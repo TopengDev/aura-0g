@@ -2,7 +2,7 @@
 // CURRENT owner. Selling the agent moves this stream. That is the thesis primitive. Ported verbatim
 // from lib/aura/royalty.ts (reads are identical on v2 OutputNFT).
 import { ethers } from "ethers";
-import { outputRead, registryRead } from "./contracts.js";
+import { outputRead, agentsRead } from "./contracts.js";
 import type { RoyaltyResponse } from "./types.js";
 
 const SAMPLE_PRICES = ["0.02", "0.1", "1"]; // 0G
@@ -11,7 +11,7 @@ const ONE_ETHER = ethers.parseEther("1");
 
 export async function getRoyalty(tokenId: number): Promise<RoyaltyResponse | null> {
   const out = outputRead();
-  const reg = registryRead();
+  const reg = agentsRead();
 
   // provenanceOf gates the read (return null if the token has no provenance). royaltyInfo(tokenId, 1e18)
   // depends only on tokenId (not the agentId), so fire both together instead of serializing them.
