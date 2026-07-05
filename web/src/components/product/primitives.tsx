@@ -228,6 +228,54 @@ export function CopyValue({
   );
 }
 
+// A copy-paste command line: the FULL command in a horizontally-scrollable mono row (a long curl/cast
+// scrolls INSIDE its box, never forcing the page to scroll), a one-click copy of the exact command, and an
+// optional muted note (e.g. "== dataHashOf(token)", "no wallet, ~10s"). Powers the /verify/[id] self-check
+// block - the "paste-and-run it yourself" affordance the interactive /verify page lacks.
+export function CopyCommand({ cmd, note }: { cmd: string; note?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(cmd);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      // Clipboard unavailable (insecure context / denied) - the full command still lives in the title attr.
+    }
+  };
+  return (
+    <div className="overflow-hidden rounded-[12px] border" style={{ borderColor: "var(--color-border)", background: "color-mix(in oklab, var(--color-ink) 4%, var(--color-paper))" }}>
+      <div className="flex items-stretch">
+        <div className="min-w-0 flex-1 overflow-x-auto px-3 py-2.5">
+          <code className="font-mono-x block whitespace-pre text-[13px] leading-relaxed" title={cmd} style={{ color: "var(--color-ink)" }}>
+            {cmd}
+          </code>
+        </div>
+        <span className="sr-only" aria-live="polite">{copied ? "Copied to clipboard" : ""}</span>
+        <button
+          type="button"
+          onClick={onCopy}
+          aria-label={copied ? "Copied" : "Copy command"}
+          title={copied ? "Copied" : "Copy command"}
+          className="micro inline-flex w-10 shrink-0 items-center justify-center border-l hover:bg-[color-mix(in_oklab,var(--color-ink)_8%,transparent)] active:scale-[0.94]"
+          style={{ borderColor: "var(--color-border)", color: copied ? "var(--color-ok)" : "var(--color-ink-3)" }}
+        >
+          {copied ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5" /></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>
+          )}
+        </button>
+      </div>
+      {note ? (
+        <div className="border-t px-3 py-1.5 text-[13px] leading-relaxed" style={{ borderColor: "var(--color-border)", color: "var(--color-ink-3)" }}>
+          {note}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 // A panel surface (the consistent card language across product pages). Forwards arbitrary div attrs
 // (role, aria-*, ...) so a panel can double as a status/alert region without a wrapper.
 export function Panel({

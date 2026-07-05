@@ -1,43 +1,51 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Footer } from "@/components/chrome/Footer";
-import { Panel, Chip, MetaRow, CopyValue, StatFigure } from "@/components/product/primitives";
-import { fetchHealth, fetchChatHealth, fetchChatModels, shortAddr, type ChatModelInfo } from "@/lib/api";
+import { Panel, Chip, MetaRow, CopyValue, CopyCommand, StatFigure } from "@/components/product/primitives";
+import {
+  fetchHealth,
+  fetchChatHealth,
+  fetchChatModels,
+  fetchOutputs,
+  fetchPublicVerify,
+  shortAddr,
+  type ChatModelInfo,
+} from "@/lib/api";
 import { EXPLORER } from "@/lib/chains";
+import { absoluteUrl } from "@/lib/share";
 
 // /proof - the jury-facing EVIDENCE PAGE. Every claim below re-derives from a LIVE endpoint or an on-chain
-// read. The page fetches /health, /chat/health, /chat/models at request time (force-dynamic, same posture
-// as /verify) and renders the real values. If a fetch is unavailable it falls back to the snapshot captured
-// on 2026-07-01 and LABELS it as a snapshot (the header chip flips to "Snapshot", live-health values drop
-// their green tone), so the page is never blank and never presents stale values as live.
+// read. The page fetches /health, /chat/health, /chat/models AND the newest Relic + its keyless /api/verify
+// payload at request time (force-dynamic, same posture as /verify) and renders the real values. If a fetch is
+// unavailable it falls back to the snapshot captured on 2026-07-01 and LABELS it as a snapshot (the header
+// chip flips to "Snapshot", live values drop their green tone), so the page is never blank and never presents
+// stale values as live. The featured Relic + the ERC-7857 vs ERC-721 claim are resolved LIVE (never hardcoded)
+// so the page survives the mainnet contract swap (relics do not migrate; the cutover flips auraInftConfigured).
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Proof, not promises | AURA",
   description:
-    "AURA's evidence page: every claim re-derives from a live endpoint or an on-chain read. The TEE guard applies a curated allowlist stricter than 0G's on-chain TeeML flag, chat runs on 0G mainnet GLM-5.1 attested per reply, five contracts are live on Galileo, and creator royalty is enforced by EIP-2981.",
+    "AURA's evidence page: a skeptic-first claim-to-evidence ledger where every headline claim maps to a runnable command, a source file, or an on-chain read. Plus a public keyless verify endpoint, the honest trust boundaries, and a factual, cited comparison against the field.",
 };
 
-// ── Verified public proof surfaces (all resolved 200/3xx on 2026-07-01) ─────
 // The clickable API links point at the STABLE public API origin (separate from the fetch base, which is
 // container-internal in prod). These are the endpoints a juror can curl to re-derive every claim.
 const API_PUBLIC = "https://api-aura.topengdev.com";
 const CHAT_URL = "https://aura.topengdev.com/chat";
 
-// The 0G Compute chat providers below run on 0G MAINNET, so their address links must resolve on the MAINNET
-// explorer. This is deliberately DIFFERENT from EXPLORER (the Galileo testnet explorer) used for the app's
-// contracts: the marketplace contracts are on Galileo testnet, the chat providers are on 0G mainnet. Two
-// networks, on purpose (a mainnet provider address shows blank on the testnet explorer). Verified live
-// 2026-07-01: all seven providers are active on chainscan.0g.ai and effectively absent from the testnet chain.
+// Source citations resolve on the PUBLIC repo's v2 branch (the same ref the app links to elsewhere), so a
+// juror opens the exact file+line. Line numbers track origin/v2 (what ships).
+const GH = "https://github.com/TopengDev/aura-0g/blob/v2";
+
+// The 0G Compute chat providers run on 0G MAINNET, so their address links resolve on the MAINNET explorer -
+// deliberately DIFFERENT from EXPLORER (Galileo testnet) used for the app's contracts. Two networks, on purpose.
 const MAINNET_EXPLORER = "https://chainscan.0g.ai";
 
 // The chain the marketplace contracts live on (verified live via /health).
 const CHAIN_ID = 16602;
 
 // ── Contracts (Galileo testnet 16602) ──────────────────────────────────────
-// AgentRegistry / OutputNFT / Marketplace are echoed by GET /health. SummonEscrow is in
-// contracts/deployed-v2.json. AuraINFT is verified on-chain: eth_getCode returns real bytecode and
-// name() returns "AURA Creative Agent". All five return a real code size via eth_getCode.
 type ContractRow = { label: string; addr: string; note: string };
 const CONTRACTS: ContractRow[] = [
   { label: "AgentRegistry", addr: "0xb5960cc08caa5195095cfb8aa270f122be09ba0a", note: "every Aura's on-chain identity (ERC-721)" },
@@ -46,10 +54,13 @@ const CONTRACTS: ContractRow[] = [
   { label: "SummonEscrow", addr: "0xa5CeFBc097d84beE09b12fc1569B6CcA56992838", note: "demand-pull commissioning + fee split" },
   { label: "AuraINFT", addr: "0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d", note: "ERC-7857 sealed-key transfer · isolated deploy (name: AURA Creative Agent)" },
 ];
+const OUTPUT_NFT = CONTRACTS[1].addr;
+const RPC = "https://evmrpc-testnet.0g.ai";
 
-// The hero Relic, verified all-green live (GET /provenance/25 + /royalty/25). tokenId 25, agent 20 (BITSY),
-// rarity Rare. These on-chain values are immutable once minted.
-const RELIC = {
+// The 2026-07-01 SNAPSHOT of a fully-green Relic, used ONLY if the live newest-Relic fetch is unavailable so
+// the page is never blank. The live featured Relic (below) is resolved from /outputs + /api/verify at request
+// time and supersedes this whenever the fetch succeeds; this is the labeled fallback, not the source of truth.
+const RELIC_SNAPSHOT = {
   tokenId: 25,
   agentId: 20,
   agentName: "BITSY",
@@ -59,11 +70,6 @@ const RELIC = {
   provenanceHash: "0x0d832542dedf6827b3681901b8706f219db042e213d1f07b131deffc9eafcce6",
   royaltyPct: 9,
 };
-// The on-0G-Storage proof for the Relic's image root. NOTE: the storagescan `/tx/<hash>` route expects a
-// submission TX hash, not a data merkle root, so it never resolves a root. The 0G Storage indexer's
-// `/file/info/<root>` route DOES resolve the root and returns `{ finalized: true, size, ... }` = the literal
-// proof the blob is committed to 0G Storage. Verified live 2026-07-01 (finalized:true for this root).
-const RELIC_STORAGE_PROOF = `https://indexer-storage-testnet-turbo.0g.ai/file/info/${RELIC.imageRoot}`;
 
 // ── Live-model row (widened past ChatModelInfo, which omits `provider` + `allowlisted` from the shared
 // type though the API returns both at runtime). ────────────────────────────
@@ -128,25 +134,68 @@ function normalizeModels(live: ChatModelInfo[]): ProofModel[] {
 }
 
 export default async function ProofPage() {
-  const [health, chatHealth, modelsRes] = await Promise.all([
+  const [health, chatHealth, modelsRes, newestBatch] = await Promise.all([
     fetchHealth(),
     fetchChatHealth(),
     fetchChatModels(),
+    fetchOutputs(1),
   ]);
 
-  // Track whether each live fetch actually succeeded. On failure the fetchers return null / an empty list
-  // (fetchHealth, fetchChatHealth -> null; fetchChatModels -> { models: [] }). When a fetch is down we still
-  // render the 2026-07-01 snapshot, but we LABEL it as a snapshot and drop the green "live" tone, so the page
-  // never presents stale values as live. Health booleans NEVER default to true (a down API is not "healthy").
+  // De-hardcode the featured Relic: resolve the NEWEST minted Relic live (survives the mainnet contract swap
+  // where relics do NOT migrate and a hardcoded tokenId would 404), then pull its keyless /api/verify payload
+  // for the ledger CTA + the LIVE agent-standard. Fall back to the labeled 2026-07-01 snapshot if either is
+  // down, so the page never blanks + never shows stale-as-live.
+  const newest = newestBatch[0] ?? null;
+  // `newest` may be the flat Output (indexer up) OR a ProvenanceResponse (chain-scan fallback when the indexer
+  // is down) - the two shapes differ, so use it ONLY to discover the newest tokenId (both carry `tokenId`) and
+  // source every FACT from the reliable /api/verify payload (pv.onchain / pv.royalty = direct chain reads).
+  const featuredId = newest?.tokenId ?? RELIC_SNAPSHOT.tokenId;
+  const pv = await fetchPublicVerify(featuredId);
+  const featuredLive = !!pv && pv.found === true && !!pv.onchain;
+  const RELIC = featuredLive
+    ? {
+        tokenId: pv!.token,
+        agentId: pv!.onchain!.creatorAgentId,
+        agentName: pv!.onchain!.agentName,
+        rarity: pv!.onchain!.rarity,
+        imageRoot: pv!.onchain!.imageRoot,
+        teeAttestation: pv!.onchain!.teeAttestation,
+        provenanceHash: pv!.onchain!.provenanceHash,
+        royaltyPct: pv!.royalty?.pct ?? RELIC_SNAPSHOT.royaltyPct,
+      }
+    : RELIC_SNAPSHOT;
+
+  // The ERC-7857 claim renders DYNAMICALLY off the live agent standard (auraInftConfigured() on the backend):
+  // "real ERC-7857 iNFTs" ONLY when configured, else the honest "cutover staged". Default erc721 (never
+  // overclaim) when the fetch is down. This is the exact O1 overclaim guard.
+  const agentStandard: "erc7857" | "erc721" = pv?.agent?.standard ?? "erc721";
+  const isInft = agentStandard === "erc7857";
+
+  // The WORKING 0G Storage proof for the featured image root (indexer file/info; storagescan /tx never resolves
+  // a data root). Prefer the network-aware URL the endpoint built; fall back to the testnet indexer.
+  const RELIC_STORAGE_PROOF =
+    (featuredLive && pv?.selfCheck?.storageProof) || `https://indexer-storage-testnet-turbo.0g.ai/file/info/${RELIC.imageRoot}`;
+
+  // Featured self-check commands: prefer the endpoint's network-aware strings (auto-flip testnet->mainnet),
+  // fall back to constructed testnet commands for the snapshot path.
+  const sc: Record<string, string> = pv?.selfCheck ?? {};
+  const verifyCurl = sc.provenance ?? `curl -s ${absoluteUrl(`/api/verify?token=${RELIC.tokenId}`)}`;
+  const castProvenance = sc.onchainProvenance ?? `cast call ${OUTPUT_NFT} 'provenanceOf(uint256)' ${RELIC.tokenId} --rpc-url ${RPC}`;
+  const castRoyalty = sc.royalty ?? `cast call ${OUTPUT_NFT} 'royaltyInfo(uint256,uint256)' ${RELIC.tokenId} 1000000000000000000 --rpc-url ${RPC}`;
+  const castTeeSigner = sc.teeSigner ?? `cast call ${OUTPUT_NFT} 'teeSigner()' --rpc-url ${RPC}`;
+  const castDataHash = `cast call ${OUTPUT_NFT} 'dataHashOf(uint256)' ${RELIC.tokenId} --rpc-url ${RPC}`;
+  const royaltyCurl = `curl -s ${API_PUBLIC}/royalty/${RELIC.tokenId}`;
+  const modelsCurl = `curl -s ${API_PUBLIC}/chat/models`;
+
+  // Track whether each live fetch actually succeeded. Health booleans NEVER default to true (a down API is not
+  // "healthy"). On failure we render the 2026-07-01 snapshot but LABEL it, never presenting stale as live.
   const healthLive = health !== null;
   const chatLive = chatHealth !== null;
   const modelsLive = modelsRes.models.length > 0;
-  const allLive = healthLive && chatLive && modelsLive;
+  const allLive = healthLive && chatLive && modelsLive && featuredLive;
   const SNAPSHOT_DATE = "2026-07-01";
 
   const chainId = health?.chainId ?? CHAIN_ID;
-  // ChatHealth (shared type) omits zerogNetwork, though the API returns it at runtime, so read it via a
-  // widened view. The rest are on the shared type.
   const zerogNetwork = (chatHealth as { zerogNetwork?: string } | null)?.zerogNetwork ?? "mainnet";
   const zerogModel = chatHealth?.zerogModel ?? "zai-org/GLM-5.1-FP8";
   const zerogHealthy = chatHealth?.zerogHealthy ?? false;
@@ -158,6 +207,181 @@ export default async function ProofPage() {
   const rejectedSpotlight = rejected.filter((m) => REJECT_SPOTLIGHT.has(m.id));
   const rejectedMore = rejected.length - rejectedSpotlight.length;
   const totalTeeAttested = models.filter((m) => m.teeAttested).length;
+
+  // ── The skeptic-first claim-to-evidence LEDGER (the core new content) ─────
+  // Each row: the REAL claim, then RUN (a copy-paste command) / READ (an on-chain read or a source file:line
+  // a juror opens), then the honest boundary stated inline. Claim 2 (agent standard) + claim 4 (on-chain TEE
+  // verified) render honestly against the live state - never overclaiming what is not yet wired/armed.
+  const ledger: LedgerRowData[] = [
+    {
+      n: "01",
+      claim: "Art you can prove.",
+      body: (
+        <>
+          Every Relic carries unforgeable on-chain provenance: which Aura made it, which model, the TEE
+          attestation, the 0G image root, and the seed. It is assembled from live chain reads, not a database.
+        </>
+      ),
+      runs: [{ cmd: verifyCurl, note: "the keyless provenance + verification JSON, no wallet" }],
+      reads: [
+        { label: `OutputNFT on 0G Scan`, href: `${EXPLORER}/address/${OUTPUT_NFT}` },
+        { label: "OutputNFT.sol:374", href: `${GH}/contracts/src/OutputNFT.sol#L374` },
+        { label: "provenance.ts:13", href: `${GH}/server/src/aura/provenance.ts#L13` },
+      ],
+      boundary: "Provenance is only as strong as the attestation that gated the mint (boundary 3).",
+    },
+    {
+      n: "02",
+      claim: isInft ? "Agents are real ERC-7857 iNFTs." : "Agents trade as ERC-721 today; the ERC-7857 cutover is staged.",
+      body: isInft ? (
+        <>
+          Ownership moves ONLY through <span className="font-mono-x">transfer()</span> with a signed
+          re-encryption proof: the brain is re-keyed and ECIES-sealed to the buyer, and a raw ERC-721 transfer
+          reverts. The interface id is the computed <span className="font-mono-x">type(IERC7857).interfaceId</span>,
+          not a self-invented constant.
+        </>
+      ) : (
+        <>
+          The real ERC-7857 AuraINFT (proof-gated sealed transfer, computed interface id, replay + expiry
+          guards) is built and Foundry-tested in isolation; live Auras still trade as ERC-721 on AgentRegistry.
+          We render this claim from the live contract state and do not assert what is not yet wired.
+        </>
+      ),
+      reads: [
+        { label: "AuraINFT.sol:153", href: `${GH}/contracts/src/AuraINFT.sol#L153` },
+        { label: "proof gate :190", href: `${GH}/contracts/src/AuraINFT.sol#L190` },
+        { label: "raw-transfer reverts :327", href: `${GH}/contracts/src/AuraINFT.sol#L327` },
+        { label: "AuraINFT on 0G Scan", href: `${EXPLORER}/address/${CONTRACTS[4].addr}` },
+      ],
+      boundary:
+        "The transfer oracle is a trusted ECDSA signer, not a hardware-TEE enclave (the bar the field ships). This claim is literally true only when AuraINFT is configured - rendered live above, never hardcoded.",
+    },
+    {
+      n: "03",
+      claim: "Verify that ENFORCES, not claims.",
+      body: (
+        <>
+          The TeeML allowlist is strictly narrower than 0G&apos;s on-chain TeeML flag, AND the mint BLOCKS on a
+          bad attestation: a forged mint REVERTS on-chain. Enforcement, not a badge.
+        </>
+      ),
+      runs: [{ cmd: modelsCurl, note: "the mic-drop split above: N served of M TeeML-flagged, live" }],
+      reads: [
+        { label: "chatServiceAllowed :109", href: `${GH}/server/src/aura/chat-compute.ts#L109` },
+        { label: "filter-before-rank :176", href: `${GH}/server/src/aura/chat-compute.ts#L176` },
+        { label: "mint BLOCKS :163", href: `${GH}/contracts/src/OutputNFT.sol#L163` },
+      ],
+      boundary: "The allowlist is hand-curated by the platform: 'stricter than 0G's flag', NOT 'we caught 0G lying'.",
+    },
+    {
+      n: "04",
+      claim: "On-chain-verified mint (Option A).",
+      body: (
+        <>
+          The contract ecrecovers 0G&apos;s TeeML enclave signature and REVERTS on forgery, binding{" "}
+          <span className="font-mono-x">dataHash = sha256(image)</span>. The mere existence of a non-zero{" "}
+          <span className="font-mono-x">dataHash</span> is itself proof the chain enforced that signature at mint.
+        </>
+      ),
+      runs: [
+        { cmd: castDataHash, note: "non-zero == the mint passed the on-chain 0G-TEE gate" },
+        { cmd: castTeeSigner, note: "== the 0G-published enclave signer once armed (setTeeSigner)" },
+      ],
+      reads: [
+        { label: "mintOutputVerified :242", href: `${GH}/contracts/src/OutputNFT.sol#L242` },
+        { label: "_verifyTee revert :315", href: `${GH}/contracts/src/OutputNFT.sol#L315` },
+        { label: "captureTeeEnvelope :150", href: `${GH}/server/src/aura/compute.ts#L150` },
+      ],
+      boundary:
+        "Image-gen TEE is 0G TESTNET. dataHash is 0 until the verified path is armed (setTeeSigner + a fresh verified mint), so this tier activates at the mainnet deploy. It proves 'a genuine 0G enclave produced art with sha256=X', NOT '0G attests agent #N made it'.",
+    },
+    {
+      n: "05",
+      claim: "Agent memory embedded on 0G Storage.",
+      body: (
+        <>
+          The sealed brain segments are retrievable and byte-identical on 0G, with a dual-wall on transfer (the
+          old owner cannot read forward, the new owner cannot read backward).
+        </>
+      ),
+      reads: [
+        { label: "verifyOwnerMemoryOn0G :291", href: `${GH}/server/src/aura/chat-memory.ts#L291` },
+        { label: "memory-anchor.ts", href: `${GH}/server/src/aura/memory-anchor.ts` },
+      ],
+      boundary:
+        "OWNER-GATED, so a juror cannot keyless-verify it (unlike 1/3/4/6/7). MEMORY_0G_PIN defaults OFF. It makes AURA's OWN ERC-7857 claim literally true; it is a capability, not a rulebook requirement.",
+    },
+    {
+      n: "06",
+      claim: "Royalty follows the agent owner.",
+      body: (
+        <>
+          EIP-2981 <span className="font-mono-x">royaltyInfo</span> resolves LIVE to{" "}
+          <span className="font-mono-x">ownerOf(creatorAgentId)</span>. Sell the Aura and the entire future
+          royalty stream moves with it - enforced in the Marketplace before the seller is paid.
+        </>
+      ),
+      runs: [
+        { cmd: royaltyCurl, note: "receiverIsAgentOwner: true" },
+        { cmd: castRoyalty, note: "the receiver == ownerOf(creatorAgentId)" },
+      ],
+      reads: [
+        { label: "OutputNFT.sol:463", href: `${GH}/contracts/src/OutputNFT.sol#L463` },
+        { label: "royalty.ts:12", href: `${GH}/server/src/aura/royalty.ts#L12` },
+      ],
+      boundary: "Enforced in Marketplace.buy() before the seller is paid. Uncontested across the bracket (no rival has resale royalty on the asset).",
+    },
+    {
+      n: "07",
+      claim: "Provable-Pulls gacha (commit-reveal).",
+      body: (
+        <>
+          Rarity and subject derive from a blockhash-seeded root committed AFTER the summon, recomputable by
+          anyone from the public preimage - the browser re-derives it and confirms it equals the on-chain seed.
+        </>
+      ),
+      runs: [{ cmd: castProvenance, note: "the on-chain seed the browser recompute must equal" }],
+      reads: [
+        { label: "recomputePullSeedRoot", href: `${GH}/web/src/lib/verify.ts#L26` },
+        { label: "gacha.ts:60", href: `${GH}/server/src/aura/gacha.ts#L60` },
+        { label: "deriveRarity :293", href: `${GH}/server/src/aura/gacha.ts#L293` },
+      ],
+      boundary: "Commit-reveal on block.blockhash; buyer + agentId are in the Summoned event; no grinding because subject + rarity derive only after the commit.",
+    },
+  ];
+
+  // ── The honest "what we do NOT claim" boundaries (state them, do not hide them) ──
+  const boundaries: ReactNode[] = [
+    <>
+      <strong style={{ color: "var(--color-ink)" }}>One wallet.</strong> attestor == platform == deployer ==
+      transfer-oracle == one key (0x2537…5540 testnet economy; 0x8a3b…Bf3d mainnet chat sponsor). A single-platform
+      trust boundary, disclosed.
+    </>,
+    <>
+      <strong style={{ color: "var(--color-ink)" }}>Network split.</strong> The image-gen TEE runs on 0G TESTNET
+      Galileo 16602. The contracts, on-chain verify, and marketplace run on their deploy network (mainnet 16661
+      after the gated cutover). Two networks, on purpose.
+    </>,
+    <>
+      <strong style={{ color: "var(--color-ink)" }}>Memory flags.</strong>{" "}
+      <span className="font-mono-x">MEMORY_0G_PIN</span> / <span className="font-mono-x">MEMORY_0G_ANCHOR</span>{" "}
+      default OFF; when off, memory embedding is a proven capability, not a live-on-every-agent property.
+    </>,
+    <>
+      <strong style={{ color: "var(--color-ink)" }}>Transfer oracle.</strong> ERC-7857 transfer proofs are signed
+      by a trusted ECDSA oracle, not a hardware enclave.
+    </>,
+    <>
+      <strong style={{ color: "var(--color-ink)" }}>Storage eviction.</strong> 0G testnet Storage evicts blobs in
+      ~1h; v1 serves from a durable content-addressed cache keyed by the SAME 0G root. Full persistence is a
+      mainnet property.
+    </>,
+    <>
+      <strong style={{ color: "var(--color-ink)" }}>dataHash arming.</strong> The on-chain sha256-bound-to-0G-signer
+      tier lights up only after <span className="font-mono-x">setTeeSigner</span> at the mainnet deploy; before
+      that, verification is the provenance + attestation + royalty tier (all keyless).
+    </>,
+  ];
 
   return (
     <>
@@ -174,15 +398,12 @@ export default async function ProofPage() {
             Proof, not promises.
           </h1>
           <p className="mt-5 max-w-[62ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-            Every claim below re-derives from a live endpoint or an on-chain read. Click any value and check it
-            yourself. If a claim cannot be verified right now, it is not on this page.
+            Every claim below re-derives from a live endpoint or an on-chain read. We did the source-read for
+            you: each claim maps to a command you can paste, a source file you can open, or a read you can run.
+            If a claim cannot be verified right now, it is not on this page.
           </p>
           <div className="mt-6 flex flex-wrap items-center gap-2.5">
-            {allLive ? (
-              <Chip tone="ok">Live re-derived</Chip>
-            ) : (
-              <Chip>Snapshot · {SNAPSHOT_DATE}</Chip>
-            )}
+            {allLive ? <Chip tone="ok">Live re-derived</Chip> : <Chip>Snapshot · {SNAPSHOT_DATE}</Chip>}
             <Chip tone="accent">On-chain reads</Chip>
             <Chip>No unverified claims</Chip>
           </div>
@@ -259,6 +480,40 @@ export default async function ProofPage() {
           </Panel>
         </section>
 
+        {/* ── The claim -> evidence LEDGER (skeptic-first, the core) ──────── */}
+        <SectionHead index="01" kicker="The ledger" title="Every claim, and how to check it." />
+        <p className="mt-5 max-w-[68ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+          One row per real claim. Each maps to a command you can paste (no wallet), a source file you can open, or
+          an on-chain read you can run - and states its honest limit inline. This is the source-read a jury would
+          do, done for them.
+        </p>
+        <Panel className="mt-8 overflow-hidden">
+          {ledger.map((row) => (
+            <LedgerRow key={row.n} row={row} />
+          ))}
+        </Panel>
+
+        {/* ── Prominent keyless-verify CTA (the featured Relic) ───────────── */}
+        <Panel className="mt-8 overflow-hidden p-7 sm:p-9" style={{ background: "color-mix(in oklab, var(--color-accent) 5%, var(--color-paper))", borderColor: "color-mix(in oklab, var(--color-accent) 24%, var(--color-border))" }}>
+          <div className="flex flex-wrap items-center gap-3 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-accent)" }}>
+            <span>Verify it yourself · no wallet · ~10s</span>
+            <span className="prov-rule h-px flex-1" style={{ opacity: 0.4 }} />
+            {featuredLive ? <Chip tone="ok">Live · #{RELIC.tokenId}</Chip> : <Chip>Snapshot · #{RELIC.tokenId}</Chip>}
+          </div>
+          <p className="mt-4 max-w-[70ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+            Paste this against the featured Relic ({RELIC.agentName} #{RELIC.tokenId}). It returns the keyless
+            verification JSON - the on-chain facts, the checks, and a full copy-paste self-check script grouped by
+            tier. No wallet, no login.
+          </p>
+          <div className="mt-5">
+            <CopyCommand cmd={verifyCurl} note="the keyless GET /api/verify surface - re-derive every claim above" />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2.5">
+            <ProofLink href={`/verify/${RELIC.tokenId}`} internal>Open the shareable proof →</ProofLink>
+            <ProofLink href={`/verify`} internal>Verify any Relic</ProofLink>
+          </div>
+        </Panel>
+
         {/* ── Stat strip ─────────────────────────────────────────────────── */}
         <section className="mt-16 grid grid-cols-2 gap-x-6 gap-y-10 sm:mt-20 lg:grid-cols-4">
           <StatFigure value={String(CONTRACTS.length).padStart(2, "0")} label="Contracts live on-chain" />
@@ -268,7 +523,7 @@ export default async function ProofPage() {
         </section>
 
         {/* ── The four 0G primitives ─────────────────────────────────────── */}
-        <SectionHead index="01" kicker="The 0G stack" title="Four primitives, each proven." />
+        <SectionHead index="02" kicker="The 0G stack" title="Four primitives, each proven." />
         <div className="mt-10 grid gap-4 lg:grid-cols-2">
           {/* Compute */}
           <Panel className="p-6 sm:p-8">
@@ -306,7 +561,7 @@ export default async function ProofPage() {
             </dl>
             <div className="mt-6 flex flex-wrap gap-2.5">
               <ProofLink href={RELIC_STORAGE_PROOF}>0G Storage proof</ProofLink>
-              <ProofLink href={`/verify?id=${RELIC.tokenId}`} internal>Verify on-chain</ProofLink>
+              <ProofLink href={`/verify/${RELIC.tokenId}`} internal>Verify on-chain</ProofLink>
             </div>
           </Panel>
 
@@ -331,29 +586,41 @@ export default async function ProofPage() {
             </dl>
           </Panel>
 
-          {/* iNFT */}
+          {/* iNFT (DYNAMIC: renders "real iNFT" only when the cutover is live) */}
           <Panel className="p-6 sm:p-8">
-            <PrimitiveHead tag="ERC-7857 · sealed transfer" title="Sealed-key transfer, proven in isolation." />
+            <PrimitiveHead tag="ERC-7857 · sealed transfer" title={isInft ? "Agents are real ERC-7857 iNFTs." : "Sealed-key transfer, proven in isolation."} />
             <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              ERC-7857 sealed-key transfer is a proven primitive on the AuraINFT contract: a transfer recovers a
-              signed re-encryption proof, and the brain is re-encrypted with a fresh key and ECIES-sealed to the
-              buyer, so the old owner cannot open it. It is deployed and Foundry-tested in isolation on Galileo. Live
-              Auras trade today as standard ERC-721 on AgentRegistry, and Relics are ERC-721 + EIP-2981, not iNFTs;
-              the sealed-key cutover is staged. Honest framing: the oracle is a trusted ECDSA signer, not a
-              hardware-TEE enclave, which is the bar the field ships today.
+              {isInft ? (
+                <>
+                  Live Auras are real ERC-7857 iNFTs on AuraINFT: a transfer recovers a signed re-encryption proof,
+                  the brain is re-keyed and ECIES-sealed to the buyer so the old owner cannot open it, and a raw
+                  ERC-721 transfer reverts. The interface id is the computed{" "}
+                  <span className="font-mono-x">type(IERC7857).interfaceId</span>. Honest framing: the oracle is a
+                  trusted ECDSA signer, not a hardware-TEE enclave, which is the bar the field ships today.
+                </>
+              ) : (
+                <>
+                  ERC-7857 sealed-key transfer is a proven primitive on the AuraINFT contract: a transfer recovers a
+                  signed re-encryption proof, and the brain is re-encrypted with a fresh key and ECIES-sealed to the
+                  buyer, so the old owner cannot open it. It is deployed and Foundry-tested in isolation on Galileo.
+                  Live Auras trade today as standard ERC-721 on AgentRegistry, and Relics are ERC-721 + EIP-2981,
+                  not iNFTs; the sealed-key cutover is staged. Honest framing: the oracle is a trusted ECDSA signer,
+                  not a hardware-TEE enclave, which is the bar the field ships today.
+                </>
+              )}
             </p>
             <dl className="mt-6">
-              <MetaRow k="Contract (isolated deploy)" v={shortAddr(CONTRACTS[4].addr)} href={`${EXPLORER}/address/${CONTRACTS[4].addr}`} mono />
+              <MetaRow k="Contract" v={shortAddr(isInft && pv?.agent?.contract ? pv.agent.contract : CONTRACTS[4].addr)} href={`${EXPLORER}/address/${isInft && pv?.agent?.contract ? pv.agent.contract : CONTRACTS[4].addr}`} mono />
               <MetaRow k="On-chain name" v="AURA Creative Agent" ok mono={false} />
-              <MetaRow k="Standard" v="ERC-7857 (trusted-signer)" mono={false} />
+              <MetaRow k="Standard" v={isInft ? "ERC-7857 (live)" : "ERC-7857 (isolated deploy)"} mono={false} />
               <MetaRow k="Key sealing" v="ECIES to buyer pubkey" mono={false} />
-              <MetaRow k="Live Auras" v="ERC-721 on AgentRegistry · cutover staged" mono={false} />
+              <MetaRow k="Live Auras" v={isInft ? "real ERC-7857 iNFTs on AuraINFT" : "ERC-721 on AgentRegistry · cutover staged"} ok={isInft} mono={false} />
             </dl>
           </Panel>
         </div>
 
         {/* ── Royalty loop ───────────────────────────────────────────────── */}
-        <SectionHead index="02" kicker="The royalty loop" title="Royalty that follows the work." />
+        <SectionHead index="03" kicker="The royalty loop" title="Royalty that follows the work." />
         <div className="mt-10 grid gap-4 lg:grid-cols-[1.3fr_1fr]">
           <Panel className="p-6 sm:p-8">
             <p className="text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
@@ -389,7 +656,7 @@ export default async function ProofPage() {
         </div>
 
         {/* ── Status table ───────────────────────────────────────────────── */}
-        <SectionHead index="03" kicker="Shipped on 0G" title="Primitive, use, and live proof." />
+        <SectionHead index="04" kicker="Shipped on 0G" title="Primitive, use, and live proof." />
         <Panel className="mt-10 overflow-hidden">
           <div className="hidden grid-cols-[0.8fr_1.6fr_1fr] gap-4 border-b px-6 py-4 sm:grid" style={{ borderColor: "var(--color-border)" }}>
             <span className="label-caps text-[13px] uppercase tracking-[0.1em]" style={{ color: "var(--color-ink-3)" }}>Primitive</span>
@@ -401,8 +668,9 @@ export default async function ProofPage() {
             { p: "TeeML guard", u: "Curated allowlist, strictly narrower than the chain's TeeML flag.", href: `${API_PUBLIC}/chat/models`, label: "/chat/models", internal: false },
             { p: "0G Storage", u: "Content-addressed image + brain roots, committed on-chain.", href: RELIC_STORAGE_PROOF, label: "Storage proof", internal: false },
             { p: "0G Chain", u: "Five contracts on Galileo 16602, real bytecode.", href: `${API_PUBLIC}/health`, label: "/health", internal: false },
-            { p: "ERC-7857", u: "Sealed-key transfer proven on AuraINFT (isolated deploy); live Auras are ERC-721, cutover staged.", href: `${EXPLORER}/address/${CONTRACTS[4].addr}`, label: "0G Scan", internal: false },
+            { p: "ERC-7857", u: isInft ? "Live Auras are real ERC-7857 iNFTs on AuraINFT; raw ERC-721 transfer reverts." : "Sealed-key transfer proven on AuraINFT (isolated deploy); live Auras are ERC-721, cutover staged.", href: `${EXPLORER}/address/${CONTRACTS[4].addr}`, label: "0G Scan", internal: false },
             { p: "EIP-2981", u: "Creator royalty resolving live to the agent owner.", href: `${API_PUBLIC}/royalty/${RELIC.tokenId}`, label: `/royalty/${RELIC.tokenId}`, internal: false },
+            { p: "Keyless verify", u: "A public no-wallet endpoint: on-chain facts + checks + a copy-paste self-check.", href: verifyCurl.replace(/^curl -s /, ""), label: "/api/verify", internal: false },
           ].map((row) => (
             <div key={row.p} className="grid grid-cols-1 gap-1.5 border-b px-6 py-4 last:border-b-0 sm:grid-cols-[0.8fr_1.6fr_1fr] sm:items-center sm:gap-4" style={{ borderColor: "var(--color-border)" }}>
               <span className="font-display text-[20px]" style={{ letterSpacing: "-0.01em" }}>{row.p}</span>
@@ -414,6 +682,106 @@ export default async function ProofPage() {
           ))}
         </Panel>
 
+        {/* ── Honest trust boundaries ─────────────────────────────────────── */}
+        <SectionHead index="05" kicker="Honest limits" title="What we do NOT claim." />
+        <Panel className="mt-10 p-6 sm:p-8">
+          <p className="max-w-[70ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+            The ledger reads confident because the limits are stated, not hidden. These are AURA&apos;s exact trust
+            boundaries.
+          </p>
+          <ul className="mt-6 grid gap-x-8 gap-y-4 sm:grid-cols-2">
+            {boundaries.map((b, i) => (
+              <li key={i} className="flex items-start gap-3 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                <span className="mt-1 shrink-0 font-mono-x tabular-nums text-[13px]" style={{ color: "var(--color-accent)" }}>
+                  {String(i + 1).padStart(2, "0")}
+                </span>
+                <span>{b}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+
+        {/* ── Check theirs, check ours (factual, cited) ──────────────────── */}
+        <SectionHead index="06" kicker="The field" title="Check theirs. Check ours." />
+        <p className="mt-5 max-w-[70ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+          Factual, not mudslinging. For AURA we link the exact on-chain read or source line. For a rival we point
+          you to their public repo + the contract on 0G Scan and state what our source-read found - we do not invent
+          line numbers for a repo we did not read. Go check both.
+        </p>
+        <div className="mt-8 grid gap-4">
+          {/* Heckle */}
+          <Panel className="p-6 sm:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-display" style={{ fontSize: "clamp(20px,2.6vw,28px)", lineHeight: 1.05 }}>Heckle</h3>
+              <Chip>iNFT + &quot;TEE-verified takes&quot;</Chip>
+            </div>
+            <div className="mt-5 grid gap-6 lg:grid-cols-2">
+              <div>
+                <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-warn)" }}>Our source-read found</div>
+                <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <li>· Interface id is a self-invented <span className="font-mono-x">0x7857a001</span>, not the computed <span className="font-mono-x">type(IERC7857).interfaceId</span>.</li>
+                  <li>· Sealed transfer is &quot;deferred&quot;, never built.</li>
+                  <li>· <span className="font-mono-x">commitTake</span> stores a bare root with ZERO on-chain checks - no ecrecover, no revert-on-forgery.</li>
+                </ul>
+                <p className="mt-3 text-[13px]" style={{ color: "var(--color-ink-3)" }}>
+                  Check it in Heckle&apos;s public hackathon repo + its iNFT contract on 0G Scan (look for the interface id + the take-commit function).
+                </p>
+              </div>
+              <div>
+                <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ok)" }}>Check ours</div>
+                <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <li>· AuraINFT interface id is the REAL computed selector; <span className="font-mono-x">transfer()</span> ecrecovers an oracle proof and REVERTS.</li>
+                  <li>· <span className="font-mono-x">mintOutputVerified</span> ecrecovers 0G&apos;s enclave sig and reverts on forgery.</li>
+                </ul>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <SrcLink href={`${GH}/contracts/src/AuraINFT.sol#L190`}>AuraINFT.sol:190</SrcLink>
+                  <SrcLink href={`${GH}/contracts/src/OutputNFT.sol#L315`}>OutputNFT.sol:315</SrcLink>
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          {/* 0G Sentinel */}
+          <Panel className="p-6 sm:p-8">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="font-display" style={{ fontSize: "clamp(20px,2.6vw,28px)", lineHeight: 1.05 }}>0G Sentinel</h3>
+              <Chip>&quot;verified&quot; security agent · 3 mainnet contracts</Chip>
+            </div>
+            <div className="mt-5 grid gap-6 lg:grid-cols-2">
+              <div>
+                <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-warn)" }}>Our source-read found</div>
+                <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <li>· Real static analysis, but the on-chain &quot;verified&quot; bit is computed then DISCARDED.</li>
+                  <li>· <span className="font-mono-x">isSafe()</span> trusts blindly; a centralized bearer fallback overrides it. The flag gates nothing.</li>
+                </ul>
+                <p className="mt-3 text-[13px]" style={{ color: "var(--color-ink-3)" }}>
+                  Check it in Sentinel&apos;s public repo + its 3 contracts on 0G Scan (look for where the &quot;verified&quot; bit is actually used).
+                </p>
+              </div>
+              <div>
+                <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ok)" }}>Check ours</div>
+                <ul className="mt-3 space-y-2 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                  <li>· AURA&apos;s verified bit is BINDING: the mint itself REVERTS if the attestation / TEE-sig does not recover. It is not stored-and-ignored; it gates the write.</li>
+                </ul>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <SrcLink href={`${GH}/contracts/src/OutputNFT.sol#L163`}>OutputNFT.sol:163</SrcLink>
+                  <SrcLink href={verifyCurl.replace(/^curl -s /, "")}>/api/verify?token={RELIC.tokenId}</SrcLink>
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          {/* Honest positioning note */}
+          <Panel className="p-6 sm:p-7" style={{ background: "color-mix(in oklab, var(--color-ink) 3%, var(--color-paper))" }}>
+            <p className="text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+              <strong style={{ color: "var(--color-ink)" }}>Honest note:</strong> Turing Pits also enforces verify
+              on-chain (its <span className="font-mono-x">settle()</span> ecrecovers each move) - we do not attack its
+              verify. AURA is in the enforce camp with Turing Pits, ahead of the claim camp. That is more credible
+              than a clean sweep.
+            </p>
+          </Panel>
+        </div>
+
         {/* ── Close ──────────────────────────────────────────────────────── */}
         <section className="mt-16 sm:mt-24">
           <div className="prov-rule h-px w-full" style={{ opacity: 0.6 }} />
@@ -422,7 +790,7 @@ export default async function ProofPage() {
               Do not take our word. Take the reads.
             </h2>
             <div className="flex flex-wrap gap-2.5">
-              <ProofLink href="/verify" internal>Open the verifier</ProofLink>
+              <ProofLink href={`/verify/${RELIC.tokenId}`} internal>Verify the featured Relic</ProofLink>
               <ProofLink href={CHAT_URL}>Chat with an Aura</ProofLink>
               <ProofLink href={`${API_PUBLIC}/health`}>Inspect /health</ProofLink>
             </div>
@@ -436,6 +804,51 @@ export default async function ProofPage() {
 }
 
 // ── Local presentational helpers (server-rendered) ─────────────────────────
+
+type LedgerRowData = {
+  n: string;
+  claim: string;
+  body: ReactNode;
+  runs?: { cmd: string; note?: string }[];
+  reads?: { label: string; href: string }[];
+  boundary: ReactNode;
+};
+
+// One ledger row: the claim (numbered display title + prose), the RUN commands (copy-paste), the READ / SOURCE
+// links (on-chain reads + repo file:line), and the honest boundary stated inline.
+function LedgerRow({ row }: { row: LedgerRowData }) {
+  return (
+    <div className="border-b px-6 py-7 last:border-b-0 sm:px-8" style={{ borderColor: "var(--color-border)" }}>
+      <div className="flex items-baseline gap-3">
+        <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-accent)" }}>{row.n}</span>
+        <h3 className="font-display" style={{ fontSize: "clamp(20px,2.6vw,28px)", lineHeight: 1.08, letterSpacing: "-0.01em" }}>
+          {row.claim}
+        </h3>
+      </div>
+      <p className="mt-3 max-w-[72ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+        {row.body}
+      </p>
+      {row.runs && row.runs.length ? (
+        <div className="mt-4 space-y-2.5">
+          {row.runs.map((r, i) => (
+            <CopyCommand key={i} cmd={r.cmd} note={r.note} />
+          ))}
+        </div>
+      ) : null}
+      {row.reads && row.reads.length ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {row.reads.map((rd) => (
+            <SrcLink key={rd.href} href={rd.href}>{rd.label}</SrcLink>
+          ))}
+        </div>
+      ) : null}
+      <p className="mt-4 flex items-start gap-2 text-[13px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+        <span className="label-caps shrink-0 uppercase tracking-[0.1em]" style={{ color: "var(--color-ink-3)" }}>Honest limit:</span>
+        <span>{row.boundary}</span>
+      </p>
+    </div>
+  );
+}
 
 // A section header in the product-page language: mono kicker + index marker + prov rule + display title.
 function SectionHead({ index, kicker, title }: { index: string; kicker: string; title: string }) {
@@ -505,8 +918,24 @@ function ModelLine({ m, accepted }: { m: ProofModel; accepted: boolean }) {
   );
 }
 
+// A source/read citation chip: a small mono link to a repo file:line or an on-chain read (opens new tab).
+function SrcLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 font-mono-x text-[13px] hover:-translate-y-px"
+      style={{ borderColor: "var(--color-border-strong)", color: "var(--color-accent)", background: "var(--color-paper)" }}
+    >
+      {children}
+      <span aria-hidden>↗</span>
+    </a>
+  );
+}
+
 // A verified proof link: internal (site route) renders a plain accent link; external opens on a new tab with
-// the gliding-arrow motif. Every href on this page resolved 200/3xx on 2026-07-01.
+// the gliding-arrow motif.
 function ProofLink({ href, children, internal = false }: { href: string; children: ReactNode; internal?: boolean }) {
   return (
     <a

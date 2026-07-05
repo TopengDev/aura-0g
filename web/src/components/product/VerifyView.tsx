@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Reveal } from "@/components/Reveal";
-import { PageHeader, Panel, ProvLine, Chip, MetaRow, ActionButton, Field } from "@/components/product/primitives";
+import { PageHeader, Panel, ProvLine, Chip, MetaRow, ActionButton, Field, CopyCommand } from "@/components/product/primitives";
 import { ZeroG } from "@/components/atoms/ZeroG";
 import { EXPLORER, STORAGE_SCAN } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
 import { runVerification, type VerifyResult } from "@/lib/verify";
 import { shortHex } from "@/lib/api";
+import { absoluteUrl } from "@/lib/share";
 
 // The STANDALONE public provenance verifier (/verify). No wallet, read-only on-chain. A token id goes
 // in, and the SHARED runVerification (the same one the output detail page's inline Verify uses) re-reads
@@ -23,6 +25,7 @@ type State =
   | { phase: "error"; id: string; message: string };
 
 export function VerifyView({ initialId }: { initialId?: string }) {
+  const router = useRouter();
   const [input, setInput] = useState(initialId ?? "");
   const [state, setState] = useState<State>({ phase: "idle" });
 
@@ -47,7 +50,14 @@ export function VerifyView({ initialId }: { initialId?: string }) {
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    void verify(input);
+    // Land the interactive input on the SHAREABLE SSR permalink (/verify/[id]) - it renders the same checks
+    // plus the copy-paste "verify it yourself" script + the honest trust boundaries. Invalid input stays inline.
+    const id = input.trim().replace(/^#/, "");
+    if (!/^\d+$/.test(id)) {
+      setState({ phase: "error", id: input, message: "Enter a numeric Relic token id (for example, 6)." });
+      return;
+    }
+    router.push(`/verify/${id}`);
   };
 
   // Deep-link support: when arrived with ?id= (initialId), auto-run the verification once on mount so
@@ -130,7 +140,7 @@ export function VerifyView({ initialId }: { initialId?: string }) {
           <div>
             {state.phase === "idle" ? (
               <Reveal delay={0.06}>
-                <IdlePanel onTry={(id) => { setInput(id); void verify(id); }} />
+                <IdlePanel onTry={(id) => router.push(`/verify/${id}`)} />
               </Reveal>
             ) : state.phase === "checking" ? (
               <CheckingPanel id={state.id} />
@@ -290,8 +300,17 @@ function ResultPanel({ id, result }: { id: string; result: VerifyResult }) {
             </>
           ) : null}
 
+          <ProvLine className="my-6" />
+          <div className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
+            Verify it yourself · no wallet
+          </div>
+          <div className="mt-3">
+            <CopyCommand cmd={`curl -s ${absoluteUrl(`/api/verify?token=${id}`)}`} note="the keyless verify JSON - re-derive every value above, no wallet" />
+          </div>
+
           <div className="mt-7 flex flex-col gap-3 sm:flex-row">
-            <ActionButton href={`/outputs/${id}`}>View the Relic -&gt;</ActionButton>
+            <ActionButton href={`/verify/${id}`}>Shareable proof + curl -&gt;</ActionButton>
+            <ActionButton href={`/outputs/${id}`} variant="outline">View the Relic -&gt;</ActionButton>
             <a
               href={`${EXPLORER}/token/${CONTRACTS.outputNFT}?a=${id}`}
               target="_blank"

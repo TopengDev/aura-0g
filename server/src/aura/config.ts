@@ -268,3 +268,33 @@ export const SUMMON_PROMPT = process.env.SUMMON_PROMPT ?? "a signature original 
 export const INDEXER_URL = process.env.INDEXER_URL ?? "http://localhost:42069";
 // How long the backend waits on the indexer before falling back (ms).
 export const INDEXER_TIMEOUT_MS = Number(process.env.INDEXER_TIMEOUT_MS ?? 4000);
+
+// ── Public keyless verify endpoint (GET /api/verify) presentation config ─────────────────────────────
+// Config that shapes the shareable self-check curl + the image URL the keyless /api/verify surface hands a
+// skeptic. EVERY value derives from GALILEO/CONTRACTS or is env-overridable, so the SAME backend flips
+// testnet -> mainnet (and localhost) with NO code edit: never hardcode a network-specific URL/signer.
+// Defaults are prod-correct for the live testnet deploy.
+export const PUBLIC_WEB_ORIGIN = (process.env.PUBLIC_WEB_ORIGIN ?? "https://aura.topengdev.com").replace(/\/+$/, "");
+export const PUBLIC_API_ORIGIN = (process.env.PUBLIC_API_ORIGIN ?? "https://api-aura.topengdev.com").replace(/\/+$/, "");
+
+// Human network name, DERIVED from chainId so it flips with the deploy (16661 -> mainnet, else Galileo testnet).
+export const NETWORK_NAME = GALILEO.chainId === 16661 ? "0G Aristotle Mainnet" : "0G Galileo Testnet";
+
+// The WORKING 0G Storage proof base (the indexer file/info route -> {finalized,size,...}). The storagescan
+// `/tx/<root>` route expects a submission TX hash, NOT a data merkle root, so it never resolves a root; this
+// one does. Testnet-specific today; env-overridable so a mainnet storage indexer is a config flip.
+export const STORAGE_FILE_INFO_BASE =
+  process.env.AURA_STORAGE_FILE_INFO_BASE ?? `${GALILEO.storageIndexerTurbo}/file/info`;
+
+// The 0G image-gen enclave facts, network-aware. Option A default = image-editing on 0G TESTNET; the opt-in
+// mainnet z-image path is AURA_IMAGE_MAINNET=1. `VERIFY_IMAGE_TEE_SIGNER_EXPECTED` is the 0G-PUBLISHED enclave
+// signer OutputNFT.teeSigner() must equal once the verified-mint path is armed (setTeeSigner). All non-secret,
+// published addresses. Env-overridable so a 0G enclave rotation / the mainnet flip is config, not a code change.
+const IMAGE_ON_MAINNET = (process.env.AURA_IMAGE_MAINNET ?? "0") === "1";
+export const IMAGE_TESTNET_TEE_SIGNER =
+  process.env.AURA_IMAGE_TESTNET_TEE_SIGNER ?? "0x2A94D671f1A5e080f75A8164087Cdd35c8442e69";
+export const VERIFY_IMAGE_MODEL = IMAGE_ON_MAINNET ? "z-image-turbo" : "qwen/qwen-image-edit-2511";
+export const VERIFY_IMAGE_COMPUTE_NETWORK = IMAGE_ON_MAINNET
+  ? "0G Aristotle mainnet (16661)"
+  : "0G Galileo testnet (16602)";
+export const VERIFY_IMAGE_TEE_SIGNER_EXPECTED = IMAGE_ON_MAINNET ? IMAGE_MAINNET_TEE_SIGNER : IMAGE_TESTNET_TEE_SIGNER;
