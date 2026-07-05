@@ -5,6 +5,8 @@ import { useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, ActionButton, CopyValue } from "@/components/product/primitives";
 import { RarityBadge } from "@/components/product/RarityBadge";
+import { ShareOnX } from "@/components/product/ShareOnX";
+import { absoluteUrl, relicShareText } from "@/lib/share";
 import { TradePanel } from "@/components/product/TradePanel";
 import { EXPLORER, STORAGE_SCAN } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
@@ -84,6 +86,13 @@ export function OutputDetailView({
                   </span>
                 </div>
               ) : null}
+              <div className="mt-4">
+                <ShareOnX
+                  text={relicShareText(o.agentName, o.tokenId)}
+                  url={absoluteUrl(`/outputs/${o.tokenId}`)}
+                  label="Share this Relic"
+                />
+              </div>
             </Reveal>
 
             {/* Creator agent */}

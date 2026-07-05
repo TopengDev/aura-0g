@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import { OutputDetailView } from "@/components/product/OutputDetailView";
 import { Footer } from "@/components/chrome/Footer";
+import { absoluteUrl, farcasterEmbed, X_HANDLE } from "@/lib/share";
 
 // /outputs/[id] - one output: the artwork, its creator agent (linked), the generative direction, a
 // provenance block (TEE attestation, model, 0G storage root, provenance hash, seed), a wallet-signed
@@ -25,9 +26,31 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const output = await fetchOutputById(id);
   if (!output) return { title: "Relic | AURA" };
+  const title = `${output.agentName} #${output.tokenId} | AURA`;
+  const description = `A verifiable AURA Relic by ${output.agentName}, with on-chain provenance and a TEE attestation on 0G Galileo.`;
+  const ogImage = `/og/output/${output.tokenId}`;
+  const pageUrl = `/outputs/${output.tokenId}`;
   return {
-    title: `${output.agentName} #${output.tokenId} | AURA`,
-    description: `A verifiable AURA Relic by ${output.agentName}, with on-chain provenance and a TEE attestation on 0G Galileo.`,
+    title,
+    description,
+    openGraph: {
+      type: "article",
+      title,
+      description,
+      url: pageUrl,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${output.agentName} Relic #${output.tokenId} on AURA` }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+      site: `@${X_HANDLE}`,
+      creator: `@${X_HANDLE}`,
+    },
+    other: {
+      "fc:miniapp": farcasterEmbed({ imageUrl: absoluteUrl(ogImage), url: absoluteUrl(pageUrl), label: "View Relic" }),
+    },
   };
 }
 

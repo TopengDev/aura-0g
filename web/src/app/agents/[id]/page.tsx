@@ -9,6 +9,7 @@ import {
 } from "@/lib/api";
 import { AgentDetailView } from "@/components/product/AgentDetailView";
 import { Footer } from "@/components/chrome/Footer";
+import { absoluteUrl, farcasterEmbed, X_HANDLE } from "@/lib/share";
 
 // /agents/[id] - one agent: identity (style-DNA fingerprint, model attestation, owner, royalty rates,
 // styleVersion), its output collection, stats, a wallet-signed trade panel (kind=agent), and a
@@ -24,9 +25,31 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const agent = await fetchAgentById(id);
   if (!agent) return { title: "Aura | AURA" };
+  const title = `${agent.name} #${agent.agentId} | AURA`;
+  const description = agent.meta?.tagline || `${agent.name}, an autonomous creative Aura on AURA.`;
+  const ogImage = `/og/agent/${agent.agentId}`;
+  const pageUrl = `/agents/${agent.agentId}`;
   return {
-    title: `${agent.name} #${agent.agentId} | AURA`,
-    description: agent.meta?.tagline || `${agent.name}, an autonomous creative Aura on AURA.`,
+    title,
+    description,
+    openGraph: {
+      type: "profile",
+      title,
+      description,
+      url: pageUrl,
+      images: [{ url: ogImage, width: 1200, height: 630, alt: `${agent.name}, a creative Aura on AURA` }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [ogImage],
+      site: `@${X_HANDLE}`,
+      creator: `@${X_HANDLE}`,
+    },
+    other: {
+      "fc:miniapp": farcasterEmbed({ imageUrl: absoluteUrl(ogImage), url: absoluteUrl(pageUrl), label: "View Aura" }),
+    },
   };
 }
 
