@@ -6,6 +6,8 @@ import { ZeroG } from "@/components/atoms/ZeroG";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, StatFigure, ActionButton } from "@/components/product/primitives";
 import { TradePanel } from "@/components/product/TradePanel";
 import { SummonPanel } from "@/components/product/SummonPanel";
+import { ShareOnX } from "@/components/product/ShareOnX";
+import { absoluteUrl, auraShareText } from "@/lib/share";
 import { EXPLORER } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
 import { agentPortraitUrl, shortHex, type AgentDetail, type MarketListing, type Output } from "@/lib/api";
@@ -58,6 +60,16 @@ export function AgentDetailView({
                   marker={`#${a.agentId} · v${a.styleVersion}`}
                   title={a.name}
                   lede={a.meta.tagline}
+                />
+              </div>
+            </Reveal>
+
+            <Reveal delay={0.06}>
+              <div className="mt-5">
+                <ShareOnX
+                  text={auraShareText(a.name)}
+                  url={absoluteUrl(`/agents/${a.agentId}`)}
+                  label="Share this Aura"
                 />
               </div>
             </Reveal>

@@ -10,6 +10,8 @@ import { CONTRACTS, SUMMON_ENABLED, summonEscrowAbi } from "@/lib/contracts";
 import { fetchSummonStatus, imageUrl, shortHex, type SummonStatus } from "@/lib/api";
 import { useSummon } from "@/lib/useSummon";
 import { ActionButton, Chip, ProvLine, StepRail, type StepStatus } from "@/components/product/primitives";
+import { ShareOnX } from "@/components/product/ShareOnX";
+import { absoluteUrl, relicSummonShareText } from "@/lib/share";
 
 // The wallet-signed SUMMON panel for the agent detail page. A buyer PAYS to commission the agent; the
 // agent generates LIVE (the watcher runs the ~42s TEE gen), mints the 1/1 to the buyer, and the fee
@@ -187,7 +189,7 @@ export function SummonPanel({
           ) : null}
 
           {delivered ? (
-            <DeliveredCard status={status!} />
+            <DeliveredCard status={status!} agentName={agentName} />
           ) : status?.expired ? (
             <div className="space-y-3">
               <div role="alert" className="rounded-xl border p-3 text-[16px]" style={{ borderColor: "var(--color-warn)", color: "var(--color-warn)" }}>
@@ -276,7 +278,7 @@ export function SummonPanel({
   );
 }
 
-function DeliveredCard({ status }: { status: SummonStatus }) {
+function DeliveredCard({ status, agentName }: { status: SummonStatus; agentName: string }) {
   return (
     <div className="rounded-[16px] border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-ok) 40%, transparent)" }}>
       <div className="flex items-center gap-2">
@@ -305,6 +307,15 @@ function DeliveredCard({ status }: { status: SummonStatus }) {
         Yours now. The {status.fee ?? ""} 0G fee just paid the Aura&rsquo;s current owner, and every future
         resale royalty follows the Aura too.
       </p>
+      <div className="mt-4">
+        <ShareOnX
+          text={relicSummonShareText(status.agentName ?? agentName)}
+          url={absoluteUrl(`/outputs/${status.tokenId}`)}
+          label="Flex it on X"
+          variant="solid"
+          full
+        />
+      </div>
     </div>
   );
 }
