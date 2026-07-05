@@ -30,9 +30,11 @@ abstract contract AuraBase is Test {
     bytes32 constant DATA0 = keccak256("envelope-v0");
     bytes32 constant DATA1 = keccak256("envelope-v1");
 
+    string constant IMAGE_BASE = "https://aura.topengdev.com/images/";
+
     function setUp() public virtual {
         oracle = vm.addr(oraclePk);
-        inft = new AuraINFT(oracle);
+        inft = new AuraINFT(oracle, IMAGE_BASE);
     }
 
     function _mint(address to) internal returns (uint256 id) {
@@ -337,7 +339,7 @@ contract OracleConfigTest is AuraBase {
     }
 
     function test_TransferWithUnsetOracle_Reverts() public {
-        AuraINFT noOracle = new AuraINFT(address(0));
+        AuraINFT noOracle = new AuraINFT(address(0), "https://aura.topengdev.com/images/");
         uint256 id = noOracle.mintAgent(
             creator, "X", bytes32(0), "r", DATA0, bytes32(0), 700, 1000, sealedToCreator
         );
@@ -358,7 +360,7 @@ contract ProofIsolationTest is AuraBase {
         uint256 id = _mint(creator);
 
         // mint the SAME tokenId on a second AuraINFT with the same oracle
-        AuraINFT inft2 = new AuraINFT(oracle);
+        AuraINFT inft2 = new AuraINFT(oracle, "https://aura.topengdev.com/images/");
         uint256 id2 = inft2.mintAgent(
             creator, "NOKTURNE", keccak256("style-dna"), "0g://enc-brain-v0", DATA0,
             keccak256("model:qwen"), 700, 1000, sealedToCreator

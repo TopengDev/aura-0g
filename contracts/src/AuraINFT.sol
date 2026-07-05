@@ -6,6 +6,8 @@ import {ERC2981} from "@openzeppelin/contracts/token/common/ERC2981.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title AuraINFT - the DE-MOCKED creative-agent iNFT (REAL ERC-7857 secure transfer)
 /// @notice This is the de-mocked successor to AgentRegistry: the ERC-7857 secure transfer is NO LONGER
@@ -34,6 +36,7 @@ import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/Messa
 contract AuraINFT is ERC721, ERC2981, Ownable {
     using ECDSA for bytes32;
     using MessageHashUtils for bytes32;
+    using Strings for uint256;
 
     struct Agent {
         string name;             // public display name (e.g. "NOKTURNE")
@@ -48,6 +51,11 @@ contract AuraINFT is ERC721, ERC2981, Ownable {
 
     uint256 public nextAgentId = 1;
     mapping(uint256 => Agent) private _agents;
+
+    /// @notice Base URL the ERC-721 tokenURI() image field is built on: image = baseImageURI + "agent-" + id.
+    ///         Owner-settable so the public portrait origin can be repointed without a redeploy. Display-only:
+    ///         it can never touch the sealed brain, ownership, or royalties.
+    string public baseImageURI;
 
     /// @notice The ORIGINAL creator (minter) of each agent. The EIP-2981 resale-royalty target.
     ///         Pinned at mint; does NOT change when the agent is transferred/resold.
@@ -86,8 +94,9 @@ contract AuraINFT is ERC721, ERC2981, Ownable {
     event SealedKeyDelivered(uint256 indexed agentId, address indexed newOwner, bytes sealedKey, bytes32 sealedKeyHash);
     event OracleUpdated(address indexed oracle);
 
-    constructor(address oracle_) ERC721("AURA Creative Agent", "AURA") Ownable(msg.sender) {
+    constructor(address oracle_, string memory baseImageURI_) ERC721("AURA Creative Agent", "AURA") Ownable(msg.sender) {
         oracle = oracle_; // may be address(0) at deploy; transfers are blocked until set
+        baseImageURI = baseImageURI_;
         emit OracleUpdated(oracle_);
     }
 
@@ -241,6 +250,70 @@ contract AuraINFT is ERC721, ERC2981, Ownable {
 
     function sealedKeyOf(uint256 agentId) external view returns (bytes memory) {
         return sealedKey[agentId];
+    }
+
+    /// @notice ERC-721 Metadata: a fully ON-CHAIN PUBLIC card (data:application/json;base64) for the agent.
+    ///         Deliberately exposes ONLY the public identity (name, style fingerprint, model attestation,
+    ///         royalties, style version) plus a public portrait image. It NEVER references the sealed brain
+    ///         (encBrainRoot / dataHash / sealedKey): ERC-7857's private metadata stays sealed and off this
+    ///         surface, so any wallet or explorer can render the agent with zero leak of the owned secret.
+    function tokenURI(uint256 agentId) public view override returns (string memory) {
+        require(_ownerOf(agentId) != address(0), "no such agent");
+        Agent storage a = _agents[agentId];
+        string memory image = string(abi.encodePacked(baseImageURI, "agent-", agentId.toString()));
+        string memory attrs = string(
+            abi.encodePacked(
+                '{"trait_type":"Style Fingerprint","value":"', Strings.toHexString(uint256(a.styleFingerprint), 32), '"},',
+                '{"trait_type":"Model Attestation","value":"', Strings.toHexString(uint256(a.modelAttestation), 32), '"},',
+                '{"trait_type":"Style Version","value":"', uint256(a.styleVersion).toString(), '"},',
+                '{"trait_type":"Output Royalty (bps)","value":"', uint256(a.royaltyBps).toString(), '"},',
+                '{"trait_type":"Creator Resale (bps)","value":"', uint256(a.creatorResaleBps).toString(), '"}'
+            )
+        );
+        string memory json = string(
+            abi.encodePacked(
+                '{"name":"', _jsonEscape(a.name),
+                '","description":"An AURA creative agent (iNFT). It owns a provable, transferable creative identity and earns royalties on every Relic it makes. The agent brain is sealed and private (ERC-7857); this card shows only public identity.",',
+                '"image":"', image, '",',
+                '"external_url":"https://aura.topengdev.com/agents/', agentId.toString(), '",',
+                '"attributes":[', attrs, ']}'
+            )
+        );
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(json))));
+    }
+
+    /// @notice Repoint the tokenURI image origin (e.g. if the portrait host moves). Owner-only; display-only.
+    function setBaseImageURI(string calldata baseImageURI_) external onlyOwner {
+        baseImageURI = baseImageURI_;
+    }
+
+    /// @dev Minimal JSON string escaper for the free-text agent name: escapes '"' and backslash and any
+    ///      control char (< 0x20) as \u00XX, so a crafted name can never break the on-chain metadata JSON.
+    ///      Raw UTF-8 (>= 0x20) passes through unchanged (JSON permits it) so unicode / emoji names survive.
+    function _jsonEscape(string memory s) internal pure returns (string memory) {
+        bytes memory b = bytes(s);
+        bytes memory out;
+        for (uint256 i = 0; i < b.length; i++) {
+            uint8 c = uint8(b[i]);
+            if (c == 0x22) {
+                out = abi.encodePacked(out, '\\"');
+            } else if (c == 0x5c) {
+                out = abi.encodePacked(out, "\\\\");
+            } else if (c < 0x20) {
+                out = abi.encodePacked(out, "\\u00", _hexPair(c));
+            } else {
+                out = abi.encodePacked(out, b[i]);
+            }
+        }
+        return string(out);
+    }
+
+    function _hexPair(uint8 c) private pure returns (string memory) {
+        bytes memory HEXD = "0123456789abcdef";
+        bytes memory r = new bytes(2);
+        r[0] = HEXD[c >> 4];
+        r[1] = HEXD[c & 0x0f];
+        return string(r);
     }
 
     // --- spec-strict ERC-7857: ownership moves ONLY through transfer() with an oracle proof ---

@@ -25,11 +25,12 @@ abstract contract AuraBase is Test {
     address other    = makeAddr("other");
 
     uint16 constant PLATFORM_BPS = 250; // 2.5%
+    string constant IMAGE_BASE = "https://aura.topengdev.com/images/";
 
     function setUp() public virtual {
         attestor = vm.addr(attestorPk);
         reg = new AgentRegistry();
-        outNft = new OutputNFT(address(reg), attestor);
+        outNft = new OutputNFT(address(reg), attestor, IMAGE_BASE);
         mkt = new AuraMarketplace(platform, PLATFORM_BPS);
         mkt.setAllowedCollection(address(reg), true);
         mkt.setAllowedCollection(address(outNft), true);

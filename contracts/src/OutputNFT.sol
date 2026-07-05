@@ -7,6 +7,8 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {AgentRegistry} from "./AgentRegistry.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 /// @title OutputNFT - the artwork NFT (ERC-721 + DYNAMIC EIP-2981 royalty + EIP-712 attestation gate)
 /// @notice Each artwork records WHICH agent created it + the 0G provenance (storage root,
@@ -22,6 +24,7 @@ import {AgentRegistry} from "./AgentRegistry.sol";
 ///         provenance), and a per-signature nonce blocks replay. Forged/garbage/replayed -> revert.
 contract OutputNFT is ERC721, IERC2981, EIP712 {
     using ECDSA for bytes32;
+    using Strings for uint256;
 
     struct Provenance {
         uint256 creatorAgentId; // which agent made it -> routes royalty
@@ -34,6 +37,12 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
     AgentRegistry public immutable registry;
     /// @notice The backend signer (TEE-attestation authority). Set at deploy; mints require its sig.
     address public immutable attestor;
+
+    /// @notice Base URL the ERC-721 tokenURI() image field is built on: image = baseImageURI + imageRoot.
+    ///         Settable by the attestor (the backend authority that already serves the images) so the origin
+    ///         can be repointed without a redeploy. Purely a display concern, never affecting provenance,
+    ///         royalty, minting, or the immutable registry pointer.
+    string public baseImageURI;
 
     uint256 public nextTokenId = 1;
     mapping(uint256 => Provenance) private _prov;
@@ -67,13 +76,14 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         uint256 seed
     );
 
-    constructor(address registryAddr, address attestor_)
+    constructor(address registryAddr, address attestor_, string memory baseImageURI_)
         ERC721("Zero Cup Output", "ZCOUT")
         EIP712("AuraOutputNFT", "1")
     {
         require(attestor_ != address(0), "attestor required");
         registry = AgentRegistry(registryAddr);
         attestor = attestor_;
+        baseImageURI = baseImageURI_;
     }
 
     /// @notice Mint a provenance-stamped artwork. Requires a valid attestor EIP-712 signature.
@@ -224,6 +234,61 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
     function provenanceOf(uint256 tokenId) external view returns (Provenance memory) {
         require(_ownerOf(tokenId) != address(0), "no such output");
         return _prov[tokenId];
+    }
+
+    bytes32 private constant RARITY_TAG = keccak256("AURA-PULL-rarity-v1");
+
+    /// @notice ERC-721 Metadata: fully ON-CHAIN JSON (data:application/json;base64) assembled from the
+    ///         token's stored Provenance, with an https image pointing at the existing content-addressed
+    ///         image route. The attributes ARE the on-chain provenance (creator agent, image root, provenance
+    ///         hash, TEE attestation, seed) plus the provable rarity, so a generic explorer or wallet renders
+    ///         "art you can prove" without trusting any AURA server for the metadata itself.
+    function tokenURI(uint256 tokenId) public view override returns (string memory) {
+        require(_ownerOf(tokenId) != address(0), "no such output");
+        Provenance storage p = _prov[tokenId];
+        string memory image = string(abi.encodePacked(baseImageURI, p.imageRoot));
+        string memory attrs = string(
+            abi.encodePacked(
+                '{"trait_type":"Creator Agent","value":"', p.creatorAgentId.toString(), '"},',
+                '{"trait_type":"Image Root","value":"', p.imageRoot, '"},',
+                '{"trait_type":"Provenance Hash","value":"', Strings.toHexString(uint256(p.provenanceHash), 32), '"},',
+                '{"trait_type":"TEE Attestation","value":"', Strings.toHexString(uint256(p.teeAttestation), 32), '"},',
+                '{"trait_type":"Seed","value":"', p.seed.toString(), '"},',
+                '{"trait_type":"Rarity","value":"', _rarity(p.seed), '"}'
+            )
+        );
+        string memory json = string(
+            abi.encodePacked(
+                '{"name":"AURA Relic #', tokenId.toString(),
+                '","description":"A provenance-stamped artwork by AURA agent #', p.creatorAgentId.toString(),
+                ', with unforgeable on-chain proof of the agent and the TEE-verified model that made it. Art you can prove.",',
+                '"image":"', image, '",',
+                '"external_url":"https://aura.topengdev.com/outputs/', tokenId.toString(), '",',
+                '"attributes":[', attrs, ']}'
+            )
+        );
+        return string(abi.encodePacked("data:application/json;base64,", Base64.encode(bytes(json))));
+    }
+
+    /// @notice Repoint the tokenURI image origin (e.g. if the image host moves). Attestor-only and
+    ///         display-only, so it can never alter provenance, royalties, or ownership.
+    function setBaseImageURI(string calldata baseImageURI_) external {
+        require(msg.sender == attestor, "only attestor");
+        baseImageURI = baseImageURI_;
+    }
+
+    /// @dev Provable rarity, bit-exact with the server deriveRarity() (server/src/aura/gacha.ts): a legacy /
+    ///      non-pull decorative seed (< 2^64) reads as "Common" (no migration); a real pull seedRoot (a full
+    ///      keccak, uniform in 2^256) is bucketed by roll = uint256(keccak256(abi.encode(bytes32(seed),
+    ///      RARITY_TAG))) % 10000 into 80/15/4/1 (Common/Rare/Epic/Legendary). Pure and independently
+    ///      recomputable from the on-chain Provenance.seed alone, so the rarity trait is itself rig-evident.
+    function _rarity(uint256 seed) internal pure returns (string memory) {
+        if (seed < (uint256(1) << 64)) return "Common";
+        uint256 roll = uint256(keccak256(abi.encode(bytes32(seed), RARITY_TAG))) % 10000;
+        if (roll < 8000) return "Common";
+        if (roll < 9500) return "Rare";
+        if (roll < 9900) return "Epic";
+        return "Legendary";
     }
 
     /// @inheritdoc IERC2981

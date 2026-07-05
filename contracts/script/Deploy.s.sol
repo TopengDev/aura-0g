@@ -33,11 +33,12 @@ contract Deploy is Script {
         address attestor = vm.envOr("ATTESTOR_ADDR", me);
         address platform = vm.envOr("PLATFORM_ADDR", me);
         uint16 platformBps = uint16(vm.envOr("PLATFORM_BPS", uint256(250)));
+        string memory imageBaseURI = vm.envOr("IMAGE_BASE_URI", string("https://aura.topengdev.com/images/"));
 
         vm.startBroadcast(pk);
 
         AgentRegistry reg = new AgentRegistry();
-        OutputNFT outNft = new OutputNFT(address(reg), attestor);
+        OutputNFT outNft = new OutputNFT(address(reg), attestor, imageBaseURI);
         AuraMarketplace mkt = new AuraMarketplace(platform, platformBps);
         // SummonEscrow: demand-pull commissioning. attestor == the OutputNFT attestor (the runner settles
         // mints), platform + bps mirror the marketplace's split.
