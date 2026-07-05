@@ -17,6 +17,10 @@ export const CONTRACTS = {
   // NEXT_PUBLIC_SUMMON_ESCROW; empty => the Summon UI shows a disabled "not available" state (graceful).
   summonEscrow: (process.env.NEXT_PUBLIC_SUMMON_ESCROW ??
     "0xa5CeFBc097d84beE09b12fc1569B6CcA56992838") as `0x${string}` | "",
+  // AuraINFT (the REAL ERC-7857 iNFT). Set by the AuraINFT cutover (NEXT_PUBLIC_AURA_INFT); empty (default)
+  // => agents mint on the legacy AgentRegistry. The web NEVER hardcodes which: the /agents/create response
+  // carries `contract` + `standard`, and useMint dispatches on that, so a rebuild is not required to flip.
+  auraINFT: (process.env.NEXT_PUBLIC_AURA_INFT ?? "") as `0x${string}` | "",
 } as const;
 
 /** Is the Summon feature wired (the escrow address is configured)? */
@@ -180,6 +184,45 @@ export const agentRegistryAbi = [
       { name: "styleFingerprint", type: "bytes32", indexed: false },
       { name: "royaltyBps", type: "uint16", indexed: false },
       { name: "modelAttestation", type: "bytes32", indexed: false },
+    ],
+  },
+] as const;
+
+// ── AuraINFT.mintAgent (the ERC-7857 /create write, post-cutover) ──────────
+// The REAL iNFT mint: a SUPERSET of AgentRegistry.mintAgent that adds bytes32 dataHash (sha256 of the
+// encrypted brain envelope) + bytes sealedKey (the AES data-key ECIES-sealed to the owner's wallet pubkey),
+// so ownership is bound + re-keyable per ERC-7857. The backend supplies all 9 args verbatim (contract +
+// standard:"erc7857" in the /agents/create response); the wallet only signs. Its AgentMinted event carries an
+// extra dataHash field vs AgentRegistry's, so the new agentId is parsed against THIS abi on the erc7857 path.
+export const auraInftAbi = [
+  {
+    type: "function",
+    name: "mintAgent",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "name", type: "string" },
+      { name: "styleFingerprint", type: "bytes32" },
+      { name: "encBrainRoot", type: "string" },
+      { name: "dataHash", type: "bytes32" },
+      { name: "modelAttestation", type: "bytes32" },
+      { name: "royaltyBps", type: "uint16" },
+      { name: "creatorResaleBps", type: "uint16" },
+      { name: "sealedKey", type: "bytes" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  {
+    type: "event",
+    name: "AgentMinted",
+    inputs: [
+      { name: "agentId", type: "uint256", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "name", type: "string", indexed: false },
+      { name: "styleFingerprint", type: "bytes32", indexed: false },
+      { name: "royaltyBps", type: "uint16", indexed: false },
+      { name: "modelAttestation", type: "bytes32", indexed: false },
+      { name: "dataHash", type: "bytes32", indexed: false },
     ],
   },
 ] as const;

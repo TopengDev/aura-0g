@@ -5,7 +5,7 @@
 // per-agent OUTPUT set (outputCount + token ids) is re-backed by the indexer read model (it already
 // derives outputs[] from OutputNFT events), so a read no longer does an O(mints) sequential provenanceOf
 // scan. The chain scan survives ONLY as an indexer-down fallback, behind a short in-process cache.
-import { registryRead, outputRead } from "./contracts.js";
+import { agentsRead, outputRead } from "./contracts.js";
 import { CATALOG, CATALOG_ORDER, metaForName } from "./catalog.js";
 import { INDEXER_URL, INDEXER_TIMEOUT_MS } from "./config.js";
 import type { AgentSummary, AgentDetail, AgentPublicMeta } from "./types.js";
@@ -83,7 +83,7 @@ interface OnChainAgent {
 /** Enumerate every minted agent on-chain (1 .. nextAgentId-1). Kept as the indexer-down fallback
  *  (routes/indexer.ts prefers the indexer; this chain scan only runs when the indexer is unreachable). */
 async function onChainAgents(): Promise<OnChainAgent[]> {
-  const reg = registryRead();
+  const reg = agentsRead();
   const next = Number(await reg.nextAgentId());
   const out: OnChainAgent[] = [];
   for (let i = 1; i < next; i++) {
@@ -193,7 +193,7 @@ function summaryFromChain(oc: OnChainAgent, counts: Map<number, number[]>, meta:
 }
 
 export async function getAgentById(agentId: number): Promise<AgentDetail | null> {
-  const reg = registryRead();
+  const reg = agentsRead();
   // immutable DNA + live owner in parallel; the output set comes from the indexer (agentOutputs), not an
   // O(mints) scan. (This is the root fix that also removes the per-message chat scan -- see getAgentIdentity.)
   let a: any;
@@ -229,7 +229,7 @@ export async function getAgentById(agentId: number): Promise<AgentDetail | null>
  *  turn never pays the O(mints) provenanceOf scan (was ~3-6s/message, growing). `outputs` is left empty (the
  *  persona uses only the count). */
 export async function getAgentIdentity(agentId: number): Promise<AgentDetail | null> {
-  const reg = registryRead();
+  const reg = agentsRead();
   let a: any;
   let owner: string;
   try {
@@ -259,7 +259,7 @@ export async function getAgentIdentity(agentId: number): Promise<AgentDetail | n
 
 /** Raw on-chain agent (name + encBrainRoot) for the generalized generator. */
 export async function rawAgent(agentId: number): Promise<{ agentId: number; name: string; encBrainRoot: string; owner: string } | null> {
-  const reg = registryRead();
+  const reg = agentsRead();
   try {
     const a = await reg.getAgent(agentId);
     const owner = await reg.ownerOf(agentId);

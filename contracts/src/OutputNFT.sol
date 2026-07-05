@@ -7,7 +7,7 @@ import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
-import {AgentRegistry} from "./AgentRegistry.sol";
+import {IAuraRegistry} from "./IAuraRegistry.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
@@ -36,7 +36,11 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         uint256 seed;           // generation seed
     }
 
-    AgentRegistry public immutable registry;
+    /// @notice The agent registry OutputNFT routes royalties through (ownerOf + royaltyBpsOf). Bound by
+    ///         INTERFACE (IAuraRegistry), so it can point at the legacy AgentRegistry OR the real ERC-7857
+    ///         AuraINFT - the AuraINFT cutover deploys OutputNFT with this set to the AuraINFT address.
+    ///         Immutable, so the registry is fixed at deploy (the reason the cutover REDEPLOYS OutputNFT).
+    IAuraRegistry public immutable registry;
     /// @notice The backend signer (TEE-attestation authority). Set at deploy; mints require its sig.
     address public immutable attestor;
 
@@ -118,7 +122,7 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         EIP712("AuraOutputNFT", "1")
     {
         require(attestor_ != address(0), "attestor required");
-        registry = AgentRegistry(registryAddr);
+        registry = IAuraRegistry(registryAddr);
         attestor = attestor_;
         baseImageURI = baseImageURI_;
     }

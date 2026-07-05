@@ -26,6 +26,7 @@ import {
 
 import { createPublicClient, http } from "viem";
 import { AgentRegistryAbi } from "../abis/AgentRegistry";
+import { AuraINFTAbi } from "../abis/AuraINFT";
 
 const ZERO = "0x0000000000000000000000000000000000000000";
 
@@ -40,6 +41,11 @@ const DEPLOYED = JSON.parse(
 );
 const ADDR_AGENT = String(DEPLOYED.agentRegistry).toLowerCase();
 const ADDR_OUTPUT = String(DEPLOYED.outputNFT).toLowerCase();
+// AuraINFT (ERC-7857 cutover) collection address. "" (pre-cutover) => a placeholder that no real event matches,
+// so classification is inert until the cutover sets deployed-v2.json.auraINFT.
+const ADDR_AURAINFT = /^0x[0-9a-fA-F]{40}$/.test(String(DEPLOYED.auraINFT ?? ""))
+  ? String(DEPLOYED.auraINFT).toLowerCase()
+  : "0x000000000000000000000000000000000000dead";
 
 // Standalone viem client for reading IMMUTABLE agent state (creatorResaleBps) at "latest". We do NOT
 // use Ponder's context.client here because it pins eth_call to the event's (historical) block, and 0G
@@ -50,14 +56,17 @@ const RPC = process.env.PONDER_RPC_URL_16602 ?? String(DEPLOYED.rpcUrl);
 const stateClient = createPublicClient({ transport: http(RPC) });
 const creatorResaleCache = new Map<string, number>();
 
-async function readCreatorResaleBps(agentId: bigint): Promise<number> {
-  const key = agentId.toString();
+// creatorResaleBps is NOT in the AgentMinted event; read it (immutable post-mint -> prune-safe at "latest")
+// from the registry the agent lives on. Parameterized by (address, abi) so it serves BOTH AgentRegistry and
+// AuraINFT, cached by `${address}:${agentId}` so the two registries never collide on a shared numeric id.
+async function readCreatorResaleBps(address: string, abi: unknown, agentId: bigint): Promise<number> {
+  const key = `${address.toLowerCase()}:${agentId.toString()}`;
   const cached = creatorResaleCache.get(key);
   if (cached !== undefined) return cached;
   try {
     const v = (await stateClient.readContract({
-      abi: AgentRegistryAbi,
-      address: DEPLOYED.agentRegistry as `0x${string}`,
+      abi: abi as never,
+      address: address as `0x${string}`,
       functionName: "creatorResaleBpsOf",
       args: [agentId],
       // default blockTag is "latest" - prune-safe, and the value is immutable post-mint.
@@ -73,6 +82,7 @@ async function readCreatorResaleBps(agentId: bigint): Promise<number> {
 function collectionKind(collection: string): "agent" | "output" | "unknown" {
   const c = collection.toLowerCase();
   if (c === ADDR_AGENT) return "agent";
+  if (c === ADDR_AURAINFT) return "agent"; // AuraINFT agents are the same read-model "agent" kind
   if (c === ADDR_OUTPUT) return "output";
   return "unknown";
 }
@@ -111,7 +121,7 @@ ponder.on("AgentRegistry:AgentMinted", async ({ event, context }) => {
 
   // creatorResaleBps is NOT in the AgentMinted event; read it (immutable, at "latest") via the
   // prune-safe standalone client (see readCreatorResaleBps above for why not context.client).
-  const creatorResaleBps = await readCreatorResaleBps(agentId);
+  const creatorResaleBps = await readCreatorResaleBps(DEPLOYED.agentRegistry, AgentRegistryAbi, agentId);
 
   await context.db
     .insert(agents)
@@ -214,6 +224,121 @@ ponder.on("AgentRegistry:Transfer", async ({ event, context }) => {
     agentId: tokenId,
     actor: from.toLowerCase() as `0x${string}`,
     counterparty: to.toLowerCase() as `0x${string}`,
+  });
+});
+
+// ───────────────────────────── AuraINFT ─────────────────────────────
+// The REAL ERC-7857 registry (post-cutover). Feeds the SAME agents read-model as AgentRegistry, so a migrated
+// or newly-created iNFT agent is visible via the indexer. Inert (burn address) until deployed-v2.json.auraINFT
+// is set. AuraINFT.AgentMinted carries an extra bytes32 dataHash vs AgentRegistry's (not destructured here);
+// ownership moves via the proof-gated transfer(), whose internal _transfer still emits ERC721 Transfer + BrainRekeyed.
+
+ponder.on("AuraINFT:AgentMinted", async ({ event, context }) => {
+  const { agentId, owner, name, styleFingerprint, royaltyBps, modelAttestation } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  const creatorResaleBps = await readCreatorResaleBps(context.contracts.AuraINFT.address, AuraINFTAbi, agentId);
+
+  await context.db
+    .insert(agents)
+    .values({
+      agentId,
+      owner: owner.toLowerCase() as `0x${string}`,
+      creator: owner.toLowerCase() as `0x${string}`, // minter == original creator (resale-royalty target)
+      name,
+      styleFingerprint,
+      modelAttestation,
+      royaltyBps: Number(royaltyBps),
+      creatorResaleBps,
+      styleVersion: 1,
+      encBrainRoot: null,
+      mintedAt: ts,
+      mintBlock: event.block.number,
+      mintLogIndex: event.log.logIndex,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate((row) => ({
+      owner: row.owner, // don't clobber a later Transfer on a re-index replay
+      name,
+      styleFingerprint,
+      modelAttestation,
+      royaltyBps: Number(royaltyBps),
+      creatorResaleBps,
+    }));
+
+  await context.db.insert(agentStats).values({ agentId, name, lastActivityAt: ts }).onConflictDoUpdate({ name });
+  await context.db.insert(agentEarnings).values({ agentId }).onConflictDoNothing();
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "agent_mint",
+    orderKey: ok,
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: ts,
+    txHash: event.transaction.hash,
+    collection: context.contracts.AuraINFT.address.toLowerCase() as `0x${string}`,
+    collectionKind: "agent",
+    tokenId: agentId,
+    agentId,
+    actor: owner.toLowerCase() as `0x${string}`,
+  });
+});
+
+ponder.on("AuraINFT:Transfer", async ({ event, context }) => {
+  const { from, to, tokenId } = event.args; // tokenId == agentId
+  if (from === ZERO) return; // mint Transfer: AgentMinted creates the row with the right owner.
+  await context.db
+    .update(agents, { agentId: tokenId })
+    .set({ owner: to.toLowerCase() as `0x${string}` })
+    .catch((e) => onUpdateError("AuraINFT:Transfer agents", e));
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "transfer",
+    orderKey: orderKey(event.block.number, event.log.logIndex),
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: event.block.timestamp,
+    txHash: event.transaction.hash,
+    collection: context.contracts.AuraINFT.address.toLowerCase() as `0x${string}`,
+    collectionKind: "agent",
+    tokenId,
+    agentId: tokenId,
+    actor: from.toLowerCase() as `0x${string}`,
+    counterparty: to.toLowerCase() as `0x${string}`,
+  });
+});
+
+ponder.on("AuraINFT:BrainRekeyed", async ({ event, context }) => {
+  // Sealed re-key transfer: rotate the on-chain brain pointer + (defensively) the owner. The paired ERC721
+  // Transfer already logged the "transfer" event + moved owner; this keeps encBrainRoot current (idempotent).
+  const { agentId, newEncRoot, newOwner } = event.args;
+  await context.db
+    .update(agents, { agentId })
+    .set({ encBrainRoot: newEncRoot, owner: newOwner.toLowerCase() as `0x${string}` })
+    .catch((e) => onUpdateError("AuraINFT:BrainRekeyed agents", e));
+});
+
+ponder.on("AuraINFT:BrainUpdated", async ({ event, context }) => {
+  const { agentId, encBrainRoot, styleVersion } = event.args;
+  await context.db
+    .update(agents, { agentId })
+    .set({ encBrainRoot, styleVersion: Number(styleVersion) })
+    .catch((e) => onUpdateError("AuraINFT:BrainUpdated agents", e));
+
+  await context.db.insert(events).values({
+    id: eventId(event.block.number, event.log.logIndex),
+    kind: "brain_update",
+    orderKey: orderKey(event.block.number, event.log.logIndex),
+    blockNumber: event.block.number,
+    logIndex: event.log.logIndex,
+    timestamp: event.block.timestamp,
+    txHash: event.transaction.hash,
+    collection: context.contracts.AuraINFT.address.toLowerCase() as `0x${string}`,
+    collectionKind: "agent",
+    tokenId: agentId,
+    agentId,
   });
 });
 

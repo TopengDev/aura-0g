@@ -120,6 +120,18 @@ export function registryRead() {
 export function auraInftConfigured(): boolean {
   return typeof CONTRACTS.auraINFT === "string" && /^0x[0-9a-fA-F]{40}$/.test(CONTRACTS.auraINFT);
 }
+/**
+ * The contract AGENTS live on: the REAL ERC-7857 AuraINFT once it is configured (post-cutover), else the
+ * legacy AgentRegistry. ownerOf + royaltyBpsOf + nextAgentId + getAgent (decoded by NAMED field, so the
+ * INFT tuple's extra dataHash is transparent) are all selector-compatible across the two, so EVERY
+ * agent-IDENTITY read routes through here and flips ATOMICALLY with auraInftConfigured(). This is the single
+ * lever that moves the reads + the memory ownerOf gate onto AuraINFT together with create/transfer (the
+ * audit's atomic-cutover tripwire: reads, memory gate, indexer, web mint, transfers must all agree agents =
+ * AuraINFT, or "create" breaks). Use this for agent identity; use registryRead() only for the legacy registry.
+ */
+export function agentsRead() {
+  return auraInftConfigured() ? auraInftRead() : registryRead();
+}
 /** AuraINFT read-only (ownerOf, getAgent, sealedKeyOf, oracle, transferProofDigest, usedProof, royaltyInfo). */
 export function auraInftRead() {
   if (!auraInftConfigured()) throw new Error("auraINFT not configured (set AURA_INFT_ADDR or deployed-v2.json auraINFT)");

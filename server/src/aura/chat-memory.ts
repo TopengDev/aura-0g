@@ -26,7 +26,7 @@
 // (owner-scoped to the live on-chain owner) + forward secrecy (prior epoch key dropped) hold regardless of
 // custody. Mainnet drops the custody copy + persists sealed segments on 0G Storage.
 import { db } from "./db.js";
-import { registryRead } from "./contracts.js";
+import { agentsRead } from "./contracts.js";
 import { pubkeyOf } from "./pubkey.js";
 import { newEpochKey, sealEpochKey } from "./memory/keyring.js";
 import { sealSegment, tryOpenSegment } from "./memory/segment.js";
@@ -133,7 +133,7 @@ interface EpochRow {
 type OwnerResolver = (agentId: number) => Promise<string | null>;
 const onChainResolver: OwnerResolver = async (agentId) => {
   try {
-    const owner = (await registryRead().ownerOf(agentId)) as string;
+    const owner = (await agentsRead().ownerOf(agentId)) as string;
     return owner ? owner.toLowerCase() : null;
   } catch {
     return null; // unresolved -> treat as "not the owner" (fail closed)

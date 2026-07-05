@@ -5,7 +5,8 @@
 // getTransactionReceipt manually (NEVER waitForTransactionReceipt - it hangs on the 0G RPC). Two writes:
 //   mintOutput(args)  -> OutputNFT.mintOutput(...) using the backend's attestation args; parses the new
 //                        tokenId out of the OutputMinted event.
-//   mintAgent(args)   -> AgentRegistry.mintAgent(...); parses the new agentId out of AgentMinted.
+//   mintAgent(args)   -> AuraINFT.mintAgent (ERC-7857, post-cutover) OR AgentRegistry.mintAgent (legacy),
+//                        dispatched on the backend-declared `standard`; parses the new agentId out of AgentMinted.
 // The backend supplies the args (and, for output, the attestor signature); the wallet only signs.
 
 import { useCallback, useState } from "react";
@@ -16,6 +17,7 @@ import { APP_CHAIN } from "@/lib/chains";
 import {
   CONTRACTS,
   agentRegistryAbi,
+  auraInftAbi,
   outputMintedEvent,
   outputNftAbi,
 } from "@/lib/contracts";
@@ -138,37 +140,72 @@ export function useMint() {
   );
 
   // ── MINT AGENT (the /create write) ─────────────────────────────────────────
-  // Submits AgentRegistry.mintAgent with the backend's computed args. Returns the new agentId (parsed
-  // from AgentMinted). The page then calls confirmAgentMint(encBrainRoot, agentId) to promote the brain.
+  // Submits the backend's computed mintAgent args at the backend-returned contract. Post-cutover the backend
+  // targets the REAL ERC-7857 AuraINFT (standard "erc7857": the 9-arg mint with dataHash + per-owner sealedKey);
+  // pre-cutover it targets the legacy AgentRegistry (7-arg). We ALWAYS mint at `args.contract` (never a hardcoded
+  // address), so the server is the single source of truth for which registry agents live on. Returns the new
+  // agentId (parsed from AgentMinted). The page then calls confirmAgentMint(encBrainRoot, agentId).
   const mintAgent = useCallback(
     async (args: CreateAgentArgs): Promise<number | null> => {
       try {
         if (!address) throw new Error("Connect a wallet first.");
         await ensureChain();
         setState({ ...IDLE, phase: "pending", step: "Confirm the agent mint in your wallet" });
-        const hash = await writeContract(config, {
-          address: CONTRACTS.agentRegistry,
-          abi: agentRegistryAbi,
-          functionName: "mintAgent",
-          args: [
-            args.to as `0x${string}`,
-            args.name,
-            args.styleFingerprint as `0x${string}`,
-            args.encBrainRoot,
-            args.modelAttestation as `0x${string}`,
-            args.royaltyBps,
-            args.creatorResaleBps,
-          ],
-          chainId: APP_CHAIN.id,
-        });
+
+        const isInft = args.standard === "erc7857";
+        const target = args.contract as `0x${string}`;
+        let hash: `0x${string}`;
+        if (isInft) {
+          // ERC-7857 (AuraINFT): the brain must be sealed to the owner (dataHash + sealedKey). The backend
+          // fail-fasts (409) when the owner has no recovered pubkey, so both should be present here; guard anyway.
+          if (!args.dataHash || !args.sealedKey) {
+            throw new Error("Sign in first: the ERC-7857 mint seals the agent brain to your wallet. Log in, then create.");
+          }
+          hash = await writeContract(config, {
+            address: target,
+            abi: auraInftAbi,
+            functionName: "mintAgent",
+            args: [
+              args.to as `0x${string}`,
+              args.name,
+              args.styleFingerprint as `0x${string}`,
+              args.encBrainRoot,
+              args.dataHash as `0x${string}`,
+              args.modelAttestation as `0x${string}`,
+              args.royaltyBps,
+              args.creatorResaleBps,
+              args.sealedKey as `0x${string}`,
+            ],
+            chainId: APP_CHAIN.id,
+          });
+        } else {
+          hash = await writeContract(config, {
+            address: target,
+            abi: agentRegistryAbi,
+            functionName: "mintAgent",
+            args: [
+              args.to as `0x${string}`,
+              args.name,
+              args.styleFingerprint as `0x${string}`,
+              args.encBrainRoot,
+              args.modelAttestation as `0x${string}`,
+              args.royaltyBps,
+              args.creatorResaleBps,
+            ],
+            chainId: APP_CHAIN.id,
+          });
+        }
         setState((s) => ({ ...s, txHash: hash, phase: "confirming", step: "Registering the agent on-chain" }));
         const receipt = await pollReceipt(config, hash, APP_CHAIN.id, { timeoutMs: 180_000 });
         if (receipt.status !== "success") throw new Error("The agent mint reverted on-chain.");
 
+        // Parse the new agentId from AgentMinted, decoding against the path we minted through (AuraINFT's event
+        // carries an extra dataHash field vs AgentRegistry's).
+        const eventAbi = isInft ? auraInftAbi : agentRegistryAbi;
         let mintedId: number | null = null;
         for (const log of receipt.logs) {
           try {
-            const parsed = decodeEventLog({ abi: agentRegistryAbi, data: log.data, topics: log.topics });
+            const parsed = decodeEventLog({ abi: eventAbi, data: log.data, topics: log.topics });
             if (parsed.eventName === "AgentMinted") {
               mintedId = Number((parsed.args as { agentId: bigint }).agentId);
               break;

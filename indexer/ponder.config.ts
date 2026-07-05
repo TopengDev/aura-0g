@@ -16,14 +16,26 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { AgentRegistryAbi } from "./abis/AgentRegistry";
+import { AuraINFTAbi } from "./abis/AuraINFT";
 import { OutputNFTAbi } from "./abis/OutputNFT";
 import { AuraMarketplaceAbi } from "./abis/AuraMarketplace";
 import { SummonEscrowAbi } from "./abis/SummonEscrow";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+// AuraINFT (ERC-7857 cutover). When deployed-v2.json.auraINFT is a real address, index it from its deploy
+// block so migrated/created agents are visible via the indexer (the audit's atomic tripwire: reads must see
+// AuraINFT). When it is unset (pre-cutover), register an INERT placeholder (a burn address at a far-future
+// startBlock) so the config + Ponder-generated types stay STABLE (the AuraINFT handlers always typecheck) yet
+// NOTHING is indexed. The cutover just sets auraINFT + auraInftDeployBlock in deployed-v2.json to light it up.
+const ADDR_RE = /^0x[0-9a-fA-F]{40}$/;
+const AURAINFT_DISABLED_ADDR = "0x000000000000000000000000000000000000dEaD";
+const AURAINFT_DISABLED_BLOCK = 999_999_999; // far beyond the chain head -> never scanned, never indexed
+
 interface DeployedV2 {
   agentRegistry: string;
+  auraINFT: string;
+  auraInftDeployBlock: number;
   outputNFT: string;
   marketplace: string;
   summonEscrow: string;
@@ -37,8 +49,13 @@ function loadDeployed(): DeployedV2 {
   // indexer/ -> ../contracts/deployed-v2.json
   const p = path.join(__dirname, "..", "contracts", "deployed-v2.json");
   const j = JSON.parse(readFileSync(p, "utf8"));
+  const auraRaw = typeof j.auraINFT === "string" ? j.auraINFT : "";
+  const auraEnabled = ADDR_RE.test(auraRaw);
   return {
     agentRegistry: j.agentRegistry,
+    // AuraINFT cutover slot: real address + deploy block when set, else the inert placeholder (see above).
+    auraINFT: auraEnabled ? auraRaw : AURAINFT_DISABLED_ADDR,
+    auraInftDeployBlock: auraEnabled ? Number(j.auraInftDeployBlock ?? j.deployBlock) : AURAINFT_DISABLED_BLOCK,
     outputNFT: j.outputNFT,
     marketplace: j.marketplace,
     summonEscrow: j.summonEscrow ?? "",
@@ -77,6 +94,15 @@ export default createConfig({
       chain: "galileo",
       address: D.agentRegistry as `0x${string}`,
       startBlock: D.deployBlock,
+    },
+    // AuraINFT (the REAL ERC-7857 registry, post-cutover). Its AgentMinted / Transfer / BrainRekeyed /
+    // BrainUpdated feed the SAME agents read-model as AgentRegistry, so a migrated or newly-created iNFT agent
+    // is visible via the indexer. Inert (burn address, far-future block) until deployed-v2.json.auraINFT is set.
+    AuraINFT: {
+      abi: AuraINFTAbi,
+      chain: "galileo",
+      address: D.auraINFT as `0x${string}`,
+      startBlock: D.auraInftDeployBlock,
     },
     OutputNFT: {
       abi: OutputNFTAbi,
