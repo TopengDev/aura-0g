@@ -24,6 +24,7 @@ import { summonRoutes } from "./routes/summon.js";
 import { chatRoutes } from "./routes/chat.js";
 import { gameFuseRoutes } from "./routes/game-fuse.js";
 import { gameArenaRoutes } from "./routes/game-arena.js";
+import { gameReputationRoutes } from "./routes/game-reputation.js";
 
 export async function buildApp(opts: { logger?: boolean } = {}): Promise<FastifyInstance> {
   const app = Fastify({
@@ -86,6 +87,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // Every flow is graceful-off (501) until the phase-4 deploy wires AuraFusion / ArenaVote.
   await app.register(gameFuseRoutes);
   await app.register(gameArenaRoutes);
+  await app.register(gameReputationRoutes); // Tier-2: Glicko rating ladder + Merkle anchor + keyless recompute
 
   // boot housekeeping: any job left mid-flight by a previous process can never finish -> mark failed.
   const reaped = reapOrphanJobs();

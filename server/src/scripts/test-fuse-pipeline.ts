@@ -203,7 +203,10 @@ async function main() {
   ok(strangerFailed, "a STRANGER cannot open the childSealedKey (sealed to the fuser only)");
   ok(res.portrait.imageRoot === portraitRoot && res.portrait.teeVerified === true, "child portrait was generated through the TEE-attested path (verified=true)");
   ok(res.memory?.l2Reset === true && (res.memory?.inheritedL1Count ?? 0) >= 1, "pipeline memory verdict: L2 reset + L1 inherited");
-  ok(res.portrait.prompt.includes(picks.palette), "the gen prompt carried the genome-blended style (visible blend into the render)");
+  // the prompt must carry THIS child's genome-blended style (derived from res.childGenome, which is bound to
+  // the real fuser's seed - NOT the fixed-vector `picks` above, which used a different fuser).
+  const resPicks = genomeToStyle(res.childGenome);
+  ok(res.portrait.prompt.includes(resPicks.palette) && res.portrait.prompt.includes(resPicks.light), "the gen prompt carried the genome-blended style (visible blend into the render)");
 
   console.log(`\n=== fuse pipeline: ${pass}/${pass} assertions PASS ===\n`);
 }
