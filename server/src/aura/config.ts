@@ -27,6 +27,10 @@ interface DeployedV2 {
   outputNFT: string;
   marketplace: string;
   summonEscrow: string; // integrated deploy: the demand-pull commissioning escrow ("" if not deployed)
+  // ── game layer (phase 1 contracts; "" until the phase-4 deploy wires them; all graceful-off) ──
+  arenaVote: string; // Creative Arena blind/staked commit-reveal battle vote (ArenaVote.sol)
+  auraFusion: string; // FUSION: hybrid-child mint from two parents + on-chain genome (AuraFusion.sol)
+  arenaReputation: string; // Tier-2 rating-ladder Merkle anchor (ArenaReputation.sol)
   attestor: string;
   platform: string;
   platformBps: number;
@@ -45,6 +49,12 @@ function loadDeployed(): DeployedV2 {
     outputNFT: j.outputNFT,
     marketplace: j.marketplace,
     summonEscrow: j.summonEscrow ?? "",
+    // OPTIONAL + additive (same graceful pattern as auraINFT/summonEscrow): the game-layer contracts are
+    // "" until the phase-4 deploy wires them, so a missing field never breaks the live demo. Present once
+    // ArenaVote / AuraFusion / ArenaReputation are deployed on Galileo (folded into the DeployCutover).
+    arenaVote: j.arenaVote ?? "",
+    auraFusion: j.auraFusion ?? "",
+    arenaReputation: j.arenaReputation ?? "",
     attestor: j.attestor,
     platform: j.platform,
     platformBps: Number(j.platformBps),
@@ -66,6 +76,11 @@ export const CONTRACTS = {
   // Summon escrow: from deployed-v2.json (the integrated deploy populates it), env-overridable for local
   // anvil e2e. Empty string => the Summon feature/watcher stays OFF (graceful).
   summonEscrow: process.env.SUMMON_ESCROW_ADDR ?? DEPLOYED.summonEscrow ?? "",
+  // ── game layer (ArenaVote / AuraFusion / ArenaReputation). Env-overridable for the local-anvil game e2e,
+  // else read from deployed-v2.json. Empty string => that game flow stays OFF (graceful), same as auraINFT. ──
+  arenaVote: process.env.ARENA_VOTE_ADDR ?? DEPLOYED.arenaVote ?? "",
+  auraFusion: process.env.AURA_FUSION_ADDR ?? DEPLOYED.auraFusion ?? "",
+  arenaReputation: process.env.ARENA_REPUTATION_ADDR ?? DEPLOYED.arenaReputation ?? "",
 } as const;
 
 // EIP-712 domain the deployed OutputNFT verifies: EIP712("AuraOutputNFT","1") + chainId + verifyingContract.

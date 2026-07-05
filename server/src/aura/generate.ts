@@ -189,6 +189,11 @@ export interface GenerateCoreInput {
   // the hash-into-pools subject that drives the style-lock-only render prompt. Absent on the HTTP/catalog
   // path, which keeps its small decorative random seed (-> Common rarity, no behavior change).
   pull?: { seedRoot: bigint; subjectProse: string };
+  // FUSION path (additive, game layer only). When present, generateAndProve SKIPS resolveGenConfig and uses
+  // this caller-supplied { baseBytes, prompt } directly - the fused child has no brain yet, so the fuse
+  // pipeline supplies a parent reference as the edit base + the genome-derived blended-style prompt. Every
+  // OTHER caller leaves it undefined and resolves config the normal way (zero regression).
+  overrideConfig?: ResolvedGenConfig;
 }
 
 export interface GenerateHooks {
@@ -204,9 +209,11 @@ export interface GenerateHooks {
 export async function generateAndProve(input: GenerateCoreInput, hooks: GenerateHooks = {}): Promise<GenProof> {
   const { agentId, agentName, encBrainRoot, userPrompt } = input;
   hooks.onStage?.("generating", "resolving gen config + connecting to 0G Compute");
-  const cfg = await resolveGenConfig(agentId, agentName, encBrainRoot, userPrompt, {
+  // FUSION supplies { baseBytes, prompt } directly (the child has no brain to resolve); every other path
+  // resolves from the agent's brain/catalog as before.
+  const cfg = input.overrideConfig ?? (await resolveGenConfig(agentId, agentName, encBrainRoot, userPrompt, {
     pullSubject: input.pull?.subjectProse,
-  });
+  }));
 
   hooks.onStage?.("generating", `generating inside the TEE (~45s) [${cfg.usedBrain ? "brain" : "catalog"}]`);
   const signer = sponsorSigner(); // 0G STORAGE stays testnet (storage is testnet-only); compute may be mainnet.
