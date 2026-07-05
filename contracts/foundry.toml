@@ -9,6 +9,9 @@ solc = "0.8.28"
 evm_version = "cancun"
 optimizer = true
 optimizer_runs = 200
+# via-ir: OutputNFT.mintOutputVerified takes 10 args (4 dynamic = 2 stack slots each) which overflows the
+# legacy codegen stack; the IR pipeline resolves it (semantics identical). Optimizer stays on (via-ir requires it).
+via_ir = true
 remappings = [
     "@openzeppelin/=lib/openzeppelin-contracts/",
 ]

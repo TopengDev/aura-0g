@@ -106,6 +106,16 @@ export async function mintArgsRoutes(app: FastifyInstance): Promise<void> {
         attestationSig,
         eip712: eip712Block(params),
       };
+
+      // On-chain-verified mint: when the gen captured 0G's raw signed envelope, surface it so the client calls
+      // mintOutputVerified (the contract ecrecovers 0G's enclave signature). teeAttestation above already equals
+      // keccak(teeText) on this path (set in generate.ts), so the attestor's MintAuth signature covers teeText.
+      if (r.teeText && r.teeSig) {
+        out.teeText = r.teeText;
+        out.teeSig = r.teeSig;
+        out.teeSigner = r.teeSignerVerified ?? undefined;
+        out.dataHash = r.dataHash ?? undefined;
+      }
       return out;
     },
   );

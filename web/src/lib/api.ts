@@ -436,6 +436,12 @@ export interface MintArgs {
   seed: string;
   nonce: string;
   attestationSig: string;
+  // On-chain-verified mint: when BOTH are present the client calls OutputNFT.mintOutputVerified (the contract
+  // ecrecovers 0G's enclave signature); otherwise it calls mintOutput. Absent on the testnet fallback path.
+  teeText?: string;
+  teeSig?: string;
+  teeSigner?: string;
+  dataHash?: string;
   eip712: {
     domain: { name: string; version: string; chainId: number; verifyingContract: string };
     types: Record<string, { name: string; type: string }[]>;

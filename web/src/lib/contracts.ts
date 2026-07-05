@@ -119,6 +119,27 @@ export const outputNftAbi = [
     ],
     outputs: [{ name: "", type: "uint256" }],
   },
+  // The ON-CHAIN 0G-TeeML-verified mint. Superset of mintOutput (+ teeText, teeSig): the contract ecrecovers
+  // 0G's enclave signature over teeText and reverts on forgery. Used when the backend surfaces a verified
+  // envelope (MintArgs.teeText + teeSig); otherwise the client uses mintOutput. Emits OutputMinted too.
+  {
+    type: "function",
+    name: "mintOutputVerified",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "creatorAgentId", type: "uint256" },
+      { name: "imageRoot", type: "string" },
+      { name: "provenanceHash", type: "bytes32" },
+      { name: "teeAttestation", type: "bytes32" },
+      { name: "seed", type: "uint256" },
+      { name: "nonce", type: "bytes32" },
+      { name: "attestationSig", type: "bytes" },
+      { name: "teeText", type: "string" },
+      { name: "teeSig", type: "bytes" },
+    ],
+    outputs: [{ name: "", type: "uint256" }],
+  },
   {
     type: "function",
     name: "usedNonce",

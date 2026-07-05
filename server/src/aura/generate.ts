@@ -11,7 +11,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { ethers } from "ethers";
 import { sponsorSigner } from "./wallet.js";
-import { getBroker, imageService, generate } from "./compute.js";
+import { imageBroker, imageNetwork, imageService, generate } from "./compute.js";
 import { store } from "./storage.js";
 import { cacheImageByRoot, resolveBytesByRoot } from "./image-cache.js";
 import { baseForSeededAgent, fallbackPrompt } from "./catalog.js";
@@ -170,6 +170,12 @@ export interface GenProof {
   prompt: string;
   usedBrain: boolean;
   provenanceRecord: unknown;
+  // NEW (feat/onchain-verify-mint): 0G's raw signed envelope for the ON-CHAIN verified mint. Null unless a
+  // genuine, image-bound TeeML envelope was captured + off-chain-verified (then the mint uses mintOutputVerified).
+  teeText: string | null;
+  teeSig: string | null;
+  dataHash: string | null; // 0x + sha256(imageBytes), == the 2nd half of teeText
+  teeSignerVerified: string | null; // the 0G enclave signer the on-chain mint must be pinned to
 }
 
 export interface GenerateCoreInput {
@@ -203,9 +209,10 @@ export async function generateAndProve(input: GenerateCoreInput, hooks: Generate
   });
 
   hooks.onStage?.("generating", `generating inside the TEE (~45s) [${cfg.usedBrain ? "brain" : "catalog"}]`);
-  const signer = sponsorSigner();
-  const broker = await getBroker(signer);
-  const svc = await imageService(broker);
+  const signer = sponsorSigner(); // 0G STORAGE stays testnet (storage is testnet-only); compute may be mainnet.
+  const net = imageNetwork();
+  const broker = await imageBroker(net);
+  const svc = await imageService(broker, net);
 
   const g = await generate(broker, svc, cfg.baseBytes, cfg.prompt);
 
@@ -247,9 +254,15 @@ export async function generateAndProve(input: GenerateCoreInput, hooks: Generate
   };
   const provBytes = Buffer.from(JSON.stringify(provenanceRecord, null, 2), "utf8");
   const provenanceHash = ethers.keccak256(provBytes);
-  const teeAttestation = ethers.keccak256(
-    ethers.toUtf8Bytes(`TeeML|dstack|${g.model}|${g.teeSigner}|${g.chatId}|${img.rootHash}`),
-  );
+  // On-chain-verified path: when 0G's raw signed envelope was captured, commit teeAttestation = keccak(teeText)
+  // so the attestor's MintAuth signature COVERS the exact TEE-signed bytes and OutputNFT.mintOutputVerified binds
+  // them on-chain. Otherwise keep the legacy self-authored label (the mintOutput fallback path). Both are a
+  // keccak256 bytes32, so the mint-args + contract shapes are unchanged either way.
+  const teeLabel = `TeeML|dstack|${g.model}|${g.teeSigner}|${g.chatId}|${img.rootHash}`;
+  const teeAttestation =
+    g.teeText && g.teeSig
+      ? ethers.keccak256(ethers.toUtf8Bytes(g.teeText))
+      : ethers.keccak256(ethers.toUtf8Bytes(teeLabel));
 
   return {
     imageRoot: img.rootHash,
@@ -266,6 +279,10 @@ export async function generateAndProve(input: GenerateCoreInput, hooks: Generate
     prompt: cfg.prompt,
     usedBrain: cfg.usedBrain,
     provenanceRecord,
+    teeText: g.teeText,
+    teeSig: g.teeSig,
+    dataHash: g.dataHash,
+    teeSignerVerified: g.teeText && g.teeSig ? g.teeSigner : null,
   };
 }
 
@@ -308,6 +325,10 @@ export async function runGeneration(input: GenerateInput): Promise<void> {
         seed: proof.seed.toString(), // uint256 as a decimal string (JSON/bigint-safe)
         mintable: true,
         usedBrain: proof.usedBrain,
+        teeText: proof.teeText,
+        teeSig: proof.teeSig,
+        dataHash: proof.dataHash,
+        teeSignerVerified: proof.teeSignerVerified,
       },
       proof.provenanceRecord,
     );

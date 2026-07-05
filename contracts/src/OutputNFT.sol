@@ -6,6 +6,7 @@ import {IERC2981} from "@openzeppelin/contracts/interfaces/IERC2981.sol";
 import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin/contracts/utils/cryptography/MessageHashUtils.sol";
 import {AgentRegistry} from "./AgentRegistry.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -25,6 +26,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 contract OutputNFT is ERC721, IERC2981, EIP712 {
     using ECDSA for bytes32;
     using Strings for uint256;
+    using MessageHashUtils for bytes32;
 
     struct Provenance {
         uint256 creatorAgentId; // which agent made it -> routes royalty
@@ -53,6 +55,18 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
     ///         is half of the H-1 fix (the other half is binding the settler into the signed payload).
     mapping(bytes32 => bool) public usedSettlementNonce;
 
+    /// @notice The 0G in-enclave TeeML signer AURA pins for the ON-CHAIN TEE-verified mint (mintOutputVerified).
+    ///         It is 0G's REAL published enclave signer (read from 0G's on-chain InferenceServing contract),
+    ///         NEVER a self-invented key - e.g. the mainnet z-image-turbo signer 0x592056E413aB456646a50441e52D5BA89527877D.
+    ///         Starts address(0) => the on-chain TEE gate is OFF (mintOutputVerified then behaves exactly like
+    ///         mintOutput). Owner-updatable via setTeeSigner so a 0G enclave key rotation is a 1-tx fix, not a redeploy.
+    address public teeSigner;
+    /// @notice Per-token 0G-attested sha256(imageBytes), extracted ON-CHAIN by mintOutputVerified from the exact
+    ///         TeeML-signed envelope. Zero for tokens minted via mintOutput or while the TEE gate was off. This is
+    ///         the canonical, chain-verified "0G attested THIS artwork's hash" commitment (a keyless /proof can
+    ///         curl the image and check sha256(image) == dataHashOf(tokenId)).
+    mapping(uint256 => bytes32) private _dataHash;
+
     // EIP-712 typed struct the backend attestor signs for the DIRECT mint (mintOutput).
     bytes32 private constant MINTAUTH_TYPEHASH = keccak256(
         "MintAuth(address to,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,uint256 nonce)"
@@ -75,6 +89,29 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         bytes32 teeAttestation,
         uint256 seed
     );
+
+    /// @notice Emitted (in addition to OutputMinted) when a Relic is minted through the ON-CHAIN 0G-TEE gate.
+    ///         `teeSigner` is the 0G enclave signer the contract recovered; `dataHash` is the sha256(image) 0G
+    ///         attested, bound to this token. Absent on mintOutput / gate-off mints.
+    event OutputTeeVerified(uint256 indexed tokenId, uint256 indexed creatorAgentId, address teeSigner, bytes32 dataHash);
+    /// @notice Emitted when the pinned 0G TEE signer is set or rotated.
+    event TeeSignerUpdated(address indexed previous, address indexed current);
+
+    /// @dev Memory bundle for mintOutputVerified's 10 args. The external fn packs its calldata args into this
+    ///      struct and hands ONE memory pointer to the internal mint, keeping the mint body under the EVM stack
+    ///      limit (10 dynamic-heavy calldata params would otherwise "stack too deep" without via-ir).
+    struct VerifiedMintArgs {
+        address to;
+        uint256 creatorAgentId;
+        string imageRoot;
+        bytes32 provenanceHash;
+        bytes32 teeAttestation;
+        uint256 seed;
+        bytes32 nonce;
+        bytes attestationSig;
+        string teeText;
+        bytes teeSig;
+    }
 
     constructor(address registryAddr, address attestor_, string memory baseImageURI_)
         ERC721("Zero Cup Output", "ZCOUT")
@@ -175,6 +212,105 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         _prov[tokenId] = Provenance(creatorAgentId, imageRoot, provenanceHash, teeAttestation, seed);
         _safeMint(to, tokenId);
         emit OutputMinted(tokenId, creatorAgentId, to, imageRoot, provenanceHash, teeAttestation, seed);
+    }
+
+    /// @notice Set / rotate the pinned 0G TEE signer. Only `attestor` (AURA's platform key, which already
+    ///         signs every MintAuth) may call it - the SAME disclosed single-platform trust boundary, no new
+    ///         key introduced. Set to address(0) to disable the on-chain TEE gate. Emits TeeSignerUpdated.
+    function setTeeSigner(address newSigner) external {
+        require(msg.sender == attestor, "not attestor");
+        emit TeeSignerUpdated(teeSigner, newSigner);
+        teeSigner = newSigner;
+    }
+
+    /// @notice Mint a Relic whose provenance is verified ON-CHAIN against 0G's real TeeML enclave signer.
+    ///         Additive superset of mintOutput: it runs the IDENTICAL attestor EIP-712 MintAuth gate (consent +
+    ///         which agent earns royalty) AND, when `teeSigner` is configured, ecrecovers 0G's enclave signature
+    ///         over the exact attested envelope and REVERTS on a forged one, binding this Relic's dataHash to the
+    ///         sha256 of the artwork 0G attested. The envelope is 0G's own EIP-191-signed
+    ///         `text = "<64hex sha256(request)>:<64hex sha256(image)>"`. Because the attestor's MintAuth already
+    ///         signs `teeAttestation`, requiring teeAttestation == keccak256(teeText) makes the attestor's
+    ///         signature COVER the exact TEE-signed bytes, so the two gates compose. When teeSigner == 0 the TEE
+    ///         gate is skipped (behaves like mintOutput) - the contract ships with the gate off and is flipped on
+    ///         with setTeeSigner after a live 0G smoke-test, no redeploy. mintOutput stays as the fallback.
+    /// @param teeText  the EXACT ASCII string 0G's enclave signed: "<64hex sha256(reqBody)>:<64hex sha256(image)>"
+    /// @param teeSig   0G's 65-byte enclave signature over toEthSignedMessageHash(bytes(teeText)) (EIP-191)
+    function mintOutputVerified(
+        address to,
+        uint256 creatorAgentId,
+        string calldata imageRoot,
+        bytes32 provenanceHash,
+        bytes32 teeAttestation,
+        uint256 seed,
+        bytes32 nonce,
+        bytes calldata attestationSig,
+        string calldata teeText,
+        bytes calldata teeSig
+    ) external returns (uint256 tokenId) {
+        // Pack into a memory struct + delegate: collapses the 10 calldata params into one memory pointer so the
+        // mint body stays under the EVM stack limit (no via-ir needed). External ABI is unchanged.
+        return _mintOutputVerified(
+            VerifiedMintArgs(
+                to, creatorAgentId, imageRoot, provenanceHash, teeAttestation, seed, nonce, attestationSig, teeText, teeSig
+            )
+        );
+    }
+
+    /// @dev The mintOutputVerified body, operating on a memory bundle (see VerifiedMintArgs). Runs the attestor
+    ///      MintAuth gate (same digest as mintOutput) then the on-chain 0G-TEE gate, then mints + stores dataHash.
+    function _mintOutputVerified(VerifiedMintArgs memory a) private returns (uint256 tokenId) {
+        require(!usedNonce[a.nonce], "nonce used");
+        // creatorAgentId must reference a real agent (its owner is the dynamic royalty target).
+        registry.ownerOf(a.creatorAgentId); // reverts if agent doesn't exist
+
+        // (A) the existing attestor EIP-712 MintAuth gate - the SAME digest mintOutput uses (consent + agent).
+        {
+            bytes32 structHash = keccak256(
+                abi.encode(
+                    MINTAUTH_TYPEHASH,
+                    a.to,
+                    a.creatorAgentId,
+                    keccak256(bytes(a.imageRoot)),
+                    a.provenanceHash,
+                    a.teeAttestation,
+                    a.seed,
+                    a.nonce
+                )
+            );
+            require(_hashTypedDataV4(structHash).recover(a.attestationSig) == attestor, "bad attestation");
+        }
+
+        // (B) the NEW on-chain 0G-TEE gate (returns 0 while teeSigner == 0; reverts on a forged envelope).
+        bytes32 dataHash = _verifyTee(a.teeText, a.teeSig, a.teeAttestation);
+
+        usedNonce[a.nonce] = true;
+        tokenId = nextTokenId++;
+        _prov[tokenId] = Provenance(a.creatorAgentId, a.imageRoot, a.provenanceHash, a.teeAttestation, a.seed);
+        _dataHash[tokenId] = dataHash;
+        _safeMint(a.to, tokenId);
+        emit OutputMinted(tokenId, a.creatorAgentId, a.to, a.imageRoot, a.provenanceHash, a.teeAttestation, a.seed);
+        if (teeSigner != address(0)) emit OutputTeeVerified(tokenId, a.creatorAgentId, teeSigner, dataHash);
+    }
+
+    /// @dev The on-chain 0G-TEE gate. Returns the 0G-attested sha256(image) (the dataHash) when `teeSigner` is
+    ///      pinned AND teeText/teeSig are a genuine 0G enclave envelope bound to `teeAttestation`; reverts on any
+    ///      forgery. Returns bytes32(0) when the gate is off (teeSigner == 0) so mintOutputVerified then mints
+    ///      exactly like mintOutput.
+    function _verifyTee(string memory teeText, bytes memory teeSig, bytes32 teeAttestation) private view returns (bytes32) {
+        address signer = teeSigner;
+        if (signer == address(0)) return bytes32(0);
+        bytes memory t = bytes(teeText);
+        // envelope shape: bare decentralized "<64hex>:<64hex>" (129 bytes, ':' at index 64). Rejects the TeeTLS
+        // routing-proof / relay envelopes (a different, longer format) defensively - fail fast.
+        require(t.length == 129 && t[64] == bytes1(":"), "bad envelope");
+        // bind the stored provenance to the EXACT TEE-signed text (the attestor's MintAuth signs teeAttestation,
+        // so this makes the attestor's signature cover teeText - the two gates compose).
+        require(keccak256(t) == teeAttestation, "tee text mismatch");
+        // THE on-chain check: 0G's enclave signed this exact envelope; reverts on ANY forgery (OZ ECDSA also
+        // rejects malleable high-s / bad v). Same primitive AuraINFT already runs live on 0G.
+        require(MessageHashUtils.toEthSignedMessageHash(t).recover(teeSig) == signer, "bad TEE attestation");
+        // bind THIS Relic to THE attested artwork: dataHash = the sha256(image) slice 0G put in the text.
+        return _hexSliceToBytes32(t, 65);
     }
 
     /// @notice Compute the EIP-712 digest the attestor must sign for a given mint (for backend/tests).
@@ -289,6 +425,32 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         if (roll < 9500) return "Rare";
         if (roll < 9900) return "Epic";
         return "Legendary";
+    }
+
+    /// @notice The 0G-attested sha256(imageBytes) bound to this token by mintOutputVerified (0 if minted via
+    ///         mintOutput / with the TEE gate off). A keyless verifier can fetch the image and assert
+    ///         sha256(image) == dataHashOf(tokenId) to confirm THIS art is the one 0G's enclave attested.
+    function dataHashOf(uint256 tokenId) external view returns (bytes32) {
+        require(_ownerOf(tokenId) != address(0), "no such output");
+        return _dataHash[tokenId];
+    }
+
+    /// @dev Parse 64 ASCII hex chars at offset `off` of `s_` into a bytes32 (the sha256 slice of a TeeML text).
+    function _hexSliceToBytes32(bytes memory s_, uint256 off) internal pure returns (bytes32) {
+        require(s_.length >= off + 64, "hex slice oob");
+        uint256 acc;
+        for (uint256 i = 0; i < 64; i++) {
+            acc = (acc << 4) | _hexNibble(uint8(s_[off + i]));
+        }
+        return bytes32(acc);
+    }
+
+    /// @dev One hex nibble (0-9, a-f, A-F) -> its value; reverts on a non-hex char.
+    function _hexNibble(uint8 c) internal pure returns (uint8) {
+        if (c >= 48 && c <= 57) return c - 48; // '0'-'9'
+        if (c >= 97 && c <= 102) return c - 87; // 'a'-'f'
+        if (c >= 65 && c <= 70) return c - 55; // 'A'-'F'
+        revert("bad hex char");
     }
 
     /// @inheritdoc IERC2981

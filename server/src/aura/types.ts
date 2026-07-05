@@ -123,6 +123,12 @@ export interface GenerateJobResult {
   seed: string; // uint256 as a decimal string (JSON/bigint-safe)
   mintable: boolean;
   usedBrain: boolean; // true if the gen used the agent's decrypted brain (not the catalog fallback)
+  // NEW (feat/onchain-verify-mint): 0G's raw TeeML envelope for the on-chain verified mint. Present only when a
+  // genuine, image-bound envelope was captured + off-chain-verified; absent => the mint falls back to mintOutput.
+  teeText?: string | null;
+  teeSig?: string | null;
+  dataHash?: string | null; // 0x + sha256(imageBytes)
+  teeSignerVerified?: string | null; // the 0G enclave signer the on-chain mint is pinned to
 }
 
 export interface GenerateJob {
@@ -155,6 +161,12 @@ export interface MintArgsResponse {
   seed: string; // uint256 as decimal string (safe for JSON / bigint)
   nonce: string; // bytes32 hex (single-use)
   attestationSig: string; // EIP-712 MintAuth signature by the attestor - the contract verifies this
+  // NEW (feat/onchain-verify-mint): 0G's raw signed envelope. When BOTH teeText + teeSig are present, the client
+  // calls OutputNFT.mintOutputVerified (which ecrecovers 0G's enclave signature on-chain); else it uses mintOutput.
+  teeText?: string; // 0G's signed "<sha256(req)>:<sha256(img)>" (== keccak preimage of teeAttestation on this path)
+  teeSig?: string; // 0G's 65-byte enclave signature
+  teeSigner?: string; // the 0G enclave signer the on-chain teeSigner must equal
+  dataHash?: string; // 0x + sha256(imageBytes) 0G attested (the contract re-derives + binds this)
   // convenience for clients that want to verify locally:
   eip712: {
     domain: { name: string; version: string; chainId: number; verifyingContract: string };
