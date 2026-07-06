@@ -150,7 +150,7 @@ function VerifiedView({ data }: { data: PublicVerify }) {
             <MetaRow k="Rarity" v={oc.rarity} mono={false} />
             <MetaRow
               k="On-chain TEE-verified"
-              v={oc.onchainTeeVerified ? `dataHash ${shortHex(oc.dataHash)}` : "activates at the mainnet deploy"}
+              v={oc.onchainTeeVerified ? `dataHash ${shortHex(oc.dataHash)}` : "no on-chain TEE dataHash for this relic"}
               ok={oc.onchainTeeVerified}
               mono={oc.onchainTeeVerified}
             />

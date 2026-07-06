@@ -326,7 +326,7 @@ export default async function ProofPage() {
         { label: "captureTeeEnvelope :150", href: `${GH}/server/src/aura/compute.ts#L150` },
       ],
       boundary:
-        "Image-gen TEE is 0G TESTNET. dataHash is 0 until the verified path is armed (setTeeSigner + a fresh verified mint), so this tier activates at the mainnet deploy. It proves 'a genuine 0G enclave produced art with sha256=X', NOT '0G attests agent #N made it'.",
+        "Image-gen TEE runs in a 0G Compute enclave. The mainnet OutputNFT has the on-chain verified path armed (setTeeSigner); dataHash stays 0 for a relic until a fresh verified mint lands. It proves 'a genuine 0G enclave produced art with sha256=X', NOT '0G attests agent #N made it'.",
     },
     {
       n: "05",

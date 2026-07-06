@@ -5,7 +5,7 @@
       "arena": "Arena",
       "ladder": "Ladder",
       "layer": "Lapisan game",
-      "tagline": "On-chain, bisa diverifikasi, aktif saat deploy"
+      "tagline": "On-chain, bisa diverifikasi, live di mainnet"
     },
     "locale": {
       "label": "Bahasa",
@@ -35,12 +35,12 @@
       "backendUnreachable": "API AURA sedang tidak bisa dijangkau. Ini masalah jaringan, bukan data palsu. Coba lagi sebentar.",
       "reload": "Coba lagi",
       "honest": "Jujur sejak awal",
-      "builtTested": "Sudah dibangun dan diuji; aktif saat deploy mainnet"
+      "builtTested": "Sudah dibangun, diuji dengan Foundry, dan live di 0G mainnet"
     },
     "gate": {
-      "chip": "Aktif saat deploy",
-      "title": "Fitur ini aktif saat deploy mainnet.",
-      "body": "Kontrak lapisan game (ArenaVote dan AuraFusion) menyatu dalam deploy mainnet yang sama dengan cutover ERC-7857. Sampai alamatnya terpasang, backend mengembalikan 501 untuk setiap aksi game, jadi halaman ini menampilkan status jujur yang belum aktif, bukan data palsu. Semua di bawah sudah dibangun, diuji dengan Foundry, dan siap; langsung aktif begitu deploy memasang alamatnya.",
+      "chip": "Live di mainnet",
+      "title": "Fitur ini live di 0G mainnet.",
+      "body": "Kontrak lapisan game (ArenaVote, AuraFusion, ArenaReputation) sudah dideploy dan terpasang di 0G mainnet bersama cutover ERC-7857. Kalau kamu melihat status ini, artinya backend instance ini belum punya alamat kontraknya, jadi halaman menampilkan status jujur belum-aktif dari 501 live, bukan data palsu. Semua di bawah sudah dibangun, diuji dengan Foundry, dan on-chain.",
       "whatWorksNow": "Yang bisa dilakukan sekarang",
       "whatWorksNowBody": "Baca mekanismenya, salin perintah cek mandiri yang persis akan kamu jalankan ke kontrak live, dan (untuk Fusion) telusuri Aura yang benar benar kamu miliki. Tidak ada hasil yang dikarang.",
       "statusReading": "Mengecek apakah deploy ini sudah memasang kontraknya",
@@ -134,7 +134,7 @@
         "lookupBody": "Masukkan nomor pertarungan untuk memuat status on-chain-nya.",
         "lookupPlaceholder": "Nomor pertarungan",
         "open": "Buka pertarungan",
-        "none": "Belum ada pertarungan live di deploy ini. Pertarungan dibuat oleh operator setelah kontrak arena terpasang di deploy mainnet."
+        "none": "Belum ada pertarungan yang dibuat. Operator membuka pertarungan di arena mainnet yang sudah live; cek lagi begitu ada yang berjalan."
       },
       "battle": {
         "title": "Pertarungan #{id}",
@@ -208,7 +208,7 @@
         "rating": "Rating",
         "rd": "Deviasi",
         "conservative": "Konservatif",
-        "empty": "Belum ada putusan berperingkat di deploy ini. Papan terisi dari pertarungan yang difinalkan dan berperingkat setelah kontrak arena terpasang di deploy mainnet.",
+        "empty": "Belum ada putusan berperingkat. Papan terisi dari pertarungan yang difinalkan dan berperingkat di arena mainnet yang sudah live seiring berjalan.",
         "lookupTitle": "Cari peringkat sebuah Aura",
         "lookupPlaceholder": "Nomor Aura",
         "lookup": "Cari peringkat"

@@ -8,8 +8,8 @@ import { ARENA_ENABLED } from "@/lib/game-contracts";
 // A compact Arena rank/rating badge for an Aura's profile (the Ladder Tier-2 surface, embedded in the
 // existing agent view). Self-contained + English (it renders on the English agent page, OUTSIDE the game
 // route group's i18n provider, so it deliberately does not use next-intl). Honest + deploy-gated: it renders
-// the live rank when the arena is wired, "Provisional" / "Not yet rated" from the live signal, or the honest
-// "Activates at deploy" state when unwired. It never invents a rank.
+// the live rank when the arena is wired, "Provisional" / "Not yet rated" from the live signal, or a graceful
+// "Rank unavailable" if the ladder read errors. It never invents a rank.
 type Status = "loading" | "gated" | "unrated" | "provisional" | "ranked" | "down";
 
 export function RatingBadge({ agentId }: { agentId: number }) {
@@ -37,8 +37,6 @@ export function RatingBadge({ agentId }: { agentId: number }) {
     };
   }, [agentId]);
 
-  if (status === "down") return null;
-
   const wrap = "flex flex-wrap items-center gap-2.5 rounded-[14px] border px-4 py-3";
   const wrapStyle = { borderColor: "var(--color-border)", background: "var(--color-paper)" } as const;
 
@@ -50,9 +48,11 @@ export function RatingBadge({ agentId }: { agentId: number }) {
       <span className="prov-rule h-4 w-px" aria-hidden style={{ background: "var(--color-border-strong)", opacity: 0.6 }} />
       {status === "loading" ? (
         <span className="aura-skeleton inline-block h-4 w-24 rounded" />
+      ) : status === "down" ? (
+        <span className="text-[15px]" style={{ color: "var(--color-ink-3)" }}>Rank unavailable</span>
       ) : status === "gated" ? (
         <span className="tag" style={{ border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }}>
-          Activates at deploy
+          Arena not wired
         </span>
       ) : status === "unrated" ? (
         <span className="text-[15px]" style={{ color: "var(--color-ink-3)" }}>Not yet rated</span>

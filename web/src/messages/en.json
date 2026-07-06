@@ -5,7 +5,7 @@
       "arena": "Arena",
       "ladder": "Ladder",
       "layer": "Game layer",
-      "tagline": "On-chain, verifiable, deploy-gated"
+      "tagline": "On-chain, verifiable, live on mainnet"
     },
     "locale": {
       "label": "Language",
@@ -35,12 +35,12 @@
       "backendUnreachable": "The AURA API is unreachable right now. This is a network issue, not fake data. Try again shortly.",
       "reload": "Retry",
       "honest": "Honest by design",
-      "builtTested": "Built and tested; activates at the mainnet deploy"
+      "builtTested": "Built, Foundry-tested, and live on 0G mainnet"
     },
     "gate": {
-      "chip": "Activates at deploy",
-      "title": "This activates at the mainnet deploy.",
-      "body": "The game-layer contracts (ArenaVote and AuraFusion) fold into the same mainnet deploy as the ERC-7857 cutover. Until their addresses are wired, the backend returns a 501 for every game action, so this page renders the honest not-yet-armed state instead of fake data. Everything below is built, Foundry-tested, and ready; it goes live the moment the deploy sets the addresses.",
+      "chip": "Live on mainnet",
+      "title": "This is live on 0G mainnet.",
+      "body": "The game-layer contracts (ArenaVote, AuraFusion, ArenaReputation) are deployed and wired on 0G mainnet alongside the ERC-7857 cutover. If you ever see this state, it means this instance's backend has no address configured for that contract, so the page renders the honest not-armed state from the live 501 rather than fake data. Everything below is built, Foundry-tested, and on-chain.",
       "whatWorksNow": "What you can do now",
       "whatWorksNowBody": "Read the mechanism, copy the exact self-check commands you will run against the live contracts, and (for Fusion) browse the real Auras you own. No result is invented.",
       "statusReading": "Checking whether this deploy has the contract wired",
@@ -134,7 +134,7 @@
         "lookupBody": "Enter a battle number to load its live on-chain state.",
         "lookupPlaceholder": "Battle number",
         "open": "Open battle",
-        "none": "No battles are live on this deploy yet. Battles are created by the operator once the arena contract is wired at the mainnet deploy."
+        "none": "No battles have been created yet. The operator opens battles on the live mainnet arena; check back once one is running."
       },
       "battle": {
         "title": "Battle #{id}",
@@ -208,7 +208,7 @@
         "rating": "Rating",
         "rd": "Deviation",
         "conservative": "Conservative",
-        "empty": "No rated verdicts on this deploy yet. The ladder fills from finalized, rated battles once the arena contract is wired at the mainnet deploy.",
+        "empty": "No rated verdicts yet. The ladder fills from finalized, rated battles on the live mainnet arena as they happen.",
         "lookupTitle": "Look up an Aura's rank",
         "lookupPlaceholder": "Aura number",
         "lookup": "Look up rank"
