@@ -2,7 +2,10 @@
 // Ported verbatim from lib/aura/catalog.ts. On-chain truth (owner, royaltyBps, fingerprint) is merged
 // in by agents.ts. Matched to on-chain agents by `name`. These 4 are the brain-less seeded agents the
 // generalized generator FALLS BACK to (zero regression) when an agent has no decryptable brain.
+import { existsSync } from "node:fs";
+import path from "node:path";
 import type { AgentPublicMeta } from "./types.js";
+import { REPO_ROOT } from "./config.js";
 
 const MODEL = "qwen/qwen-image-edit-2511";
 
@@ -304,9 +307,14 @@ export function metaForName(name: string): AgentPublicMeta | null {
  *  (Brain-backed agents reconstruct their base from canonicalBaseRoot on 0G Storage instead.) */
 export function baseForSeededAgent(agentName: string): string {
   const n = agentName.toUpperCase();
-  if (n === "RISO") return "images/characters/T1/RISO-bust.png";
-  if (n === "MIRAI") return "images/characters/T1/MIRAI-bust.png";
-  return "images/_base-scene.png"; // neutral scene for NOKTURNE / SCRIPTORIUM / unknown
+  // Data-driven: every seeded catalog agent ships its OWN bespoke character bust in
+  // images/characters/T1/<NAME>-bust.png. Because qwen-image-edit is an EDIT model dominated by
+  // its input image, the base MUST render the agent's signature character in its aesthetic, or the
+  // summon comes out generic. Return that per-agent bust when it exists on disk; fall back to the
+  // neutral shared scene ONLY for a genuinely-unknown name (no catalog bust shipped).
+  const bustRel = `images/characters/T1/${n}-bust.png`;
+  if (existsSync(path.join(REPO_ROOT, bustRel))) return bustRel;
+  return "images/_base-scene.png"; // neutral scene for a genuinely-unknown name only
 }
 
 /** Build the styled fallback prompt for a SEEDED agent (parity with the v1 buildPrompt). */
