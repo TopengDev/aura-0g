@@ -44,6 +44,12 @@ export function FuseView() {
   const [requestId, setRequestId] = useState<number | null>(null);
   const [child, setChild] = useState<FuseExecuteResult | null>(null);
   const [childId, setChildId] = useState<number | null>(null);
+  // Per-agent fusability (AuraFusion.isFusable): true once its genome is anchored, false while it still needs the
+  // one-time genesis backfill, null/undefined while unknown (unread / read hiccup). Keyed by agentId.
+  const [fusable, setFusable] = useState<Record<number, boolean | null>>({});
+  // The agentId currently being registered (so its Register-genesis button shows the wallet step text).
+  const [genesisFor, setGenesisFor] = useState<number | null>(null);
+  const { checkFusable } = fusion;
 
   // Real Auras this wallet owns (from the indexer-proxied creator dashboard; NOT game-gated).
   useEffect(() => {
@@ -75,6 +81,29 @@ export function FuseView() {
   const parentB = useMemo(() => owned?.find((x) => x.agentId === b) ?? null, [owned, b]);
   const bothPicked = a !== null && b !== null && a !== b;
 
+  // Proactively read AuraFusion.isFusable for each picked parent (cheap keyless view). Every agent minted before
+  // AuraFusion deployed reads false here, so this surfaces the "Register genesis" backfill in the review step
+  // BEFORE the user pays for requestFusion (which would otherwise revert with "parent genome unset"). Re-reads
+  // whenever the picked pair changes; clears when nothing is picked or Fusion is not wired on this deploy.
+  useEffect(() => {
+    if (!FUSION_ENABLED) return;
+    const ids = [a, b].filter((x): x is number => x !== null);
+    if (ids.length === 0) {
+      setFusable({});
+      return;
+    }
+    let live = true;
+    Promise.all(ids.map(async (id) => [id, await checkFusable(id)] as const)).then((pairs) => {
+      if (!live) return;
+      const next: Record<number, boolean | null> = {};
+      for (const [id, ok] of pairs) next[id] = ok;
+      setFusable(next);
+    });
+    return () => {
+      live = false;
+    };
+  }, [a, b, checkFusable]);
+
   const toggle = useCallback(
     (id: number) => {
       if (a === id) return setA(null);
@@ -93,6 +122,28 @@ export function FuseView() {
     return token ?? null;
   }, [auth]);
 
+  // Register the one-time genesis genome for a parent that needs it, then re-read isFusable so the requestFusion
+  // button unlocks and the Register-genesis button disappears. Wired to the existing hook action (the user signs
+  // registerGenesis with their own wallet; the server signs nothing).
+  const onRegisterGenesis = useCallback(
+    async (agentId: number) => {
+      const token = await ensureToken();
+      if (!token) return;
+      setGenesisFor(agentId);
+      try {
+        const ok = await fusion.registerGenesis(token, agentId);
+        if (ok) {
+          const nowFusable = await checkFusable(agentId);
+          setFusable((m) => ({ ...m, [agentId]: nowFusable ?? true }));
+          fusion.reset(); // clear the genesis success/error phase so the request button starts clean
+        }
+      } finally {
+        setGenesisFor(null);
+      }
+    },
+    [ensureToken, fusion, checkFusable],
+  );
+
   const onRequest = useCallback(async () => {
     if (!bothPicked || a === null || b === null) return;
     const token = await ensureToken();
@@ -101,8 +152,14 @@ export function FuseView() {
     if (res) {
       setRequestId(res.requestId);
       setStep("reveal");
+      return;
     }
-  }, [a, b, bothPicked, ensureToken, fusion]);
+    // Fallback for the genesis-needed path: if requestFusion produced no requestId (e.g. the proactive read
+    // hiccuped and a parent silently still needs genesis), re-read isFusable for both parents so the
+    // Register-genesis action surfaces instead of leaving the user on the dead-end error.
+    const pairs = await Promise.all([a, b].map(async (id) => [id, await checkFusable(id)] as const));
+    setFusable((m) => ({ ...m, ...Object.fromEntries(pairs) }));
+  }, [a, b, bothPicked, ensureToken, fusion, checkFusable]);
 
   const onExecute = useCallback(async () => {
     if (requestId === null) return;
@@ -194,6 +251,10 @@ export function FuseView() {
               requestId={requestId}
               fusion={fusion}
               enabled={FUSION_ENABLED}
+              needsGenesisA={fusable[parentA.agentId] === false}
+              needsGenesisB={fusable[parentB.agentId] === false}
+              genesisFor={genesisFor}
+              onRegisterGenesis={onRegisterGenesis}
               onRequest={onRequest}
               onExecute={onExecute}
             />
@@ -341,6 +402,10 @@ function ReviewAndCommit({
   requestId,
   fusion,
   enabled,
+  needsGenesisA,
+  needsGenesisB,
+  genesisFor,
+  onRegisterGenesis,
   onRequest,
   onExecute,
 }: {
@@ -349,6 +414,10 @@ function ReviewAndCommit({
   requestId: number | null;
   fusion: ReturnType<typeof useFusion>;
   enabled: boolean;
+  needsGenesisA: boolean;
+  needsGenesisB: boolean;
+  genesisFor: number | null;
+  onRegisterGenesis: (agentId: number) => void;
   onRequest: () => void;
   onExecute: () => void;
 }) {
@@ -356,6 +425,12 @@ function ReviewAndCommit({
   const c = useTranslations("game.common");
   const { state, busy } = fusion;
   const gated = state.phase === "gated" || !enabled;
+  const needsGenesis = needsGenesisA || needsGenesisB;
+  // Label for a per-parent genesis button: shows the wallet step text while THIS parent is being registered.
+  const genesisLabel = (agent: Agent) =>
+    genesisFor === agent.agentId && busy
+      ? state.step ?? t("review.registerGenesis")
+      : `${t("review.registerGenesis")}: ${agent.name} #${agent.agentId}`;
 
   return (
     <Panel className="mt-8 p-6 sm:p-7">
@@ -375,8 +450,26 @@ function ReviewAndCommit({
       {/* Commit + reveal actions (honestly disabled when gated) */}
       <div className="mt-6 space-y-4">
         {requestId === null ? (
-          <div>
-            <ActionButton onClick={onRequest} disabled={busy || gated}>
+          <div className="space-y-3">
+            {/* Genesis backfill: every parent minted before AuraFusion deployed needs a one-time owner-signed
+                registerGenesis before it can fuse. Shown per-parent BEFORE requestFusion; the request button
+                stays disabled until BOTH parents are registered. */}
+            {needsGenesis ? (
+              <div className="space-y-3">
+                <p className="text-[15px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>{t("review.genesisNeeded")}</p>
+                {needsGenesisA ? (
+                  <ActionButton variant="outline" onClick={() => onRegisterGenesis(parentA.agentId)} disabled={busy || gated}>
+                    {genesisLabel(parentA)}
+                  </ActionButton>
+                ) : null}
+                {needsGenesisB ? (
+                  <ActionButton variant="outline" onClick={() => onRegisterGenesis(parentB.agentId)} disabled={busy || gated}>
+                    {genesisLabel(parentB)}
+                  </ActionButton>
+                ) : null}
+              </div>
+            ) : null}
+            <ActionButton onClick={onRequest} disabled={busy || gated || needsGenesis}>
               {busy && state.action === "request" ? state.step ?? t("commit.title") : t("review.requestFusion")}
             </ActionButton>
             {gated ? <div className="mt-3"><GatedNote>{c("builtTested")}. {t("commit.body")}</GatedNote></div> : null}

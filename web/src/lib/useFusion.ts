@@ -12,11 +12,11 @@
 // mainnet deploy" state instead of a wallet prompt. No fake result is ever produced.
 
 import { useCallback, useState } from "react";
-import { writeContract } from "wagmi/actions";
+import { readContract, writeContract } from "wagmi/actions";
 import { decodeEventLog } from "viem";
 import { useAccount, useConfig } from "wagmi";
 import { APP_CHAIN } from "@/lib/chains";
-import { auraFusionAbi, fusionExecutedEvent, fusionRequestedEvent } from "@/lib/game-contracts";
+import { auraFusionAbi, fusionExecutedEvent, fusionRequestedEvent, GAME_CONTRACTS } from "@/lib/game-contracts";
 import { humanError, pollReceipt, useEnsureChain } from "@/lib/tx";
 import {
   fetchExecuteFusion,
@@ -60,6 +60,31 @@ export function useFusion() {
   const ensureChain = useEnsureChain();
   const [state, setState] = useState<FuseState>(IDLE);
   const reset = useCallback(() => setState(IDLE), []);
+
+  // ── checkFusable (cheap public view: has this parent's genome been anchored yet?) ──
+  // Proactive genesis-needed detection: AuraFusion.isFusable(agentId) is a keyless view that returns false for
+  // every agent minted before AuraFusion deployed (its genome is still zero) and true once registerGenesis has
+  // landed. The Fusion UI reads it per picked parent to surface the "Register genesis" backfill BEFORE the user
+  // pays for requestFusion, instead of dead-ending on the on-chain "parent genome unset" revert. Returns null on
+  // a read hiccup (or when Fusion is not wired) so the caller can fall back to the error-triggered path.
+  const checkFusable = useCallback(
+    async (agentId: number): Promise<boolean | null> => {
+      if (!GAME_CONTRACTS.auraFusion) return null;
+      try {
+        const ok = await readContract(config, {
+          address: GAME_CONTRACTS.auraFusion as `0x${string}`,
+          abi: auraFusionAbi,
+          functionName: "isFusable",
+          args: [BigInt(agentId)],
+          chainId: APP_CHAIN.id,
+        });
+        return Boolean(ok);
+      } catch {
+        return null;
+      }
+    },
+    [config],
+  );
 
   // ── registerGenesis (owner backfills a parent's genome so it becomes fusable) ──
   const registerGenesis = useCallback(
@@ -204,5 +229,5 @@ export function useFusion() {
   );
 
   const busy = state.phase === "preparing" || state.phase === "signing" || state.phase === "confirming";
-  return { state, busy, registerGenesis, requestFusion, executeFusion, reset };
+  return { state, busy, checkFusable, registerGenesis, requestFusion, executeFusion, reset };
 }

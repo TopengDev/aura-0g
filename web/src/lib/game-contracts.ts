@@ -27,6 +27,7 @@ export const REPUTATION_ENABLED = GAME_CONTRACTS.arenaReputation !== "";
 // registerGenesis(agentId, uint16[8] genome)          - owner backfills a parent's genome (one-time)
 // requestFusion(parentA, parentB) payable             - commit step; value = the fusion fee
 // executeFusion(requestId, ...child args) returns id  - reveal step; mints the descendant with lineage
+// isFusable(agentId) view returns (bool)              - cheap read; false until a parent has an anchored genome
 // The two events are parsed from the receipts to learn the new requestId (FusionRequested) and childId
 // (FusionExecuted). Signatures mirror contracts/src/AuraFusion.sol exactly.
 export const auraFusionAbi = [
@@ -90,6 +91,16 @@ export const auraFusionAbi = [
       { name: "fuseSeed", type: "bytes32", indexed: false },
       { name: "generation", type: "uint32", indexed: false },
     ],
+  },
+  // Cheap public view: has this agent had its genesis genome anchored yet? False for every pre-existing agent
+  // (the 30 catalog + user auras minted before AuraFusion deployed) until its one-time registerGenesis lands.
+  // The Fusion UI reads this per picked parent to surface the "Register genesis" backfill BEFORE requestFusion.
+  {
+    type: "function",
+    name: "isFusable",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [{ name: "", type: "bool" }],
   },
 ] as const;
 
