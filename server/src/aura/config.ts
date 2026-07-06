@@ -16,7 +16,11 @@ export const GALILEO = {
   rpc: process.env.RPC_URL ?? "https://evmrpc-testnet.0g.ai",
   explorer: "https://chainscan-galileo.0g.ai",
   faucet: "https://faucet.0g.ai",
-  storageIndexerTurbo: "https://indexer-storage-testnet-turbo.0g.ai",
+  // The ONLY hardcoded 0G-storage endpoint. Env-overridable so the mainnet flip is a config change, not a
+  // code edit (mirrors the RPC seam above + the IMAGE/CHAT dual-network pattern). Mainnet turbo indexer =
+  // https://indexer-storage-turbo.0g.ai (the SDK auto-discovers the Flow+Market contracts from it, so no
+  // address change is needed). STORAGE_FILE_INFO_BASE derives from this, so the proof link follows it.
+  storageIndexerTurbo: process.env.AURA_STORAGE_INDEXER_TURBO ?? "https://indexer-storage-testnet-turbo.0g.ai",
   storageScan: "https://storagescan-galileo.0g.ai",
 } as const;
 
