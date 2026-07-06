@@ -171,6 +171,8 @@ async function main() {
     async store(bytes) {
       return { rootHash: "0x" + createHash("sha256").update(bytes).digest("hex") };
     },
+    persistChild: () => {}, // no-op: the DB stage seam is exercised by the route/e2e, not this pure unit test
+
     getParentL1: async (pid) => (pid === 1n ? pAL1 : pBL1),
     memoryBackend: backend,
     now: () => new Date("2026-07-05T00:00:00Z"),

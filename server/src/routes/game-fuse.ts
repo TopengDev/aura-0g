@@ -104,6 +104,41 @@ export async function gameFuseRoutes(app: FastifyInstance): Promise<void> {
     },
   );
 
+  // POST /game/fuse/finalize { childEncBrainRoot, agentId, txHash? } - after the fuser submits executeFusion,
+  // promote the staged child brain (+ persona) to the concrete childId, so brainByAgentId(childId) resolves and
+  // the agent-portrait endpoint serves the child's portrait. The FUSION analog of /agents/confirm-mint: auth'd,
+  // and gated on the on-chain child actually carrying this encBrainRoot AND being owned by the caller.
+  app.post<{ Body: { childEncBrainRoot?: string; agentId?: number; txHash?: string } }>(
+    "/game/fuse/finalize",
+    { preHandler: [app.authenticate] },
+    async (req, reply) => {
+      if (!auraFusionConfigured()) return reply.code(501).send({ error: "fusion not configured on this deploy" });
+      const childEncBrainRoot = typeof req.body?.childEncBrainRoot === "string" ? req.body.childEncBrainRoot : "";
+      const agentId = parseId(req.body?.agentId);
+      if (!childEncBrainRoot || agentId === null) {
+        return reply.code(400).send({ error: "childEncBrainRoot and agentId (positive integer) required" });
+      }
+      const { promoteBrainByRoot } = await import("../aura/store.js");
+      const { promotePersonaByRoot } = await import("../aura/persona-store.js");
+      const { rawAgent } = await import("../aura/agents.js");
+      // verify the on-chain child actually carries this encBrainRoot AND is owned by the caller (same gate as
+      // /agents/confirm-mint: never promote a brain onto an agent the caller does not own / does not match).
+      const agent = await rawAgent(agentId);
+      if (!agent) return reply.code(404).send({ error: `child agent #${agentId} not found on-chain` });
+      if (agent.encBrainRoot.toLowerCase() !== childEncBrainRoot.toLowerCase()) {
+        return reply.code(409).send({ error: "childEncBrainRoot does not match the on-chain agent" });
+      }
+      if (agent.owner.toLowerCase() !== req.user.address.toLowerCase()) {
+        return reply.code(403).send({ error: "you do not own this fusion child" });
+      }
+      // promoteBrainByRoot / promotePersonaByRoot are idempotent (only touch an as-yet-unpromoted row), so a
+      // retry or a double-call is safe.
+      const promoted = promoteBrainByRoot(childEncBrainRoot, agentId, req.user.address);
+      const personaPromoted = promotePersonaByRoot(childEncBrainRoot, agentId);
+      return { ok: true, promoted, personaPromoted, agentId };
+    },
+  );
+
   // GET /game/fuse/verify?requestId= - KEYLESS child-genome recompute from public chain data (no wallet, no
   // auth). A 3rd party recomputes the child genome from the parents' on-chain genomes + the on-chain fuseSeed.
   app.get<{ Querystring: { requestId?: string } }>("/game/fuse/verify", async (req, reply) => {

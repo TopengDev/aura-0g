@@ -238,6 +238,18 @@ export function fetchExecuteFusion(token: string, requestId: number, childName?:
   return gameAuthedPost<FuseExecuteResult>("/game/fuse/execute", token, childName ? { requestId, childName } : { requestId });
 }
 
+export interface FinalizeFusionResult {
+  ok: boolean;
+  promoted: boolean;
+  personaPromoted: boolean;
+  agentId: number;
+}
+// POST /game/fuse/finalize (authed). After the child mint tx confirms, promote the staged child brain to the
+// minted childId so its portrait resolves (the FUSION analog of /agents/confirm-mint). Best-effort from the UI.
+export function fetchFinalizeFusion(token: string, childEncBrainRoot: string, agentId: number): Promise<GameResult<FinalizeFusionResult>> {
+  return gameAuthedPost<FinalizeFusionResult>("/game/fuse/finalize", token, { childEncBrainRoot, agentId });
+}
+
 // ── Arena vote-args (authed) ───────────────────────────────────────────────
 export interface VotePrep {
   battleId: number;

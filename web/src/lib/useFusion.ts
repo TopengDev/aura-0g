@@ -20,6 +20,7 @@ import { auraFusionAbi, fusionExecutedEvent, fusionRequestedEvent, GAME_CONTRACT
 import { humanError, pollReceipt, useEnsureChain } from "@/lib/tx";
 import {
   fetchExecuteFusion,
+  fetchFinalizeFusion,
   fetchGenesisArgs,
   fetchRequestFusionArgs,
   type FuseExecuteResult,
@@ -217,6 +218,13 @@ export function useFusion() {
           } catch {
             /* not our event */
           }
+        }
+        // FINALIZE: promote the staged child brain to the minted childId (the FUSION analog of the create-agent
+        // confirm-mint step), so the child's portrait resolves on its detail page. Best-effort + non-blocking:
+        // the mint already succeeded, so a transient finalize failure must not flip this to "error" (the brain
+        // can be promoted later via a backfill). fetchFinalizeFusion never throws (it returns a GameResult).
+        if (childId !== null) {
+          await fetchFinalizeFusion(token, c.childEncBrainRoot, childId);
         }
         setState((s) => ({ ...s, phase: "success", step: "Descendant minted" }));
         return { result, childId };

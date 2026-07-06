@@ -20,8 +20,9 @@ import { createHash } from "node:crypto";
 import { generateAndProve, type GenProof, type ResolvedGenConfig } from "../generate.js";
 import { store as zgStore } from "../storage.js";
 import { sponsorSigner } from "../wallet.js";
-import { resolveBytesByRoot } from "../image-cache.js";
-import { brainByAgentId } from "../store.js";
+import { resolveBytesByRoot, cacheImageByRoot } from "../image-cache.js";
+import { brainByAgentId, brainByRoot, stageBrain } from "../store.js";
+import { stagePersona, personaByEncBrainRoot } from "../persona-store.js";
 import { pubkeyOf } from "../pubkey.js";
 import { sealKeyToPubkey, sealedToHex } from "../sealing.js";
 import { encryptBrain, type BrainPlain } from "../brain.js";
@@ -183,6 +184,23 @@ export interface ParentLineage {
   generation: number;
 }
 
+/** The child-brain custody bundle handed to the persist seam once the pipeline has generated + sealed the
+ *  child. Everything the create-agent flow stages, plus the brain envelope bytes for the durable local cache.
+ *  This NEVER leaves the server (it carries the AES key); it is not part of the client-facing FuseExecuteResult. */
+export interface PersistChildInput {
+  owner: string; // the fuser (recipient + creator of the child iNFT)
+  name: string;
+  encBrainRoot: string;
+  brainKeyHex: string; // the child's AES data-key (server custody; promoted to the childId after mint)
+  canonicalBaseRoot: string; // the child's self-portrait root (its reference image = its portrait)
+  styleFingerprint: string;
+  modelAttestation: string;
+  sealedKey: string | null;
+  dataHash: string;
+  envelope: Buffer; // the encrypted brain envelope, cached under encBrainRoot (mirror create-agent)
+  aesthetic: string; // the blended style descriptor -> the child's floor chat persona
+}
+
 /** The injectable boundaries. Every field has a real default (defaultFuseDeps); tests override the seams. */
 export interface FusePipelineDeps {
   getRequest(requestId: number): Promise<OnChainFuseRequest>;
@@ -192,6 +210,11 @@ export interface FusePipelineDeps {
   getFuserPubkey(fuser: string): string | null;
   generate: typeof generateAndProve;
   store(bytes: Buffer, label: string): Promise<{ rootHash: string }>;
+  // Durable child-brain custody (the create-agent parity that was MISSING: stage the child brain keyed by
+  // encBrainRoot so /game/fuse/finalize can promote it to the childId after mint, and the agent-portrait
+  // endpoint resolves brainByAgentId(childId).canonicalBaseRoot -> the child's real portrait). DB side effect;
+  // tests inject a no-op. Idempotent: skips a re-stage of the same encBrainRoot.
+  persistChild(input: PersistChildInput): void;
   getParentL1?(parentAgentId: bigint): Promise<IntrinsicRecord[]>;
   memoryBackend?: SegmentBackend;
   now(): Date;
@@ -238,6 +261,42 @@ export function defaultFuseDeps(): FusePipelineDeps {
     async store(bytes, label) {
       const res = await zgStore(sponsorSigner(), bytes, label);
       return { rootHash: res.rootHash };
+    },
+    persistChild(input) {
+      // Mirror create-agent's stage step for the fused child (create-agent.ts stageBrain + cacheImageByRoot +
+      // stagePersona). Keyed by encBrainRoot (agentId unknown until the fuser mints), promoted at
+      // /game/fuse/finalize. Idempotent: a row for this exact encBrainRoot is only inserted once (a genuine
+      // re-execute produces a NEW envelope -> NEW encBrainRoot, same as create; only the minted one promotes).
+      if (!brainByRoot(input.encBrainRoot)) {
+        stageBrain({
+          owner: input.owner,
+          name: input.name,
+          encBrainRoot: input.encBrainRoot,
+          brainKeyHex: input.brainKeyHex,
+          canonicalBaseRoot: input.canonicalBaseRoot,
+          styleFingerprint: input.styleFingerprint,
+          modelAttestation: input.modelAttestation,
+          sealedKey: input.sealedKey,
+          dataHash: input.dataHash,
+        });
+      }
+      // Durable-cache the brain envelope under its root (0G testnet evicts blobs; the create flow does this
+      // too). The child PORTRAIT bytes are already cached by generateAndProve (source:"output"), so only the
+      // envelope needs adding here for a fully re-generatable child.
+      cacheImageByRoot(input.encBrainRoot, input.envelope, { contentType: "application/octet-stream", source: "brain" });
+      // Floor chat persona for the child (its blended aesthetic gives a non-generic voice); promoted at finalize.
+      if (!personaByEncBrainRoot(input.encBrainRoot)) {
+        stagePersona({
+          encBrainRoot: input.encBrainRoot,
+          name: input.name,
+          aesthetic: input.aesthetic,
+          signatureCharacter: null,
+          personality: null,
+          lore: null,
+          tagline: "A fused descendant Aura on 0G.",
+          derived: false,
+        });
+      }
     },
     now: () => new Date(),
   };
@@ -364,6 +423,24 @@ export async function executeFusionPipeline(requestId: number, opts: FuseExecute
     // in first. Surface a typed 409 so the route tells them to log in (matches create-agent's fail-fast).
     throw new FuseError(409, "sign in first: the child iNFT seals its brain to your wallet pubkey (recovered at SIWE login). Log in, then execute the fusion.");
   }
+
+  // 6b. STAGE the child brain in server custody (the create-agent parity that was missing: create-agent.ts
+  //     stageBrain -> agents-create.ts promoteBrainByRoot). Without this, brainByAgentId(childId) is null and
+  //     the agent-portrait endpoint has no canonicalBaseRoot to resolve, so a fusion child renders no portrait
+  //     on its detail page. Keyed by encBrainRoot now; /game/fuse/finalize promotes it to the childId post-mint.
+  deps.persistChild({
+    owner: req.fuser,
+    name: childName,
+    encBrainRoot: childEncBrainRoot,
+    brainKeyHex: keyHex,
+    canonicalBaseRoot: childCanonicalBaseRoot,
+    styleFingerprint: identity.styleFingerprint,
+    modelAttestation: childModelAttestation,
+    sealedKey: childSealedKey,
+    dataHash: childDataHash,
+    envelope,
+    aesthetic: identity.blendedStyleDescriptor,
+  });
 
   // 7. MEMORY: blend the parents' L1 into the child (INHERIT), start L2 empty (RESET). Best-effort: if parent
   //    L1 is not materialized on this deploy, the child still gets a founding L1 (its blended style) + empty
