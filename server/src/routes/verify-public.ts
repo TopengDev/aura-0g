@@ -17,6 +17,7 @@ import { getProvenance } from "../aura/provenance.js";
 import { getRoyalty } from "../aura/royalty.js";
 import { outputRead, auraInftConfigured } from "../aura/contracts.js";
 import { buildChecks } from "../aura/verify-checks.js";
+import { isHiddenOutput } from "../aura/curation.js";
 import {
   GALILEO,
   CONTRACTS,
@@ -47,6 +48,13 @@ export async function verifyPublicRoutes(app: FastifyInstance): Promise<void> {
     const id = parseId(q.token ?? q.id);
     if (id === null) {
       return reply.code(400).send({ error: "token must be a positive integer (?token=<id>)", network });
+    }
+
+    // Curation mask: a hidden (superseded z-image) relic is masked to the SAME not-found body as a token that
+    // never existed, so /api/verify can't mis-label a z-image relic under the advertised qwen provenance. This
+    // shares the exact predicate the LIST feeds use (aura/curation.ts), so list + direct-read stay consistent.
+    if (isHiddenOutput(id)) {
+      return reply.code(404).send({ token: id, found: false, error: "no such Relic on-chain", network });
     }
 
     // provenanceOf gates existence; getRoyalty is a display tier (its own null is non-fatal).

@@ -11,6 +11,7 @@ import type { FastifyInstance } from "fastify";
 import { getAgentById } from "../aura/agents.js";
 import { getProvenance } from "../aura/provenance.js";
 import { getRoyalty } from "../aura/royalty.js";
+import { isHiddenOutput } from "../aura/curation.js";
 
 function parseId(s: string): number | null {
   if (!/^\d+$/.test(s)) return null;
@@ -30,6 +31,9 @@ export async function readsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>("/outputs/:id", async (req, reply) => {
     const id = parseId(req.params.id);
     if (id === null) return reply.code(400).send({ error: "invalid output id" });
+    // Curation mask: a hidden (superseded z-image) relic reads as not-found so a direct fetch can't surface
+    // the mis-labeled provenance the LIST feeds already hide. Same 404 body => indistinguishable from absent.
+    if (isHiddenOutput(id)) return reply.code(404).send({ error: "output not found" });
     const p = await getProvenance(id);
     if (!p) return reply.code(404).send({ error: "output not found" });
     return p;
@@ -38,6 +42,7 @@ export async function readsRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { id: string } }>("/provenance/:id", async (req, reply) => {
     const id = parseId(req.params.id);
     if (id === null) return reply.code(400).send({ error: "invalid output id" });
+    if (isHiddenOutput(id)) return reply.code(404).send({ error: "output not found" });
     const p = await getProvenance(id);
     if (!p) return reply.code(404).send({ error: "output not found" });
     return p;

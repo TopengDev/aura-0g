@@ -8,13 +8,24 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // repo root = server/src/aura -> ../../.. (server/ -> repo/)
 export const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 
+// Resolve the economy chainId ONCE so the network-aware explorer below can key off it (a self-referencing
+// object literal can't read its own `chainId` property mid-definition).
+const ECONOMY_CHAIN_ID = Number(process.env.CHAIN_ID ?? 16602);
+
 export const GALILEO = {
   // live RPC eth_chainId returns 0x40da = 16602 (NOT 16601 as some docs say). RPC is authoritative.
   // chainId + rpc are env-overridable so the SAME backend runs against a local anvil for the Summon
   // watcher e2e (CHAIN_ID=31337, RPC_URL=http://127.0.0.1:8545), defaulting to 0G Galileo otherwise.
-  chainId: Number(process.env.CHAIN_ID ?? 16602),
+  chainId: ECONOMY_CHAIN_ID,
   rpc: process.env.RPC_URL ?? "https://evmrpc-testnet.0g.ai",
-  explorer: "https://chainscan-galileo.0g.ai",
+  // Network-aware block explorer: 0G Aristotle MAINNET (16661) -> chainscan.0g.ai; else Galileo TESTNET ->
+  // chainscan-galileo.0g.ai. Env-overridable (AURA_EXPLORER_URL) so a custom/rotated explorer is a config
+  // flip, not a code edit. This is the SOURCE of the explorer for /api/verify (network.explorer + selfCheck)
+  // and any web surface that consumes the API response, so the mainnet cutover no longer links to a testnet
+  // explorer that has no record of a mainnet tx.
+  explorer:
+    process.env.AURA_EXPLORER_URL ??
+    (ECONOMY_CHAIN_ID === 16661 ? "https://chainscan.0g.ai" : "https://chainscan-galileo.0g.ai"),
   faucet: "https://faucet.0g.ai",
   // The ONLY hardcoded 0G-storage endpoint. Env-overridable so the mainnet flip is a config change, not a
   // code edit (mirrors the RPC seam above + the IMAGE/CHAT dual-network pattern). Mainnet turbo indexer =
@@ -194,6 +205,23 @@ export function imageMainnetKey(): string {
     );
   }
   return normalizePk(pk);
+}
+
+// ── IMAGE testnet seam (decouple image-compute from the economy chain) ───────────────────────────────
+// When the ECONOMY runs on a non-testnet chain (0G mainnet 16661) but image-gen must stay on 0G Compute
+// TESTNET (qwen-image-edit, the edit-based fusion model), the testnet image path can no longer reuse the
+// economy sponsor signer: the sponsor now points at the mainnet RPC, so 0G Compute listService() would
+// return MAINNET providers (z-image-turbo) instead of the testnet qwen editor. This dedicated seam pins
+// the image broker to the testnet compute RPC with a testnet-funded key. UNSET => the image-testnet path
+// reuses the sponsor signer (a pure-testnet deploy, today's EXACT behavior, zero regression). Non-secret
+// RPC/chainId; the key is env-injected at deploy, NEVER committed.
+export const IMAGE_TESTNET_RPC = process.env.AURA_IMAGE_TESTNET_RPC ?? "https://evmrpc-testnet.0g.ai";
+export const IMAGE_TESTNET_CHAIN_ID = Number(process.env.AURA_IMAGE_TESTNET_CHAIN_ID ?? 16602);
+// Optional dedicated key that pays the TESTNET image-compute ledger, ISOLATED from the (now mainnet)
+// economy sponsor. Returns null when unset so imageSigner() falls back to the sponsor signer unchanged.
+export function imageTestnetKey(): string | null {
+  const pk = process.env.AURA_IMAGE_TESTNET_KEY;
+  return pk && pk.trim() ? normalizePk(pk) : null;
 }
 
 // ── runtime knobs ──

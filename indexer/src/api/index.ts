@@ -24,7 +24,7 @@ import schema from "ponder:schema";
 import { Hono } from "hono";
 import { and, asc, client, count, desc, eq, graphql, gte, lt, sql } from "ponder";
 import { formatEther, getAddress } from "viem";
-import { CATALOG, styleForName, isHiddenAgent } from "../catalog";
+import { CATALOG, styleForName, isHiddenAgent, isHiddenOutput } from "../catalog";
 import { deriveRarity } from "../gacha";
 
 const app = new Hono();
@@ -196,7 +196,10 @@ app.get("/agents/:id", async (c) => {
     .from(schema.outputs)
     .where(eq(schema.outputs.creatorAgentId, id))
     .orderBy(desc(schema.outputs.orderKey));
-  return c.json({ ...shapeAgent(a[0]!, stats, earn), outputs: outs.map((o) => Number(o.tokenId)) });
+  return c.json({
+    ...shapeAgent(a[0]!, stats, earn),
+    outputs: outs.map((o) => Number(o.tokenId)).filter((t) => !isHiddenOutput(t)),
+  });
 });
 
 // GET /outputs - indexer-backed replacement for the Phase-2 chain scan (newest first).
@@ -214,7 +217,7 @@ app.get("/outputs", async (c) => {
   const nameBy = await agentNameMap(page.map((o) => o.creatorAgentId));
   const outputs = page
     .map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId)))
-    .filter((o) => !isHiddenAgent(o.agentName)); // display curation (outputs by test/junk agents hidden)
+    .filter((o) => !isHiddenAgent(o.agentName) && !isHiddenOutput(o.tokenId)); // display curation (test/junk agents + superseded relics hidden)
   const nextCursor = rows.length > limit ? page[page.length - 1]!.orderKey.toString() : null;
   return c.json({ outputs, nextCursor, source: "indexer" });
 });
@@ -322,7 +325,7 @@ app.get("/discover", async (c) => {
     const nameBy = await agentNameMap(page.map((o) => o.creatorAgentId));
     return c.json({
       sort,
-      items: page.map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId))),
+      items: page.map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId))).filter((o) => !isHiddenOutput(o.tokenId)),
       nextCursor: rows.length > limit ? page[page.length - 1]!.orderKey.toString() : null,
       source: "indexer",
     });
@@ -356,7 +359,7 @@ app.get("/discover", async (c) => {
     return c.json({
       sort,
       style,
-      items: page.map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId))),
+      items: page.map((o) => shapeOutput(o, nameBy.get(o.creatorAgentId))).filter((o) => !isHiddenOutput(o.tokenId)),
       nextCursor: rows.length > limit ? page[page.length - 1]!.orderKey.toString() : null,
       source: "indexer",
     });

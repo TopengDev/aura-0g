@@ -14,6 +14,9 @@ import {
   IMAGE_MAINNET_CHAIN_ID,
   IMAGE_MAINNET_PROVIDER,
   imageMainnetKey,
+  IMAGE_TESTNET_RPC,
+  IMAGE_TESTNET_CHAIN_ID,
+  imageTestnetKey,
 } from "./config.js";
 
 export type ImageNetwork = "testnet" | "mainnet";
@@ -57,6 +60,14 @@ function imageSigner(network: ImageNetwork): ethers.Wallet {
   if (network === "mainnet") {
     const provider = new ethers.JsonRpcProvider(IMAGE_MAINNET_RPC, IMAGE_MAINNET_CHAIN_ID);
     return new ethers.Wallet(imageMainnetKey(), provider);
+  }
+  // testnet: a dedicated testnet key (set when the economy is decoupled onto another chain, e.g. mainnet
+  // 16661) pins the image broker to the TESTNET compute RPC so listService() returns the testnet qwen
+  // editor; otherwise reuse the sponsor signer (pure-testnet deploy, today's exact behavior, unchanged).
+  const tk = imageTestnetKey();
+  if (tk) {
+    const provider = new ethers.JsonRpcProvider(IMAGE_TESTNET_RPC, IMAGE_TESTNET_CHAIN_ID);
+    return new ethers.Wallet(tk, provider);
   }
   return sponsorSigner();
 }

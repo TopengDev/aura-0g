@@ -15,6 +15,7 @@ import { INDEXER_URL, INDEXER_TIMEOUT_MS } from "../aura/config.js";
 import { listAgents } from "../aura/agents.js";
 import { getProvenance } from "../aura/provenance.js";
 import { getMarketplace } from "../aura/marketplace.js";
+import { hasHiddenOutputs, isHiddenOutput } from "../aura/curation.js";
 
 /** Fetch JSON from the indexer with a timeout. Throws on non-2xx or timeout (caller decides fallback). */
 async function indexerGet(pathAndQuery: string): Promise<unknown> {
@@ -30,6 +31,36 @@ async function indexerGet(pathAndQuery: string): Promise<unknown> {
   } finally {
     clearTimeout(t);
   }
+}
+
+// ── output display curation (superseded z-image relics hidden from public feeds) ─────────────────────
+// The image-gen path was reverted from 0G mainnet z-image-turbo back to 0G testnet qwen-image-edit, and
+// OutputNFT.teeSigner re-pinned to the qwen enclave (0x2A94D671). The first showcase Relics minted under
+// the z-image enclave (0x592056) no longer match the site's advertised qwen provenance, so they are
+// curated OUT of the public LIST feeds (gallery, discover, agent-detail) while staying on-chain + directly
+// resolvable by tokenId. Env-driven (AURA_HIDDEN_OUTPUT_TOKENS="1,2,3,4") + reversible (unset => show all).
+// Applied at the proxy layer so it needs no indexer/Ponder redeploy (a Ponder rebuild forces a schema
+// migration). The owner dashboard uses different keys (outputsOwned/outputsCreatedByMyAgents) and is not
+// touched, so an owner still sees their own tokens. The hidden-set parse + predicate live in aura/curation.ts
+// so the single-token direct-read paths (reads.ts /outputs/:id + /provenance/:id, verify-public /api/verify)
+// share the EXACT same curation (a hidden token is masked on direct read too, not just dropped from lists).
+
+/** Filter the superseded relics out of an indexer LIST response: {outputs:[{tokenId}...]}, {items:[{tokenId}...]},
+ *  or an agent-detail {outputs:number[]}. Single-item reads (no such array) pass through untouched. No-op when
+ *  the hidden set is empty. Mutates + returns the decoded object (it is a fresh parse per request). */
+function curateOutputs(data: unknown): unknown {
+  if (!hasHiddenOutputs() || !data || typeof data !== "object") return data;
+  const d = data as Record<string, unknown>;
+  const hidden = (t: unknown) => isHiddenOutput(t as number | bigint | string | null | undefined);
+  if (Array.isArray(d.outputs)) {
+    d.outputs = (d.outputs as unknown[]).filter((o) =>
+      o !== null && typeof o === "object" ? !hidden((o as { tokenId?: unknown }).tokenId) : !hidden(o),
+    );
+  }
+  if (Array.isArray(d.items)) {
+    d.items = (d.items as unknown[]).filter((o) => !hidden((o as { tokenId?: unknown } | null)?.tokenId));
+  }
+  return d;
 }
 
 // ── indexer-DOWN fallback caching (perf) ─────────────────────────────────────────────────────────────
@@ -84,7 +115,7 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
     const qs = req.raw.url?.includes("?") ? req.raw.url.slice(req.raw.url.indexOf("?")) : "";
     try {
       const data = await indexerGet(`/${wildcard}${qs}`);
-      return reply.send(data);
+      return reply.send(curateOutputs(data));
     } catch (err) {
       app.log.warn({ err: String(err), path: wildcard }, "indexer proxy failed");
       return reply.code(502).send({
@@ -114,7 +145,7 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/outputs", async (req: FastifyRequest) => {
     const qs = req.raw.url?.includes("?") ? req.raw.url.slice(req.raw.url.indexOf("?")) : "";
     try {
-      return await indexerGet(`/outputs${qs}`);
+      return curateOutputs(await indexerGet(`/outputs${qs}`));
     } catch {
       return await cachedFallback(`outputs${qs}`, async () => {
         const { outputRead } = await import("../aura/contracts.js");
@@ -124,7 +155,7 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
         for (let i = next - 1; i >= 1; i--) ids.push(i);
         // bounded fan-out (was an unbounded Promise.all over EVERY token id).
         const items = await mapWithConcurrency(ids, 8, (id) => getProvenance(id));
-        return { outputs: items.filter(Boolean), source: "chain-scan-fallback", note: "indexer unreachable" };
+        return curateOutputs({ outputs: items.filter(Boolean), source: "chain-scan-fallback", note: "indexer unreachable" });
       });
     }
   });

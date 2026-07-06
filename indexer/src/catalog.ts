@@ -276,3 +276,21 @@ export function isHiddenAgent(name: string | null | undefined): boolean {
   const n = name.toUpperCase();
   return HIDDEN_NAME_RE.test(n) || n === "CHILLDAWG";
 }
+
+// Display curation for individual Relic tokens: superseded relics hidden from the public galleries.
+// Reason (2026-07-06): the first 4 showcase Relics were minted while image-gen ran on 0G MAINNET
+// z-image-turbo (enclave signer 0x592056...). Image-gen was then reverted to 0G TESTNET qwen-image-edit
+// and the on-chain OutputNFT.teeSigner re-pinned to 0x2A94D671..., so those relics' stored enclave
+// signature no longer matches the site's advertised qwen provenance. They stay on-chain (immutable) but
+// are curated out of the DISPLAY so the gallery + /verify present one consistent provenance story.
+// Env-overridable + reversible: set AURA_HIDDEN_OUTPUT_TOKENS="" to show them again, or edit the list.
+const HIDDEN_OUTPUT_TOKENS = new Set(
+  (process.env.AURA_HIDDEN_OUTPUT_TOKENS ?? "")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n)),
+);
+export function isHiddenOutput(tokenId: number | bigint | null | undefined): boolean {
+  if (tokenId === null || tokenId === undefined) return false;
+  return HIDDEN_OUTPUT_TOKENS.has(Number(tokenId));
+}
