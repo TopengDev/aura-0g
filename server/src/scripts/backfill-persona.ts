@@ -23,7 +23,7 @@ import { db } from "../aura/db.js";
 import { decryptBrain } from "../aura/brain.js";
 import { resolveBytesByRoot } from "../aura/image-cache.js";
 import { derivePersona } from "../aura/persona-derive.js";
-import { upsertPersonaForAgent, personaMetaFor } from "../aura/persona-store.js";
+import { upsertPersonaForAgent, personaMetaFor, personaByAgentId } from "../aura/persona-store.js";
 
 // The drafted signature characters (NOT stored on-chain). Exact values from the persona-integration brief.
 const SIGNATURES: Record<string, string> = {
@@ -84,6 +84,16 @@ async function backfillOne(name: string): Promise<void> {
   const rich = await derivePersona({ name, styleDescriptor, signatureCharacter: sig });
   const enriched = !!(rich.personality || rich.lore);
   console.log(`[backfill] ${name}: persona ${enriched ? "LLM-ENRICHED" : "FLOOR-ONLY"} (personality=${!!rich.personality} lore=${!!rich.lore})`);
+
+  // NO-DOWNGRADE guard: if this run only produced the floor but an ENRICHED persona already exists for this
+  // aura (e.g. a prior run enriched it, and this cold call came back empty), preserve the existing one.
+  if (!enriched) {
+    const existing = personaByAgentId(brain.agent_id);
+    if (existing && (existing.personality || existing.lore)) {
+      console.log(`[backfill] ${name}: keeping the EXISTING enriched persona (this run floored). No overwrite.`);
+      return;
+    }
+  }
 
   upsertPersonaForAgent(brain.agent_id, brain.enc_brain_root, {
     name,

@@ -7,11 +7,14 @@
 import { pickProvider, runLlm } from "./chat-llm.js";
 import type { ChatMessage } from "./chat-compute.js";
 
-// GLM-5.1 on 0G mainnet takes ~15-25s for a rich reply (measured), and a fresh process also pays broker/
-// ledger init on the first call. 40s keeps derivation best-effort without truncating a slow-but-valid reply.
-// This is safe: create persists the FLOOR synchronously and runs derivation fire-and-forget, so a long (or
-// timed-out) derivation never blocks or fails the create.
-const DERIVE_TIMEOUT_MS = 40_000;
+// GLM-5.1 on 0G mainnet takes ~10-25s for a rich reply (measured). CRUCIALLY, the FIRST call against a
+// freshly-initialized broker frequently returns an EMPTY completion (len 0, finish=stop) - a verified 0G
+// cold-start quirk; the SECOND (warm) call returns full content. So derivation retries once on an empty/
+// unparseable reply, and the timeout budgets for two sequential calls. This is safe: create persists the
+// FLOOR synchronously and runs derivation fire-and-forget, so a long (or timed-out) derivation never blocks
+// or fails the create.
+const DERIVE_TIMEOUT_MS = 60_000;
+const DERIVE_ATTEMPTS = 2;
 // The persona is 4 fields (personality 2-3 sentences + lore 2-3 sentences + tagline + aesthetic). A tight
 // token ceiling TRUNCATES the JSON mid-field -> invalid JSON -> floor fallback (the verified failure at 700).
 // 1400 comfortably fits the whole object; the model self-terminates well before this on shorter styles.
@@ -103,16 +106,21 @@ export async function derivePersona(input: DerivePersonaInput): Promise<DerivedP
     const result = await Promise.race([
       (async (): Promise<DerivedPersonaFields | null> => {
         const chosen = (await pickProvider()).provider;
-        const r = await runLlm(chosen, buildMessages(input), undefined, { maxTokens: DERIVE_MAX_TOKENS });
-        const parsed = extractJson(r.text ?? "");
-        if (!parsed) return null;
-        const personality = str(parsed.personality);
-        const lore = str(parsed.lore);
-        const tagline = str(parsed.tagline) ?? floor.tagline;
-        const aesthetic = str(parsed.aesthetic) ?? floor.aesthetic;
-        // require at least a personality OR lore for it to count as an enrichment; else fall to floor.
-        if (!personality && !lore) return null;
-        return { aesthetic, personality, lore, tagline };
+        const messages = buildMessages(input);
+        // retry once: the first cold-broker call often returns empty; the warm retry returns full content.
+        for (let attempt = 0; attempt < DERIVE_ATTEMPTS; attempt++) {
+          const r = await runLlm(chosen, messages, undefined, { maxTokens: DERIVE_MAX_TOKENS });
+          const parsed = extractJson(r.text ?? "");
+          if (!parsed) continue;
+          const personality = str(parsed.personality);
+          const lore = str(parsed.lore);
+          // require at least a personality OR lore for it to count as an enrichment; else retry / floor.
+          if (!personality && !lore) continue;
+          const tagline = str(parsed.tagline) ?? floor.tagline;
+          const aesthetic = str(parsed.aesthetic) ?? floor.aesthetic;
+          return { aesthetic, personality, lore, tagline };
+        }
+        return null;
       })(),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), DERIVE_TIMEOUT_MS)),
     ]);
