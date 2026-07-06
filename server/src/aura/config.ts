@@ -32,7 +32,13 @@ export const GALILEO = {
   // https://indexer-storage-turbo.0g.ai (the SDK auto-discovers the Flow+Market contracts from it, so no
   // address change is needed). STORAGE_FILE_INFO_BASE derives from this, so the proof link follows it.
   storageIndexerTurbo: process.env.AURA_STORAGE_INDEXER_TURBO ?? "https://indexer-storage-testnet-turbo.0g.ai",
-  storageScan: "https://storagescan-galileo.0g.ai",
+  // Network-aware 0G Storage explorer (parallels `explorer` above): 0G MAINNET (16661) -> storagescan.0g.ai;
+  // else Galileo TESTNET -> storagescan-galileo.0g.ai. Env-overridable (AURA_STORAGE_SCAN). This backs
+  // storageScanUrl() (server/src/aura/contracts.ts), so a mainnet-minted relic no longer links to a testnet
+  // storage explorer that has no record of it.
+  storageScan:
+    process.env.AURA_STORAGE_SCAN ??
+    (ECONOMY_CHAIN_ID === 16661 ? "https://storagescan.0g.ai" : "https://storagescan-galileo.0g.ai"),
 } as const;
 
 // ── deployed v2 contracts (read from contracts/deployed-v2.json so there is ONE source of truth) ──
@@ -50,6 +56,10 @@ interface DeployedV2 {
   platform: string;
   platformBps: number;
   deployBlock: number;
+  // The block the game contracts (ArenaVote/AuraFusion/ArenaReputation) were deployed at (mainnet cutover).
+  // Floors every game eth_getLogs scan (tally, ladder verify) so they never scan from genesis. Falls back
+  // to deployBlock when unset.
+  gameDeployBlock: number;
   chainId: number;
 }
 
@@ -74,11 +84,18 @@ function loadDeployed(): DeployedV2 {
     platform: j.platform,
     platformBps: Number(j.platformBps),
     deployBlock: Number(j.deployBlock),
+    gameDeployBlock: Number(j.gameDeployBlock ?? j.deployBlock),
     chainId: Number(j.chainId),
   };
 }
 
 export const DEPLOYED = loadDeployed();
+
+// The floor block for every GAME eth_getLogs scan (arena tally recompute, ladder verdict scan). Precedence:
+// ARENA_DEPLOY_BLOCK env override > deployed-v2.json gameDeployBlock > deployBlock. This stops the keyless
+// /api/arena/tally + /api/arena/ladder/verify endpoints from scanning ~19k chunks from genesis (the mainnet
+// hang the audit found: with no ARENA_DEPLOY_BLOCK env, fromBlock defaulted to 0).
+export const GAME_DEPLOY_BLOCK = Number(process.env.ARENA_DEPLOY_BLOCK ?? DEPLOYED.gameDeployBlock);
 
 // addresses are env-overridable (same reason as GALILEO above: local anvil e2e vs live Galileo).
 export const CONTRACTS = {

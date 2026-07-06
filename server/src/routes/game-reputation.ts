@@ -9,7 +9,7 @@ import type { FastifyInstance } from "fastify";
 import { ethers } from "ethers";
 import { readProvider } from "../aura/contracts.js";
 import { arenaVoteRead, arenaVoteConfigured, arenaReputationRead, arenaReputationConfigured } from "../aura/game/contracts.js";
-import { CONTRACTS, GALILEO } from "../aura/config.js";
+import { CONTRACTS, GALILEO, GAME_DEPLOY_BLOCK } from "../aura/config.js";
 import { GAME_CHAIN_ID } from "../aura/game/contracts.js";
 import { computeLadder, ladderRows, ladderTree, rankSurface, verifyLadder, type Verdict, type LadderVerifyDeps } from "../aura/game/ladder.js";
 import { ladderRoot } from "../aura/game/merkle.js";
@@ -33,7 +33,9 @@ function parseSeason(v: unknown): number | null {
  * + rated flag. Only rated battles confer a verdict (the quorum gate). Single-period (period 0) for the MVP
  * season anchor. Chunked by block range (the eth_getLogs gotcha).
  */
-async function readVerdicts(fromBlock = Number(process.env.ARENA_DEPLOY_BLOCK ?? 0)): Promise<Verdict[]> {
+// fromBlock floors at the GAME deploy block (ARENA_DEPLOY_BLOCK env > deployed-v2.json gameDeployBlock) so the
+// keyless /api/arena/ladder/verify scan starts at the contract deploy, NOT genesis (the mainnet hang fix).
+async function readVerdicts(fromBlock = GAME_DEPLOY_BLOCK): Promise<Verdict[]> {
   const c = arenaVoteRead();
   const latest = await readProvider().getBlockNumber();
   const CHUNK = 2000;

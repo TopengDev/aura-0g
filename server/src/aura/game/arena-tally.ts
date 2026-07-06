@@ -10,7 +10,7 @@
 // module only proves the TALLY is reproducible from public data.
 import { ethers } from "ethers";
 import { GALILEO } from "../config.js";
-import { CONTRACTS } from "../config.js";
+import { CONTRACTS, GAME_DEPLOY_BLOCK } from "../config.js";
 import { arenaVoteRead, arenaVoteConfigured } from "./contracts.js";
 import { readProvider } from "../contracts.js";
 
@@ -170,8 +170,10 @@ export interface TallyDeps {
   getBattle(battleId: number): Promise<OnChainBattle>;
 }
 
-/** Real defaults: queryFilter the Revealed log (chunked) + getBattle, both from the deployed ArenaVote. */
-export function defaultTallyDeps(fromBlock = Number(process.env.ARENA_DEPLOY_BLOCK ?? 0)): TallyDeps {
+/** Real defaults: queryFilter the Revealed log (chunked) + getBattle, both from the deployed ArenaVote.
+ *  fromBlock floors at the GAME deploy block (ARENA_DEPLOY_BLOCK env > deployed-v2.json gameDeployBlock)
+ *  so the scan starts at the contract's deploy, NOT genesis - fixing the mainnet eth_getLogs hang. */
+export function defaultTallyDeps(fromBlock = GAME_DEPLOY_BLOCK): TallyDeps {
   return {
     async getRevealedEvents(battleId) {
       const c = arenaVoteRead();
