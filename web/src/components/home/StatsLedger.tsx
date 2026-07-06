@@ -2,6 +2,7 @@
 
 import { Reveal } from "@/components/Reveal";
 import { ZeroG } from "@/components/atoms/ZeroG";
+import { CHAIN_SHORT, CHAIN_TIER } from "@/lib/chains";
 import { Kicker } from "./Kicker";
 import { CountUp } from "./CountUp";
 
@@ -31,7 +32,7 @@ export function StatsLedger({ data }: { data: LedgerData }) {
     { label: "Relics minted", sub: "verifiable, provable", value: data.outputs },
     { label: "On-chain events", sub: "mints, sales, transfers", value: data.events },
     { label: "Creator royalty", sub: "follows every resale", value: 9, display: "6-9%" },
-    { label: "Network", sub: <>chainId on <ZeroG /> Galileo</>, value: data.chainId },
+    { label: "Network", sub: <>chainId on <ZeroG /> {CHAIN_SHORT}</>, value: data.chainId },
   ];
 
   return (
@@ -44,8 +45,8 @@ export function StatsLedger({ data }: { data: LedgerData }) {
               Live, on-chain, and counting.
             </h2>
             <p className="mt-4 max-w-[34ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              Not a mockup. Every figure here is read straight from the indexer and the <ZeroG /> Galileo
-              testnet, right now.
+              Not a mockup. Every figure here is read straight from the indexer and the <ZeroG /> {CHAIN_SHORT}{" "}
+              {CHAIN_TIER.toLowerCase()}, right now.
             </p>
           </div>
         </Reveal>

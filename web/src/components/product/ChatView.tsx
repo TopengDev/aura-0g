@@ -17,6 +17,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { useAuth } from "@/components/web3/AuthProvider";
 import { AuraChatThread } from "@/components/product/AuraChat";
 import { ActionButton, ConnectGate } from "@/components/product/primitives";
+import { CHAIN_FULL } from "@/lib/chains";
 import { agentPortraitUrl, fetchChatHistory, type Agent } from "@/lib/api";
 
 type HistEntry = { snippet: string; ts: string };
@@ -213,7 +214,7 @@ export function ChatView({ agents, initialAgentId }: { agents: Agent[]; initialA
               <div className="flex flex-1 items-center justify-center px-5">
                 <ConnectGate
                   title="Connect to chat"
-                  body={`Conversations with ${selected.name} are keyed to your wallet on the 0G Galileo testnet. Connect, then sign in once to talk.`}
+                  body={`Conversations with ${selected.name} are keyed to your wallet on the ${CHAIN_FULL}. Connect, then sign in once to talk.`}
                 >
                   <ConnectButton.Custom>
                     {({ openConnectModal }) => <ActionButton onClick={openConnectModal}>Connect wallet</ActionButton>}

@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { EASE } from "@/lib/motion";
 import { ZeroG } from "@/components/atoms/ZeroG";
+import { CHAIN_SHORT, CHAIN_TIER } from "@/lib/chains";
 import { CLI_AGENT, CLI_EXCHANGES, CLI_REPLY } from "@/lib/scene";
 import { BrowserGallery } from "./BrowserGallery";
 import { CliTerminal } from "./CliTerminal";
@@ -89,7 +90,7 @@ export function OsScene() {
         <span className="flex items-center gap-2">
           AURA · art you can prove
         </span>
-        <span className="hidden sm:inline"><ZeroG /> · galileo testnet</span>
+        <span className="hidden sm:inline"><ZeroG /> · {CHAIN_SHORT.toLowerCase()} {CHAIN_TIER.toLowerCase()}</span>
       </div>
       {/* the provenance hairline under the menubar */}
       <span

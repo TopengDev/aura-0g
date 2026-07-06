@@ -5,7 +5,7 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { Reveal } from "@/components/Reveal";
 import { PageHeader, Panel, ProvLine, Chip, ActionButton, ConnectGate } from "@/components/product/primitives";
 import { ZeroG } from "@/components/atoms/ZeroG";
-import { APP_CHAIN, EXPLORER, FAUCET_URL } from "@/lib/chains";
+import { APP_CHAIN, EXPLORER, FAUCET_URL, CHAIN_ID, CHAIN_SHORT, CHAIN_FULL } from "@/lib/chains";
 import { shortHex } from "@/lib/api";
 
 // /faucet - the testnet gas helper. AURA's writes (mint an output, list/buy on the marketplace, create
@@ -48,7 +48,7 @@ export function FaucetView() {
                 title="Connect to check your balance"
                 body={
                   <>
-                    Your <ZeroG /> balance is keyed to your address on the Galileo testnet. Connect a
+                    Your <ZeroG /> balance is keyed to your address on the {CHAIN_FULL}. Connect a
                     wallet to see it, then claim from the faucet if you are running low.
                   </>
                 }
@@ -162,7 +162,7 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
 ];
 
 const NOTES: { id: string; body: React.ReactNode }[] = [
-  { id: "testnet", body: <>This is testnet <ZeroG /> only. It has no real value and exists purely for trying AURA on Galileo (chain 16602).</> },
+  { id: "testnet", body: <>This is testnet <ZeroG /> only. It has no real value and exists purely for trying AURA on {CHAIN_SHORT} (chain {CHAIN_ID}).</> },
   { id: "rate-limit", body: "The faucet is rate-limited, roughly one claim per address per day, and gated by a captcha to keep it fair." },
   { id: "read-free", body: <>You do not need <ZeroG /> to browse, explore, or verify a Relic, only to send a transaction that you sign.</> },
 ];

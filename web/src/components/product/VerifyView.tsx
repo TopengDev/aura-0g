@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, ActionButton, Field, CopyCommand } from "@/components/product/primitives";
 import { ZeroG } from "@/components/atoms/ZeroG";
-import { EXPLORER, STORAGE_SCAN } from "@/lib/chains";
+import { EXPLORER, STORAGE_SCAN, CHAIN_SHORT, CHAIN_ID, CHAIN_FULL } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
 import { runVerification, type VerifyResult } from "@/lib/verify";
 import { shortHex } from "@/lib/api";
@@ -131,7 +131,7 @@ export function VerifyView({ initialId }: { initialId?: string }) {
                 ))}
               </ul>
               <p className="mt-5 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
-                Reads run against the live <ZeroG /> Galileo chain (id 16602). Nothing is signed or spent.
+                Reads run against the live <ZeroG /> {CHAIN_SHORT} chain (id {CHAIN_ID}). Nothing is signed or spent.
               </p>
             </Panel>
           </Reveal>
@@ -338,7 +338,7 @@ function NotFoundPanel({ id }: { id: string }) {
           No relic #{id} on-chain.
         </h2>
         <p className="mx-auto mt-3 max-w-[42ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-          Nothing with that token id has been minted on the 0G Galileo testnet. Double-check the id, or
+          Nothing with that token id has been minted on the {CHAIN_FULL}. Double-check the id, or
           browse the gallery to find a verifiable Relic.
         </p>
         <div className="mx-auto mt-6 max-w-[240px]">

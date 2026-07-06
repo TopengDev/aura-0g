@@ -1,12 +1,12 @@
 import { ZeroG } from "@/components/atoms/ZeroG";
-import { EXPLORER, FAUCET_URL } from "@/lib/chains";
+import { EXPLORER, FAUCET_URL, CHAIN_ID, CHAIN_SHORT, CHAIN_TIER } from "@/lib/chains";
 import { fetchHealth, shortAddr } from "@/lib/api";
 
 // Server component. Footer with the AURA wordmark + thesis, three columns, the LIVE chainId +
-// contract addresses (mono, linking to chainscan), a 0G Galileo Testnet badge, and a faucet helper.
+// contract addresses (mono, linking to chainscan), the app-chain network badge, and a faucet helper.
 export async function Footer() {
   const health = await fetchHealth();
-  const chainId = health?.chainId ?? 16602;
+  const chainId = health?.chainId ?? CHAIN_ID;
   const contracts = health?.contracts;
 
   const contractLinks = contracts
@@ -30,7 +30,7 @@ export async function Footer() {
               attested in a TEE, and stored on <ZeroG />.
             </p>
             <div className="tag mt-5" style={{ border: "1px solid var(--color-border-strong)", background: "var(--color-paper)", color: "var(--color-ink-2)" }}>
-              <ZeroG /> Galileo Testnet
+              <ZeroG /> {CHAIN_SHORT} {CHAIN_TIER}
             </div>
           </div>
 
@@ -92,7 +92,7 @@ export async function Footer() {
             AURA. Art you can prove, from living Auras on <ZeroG />.
           </span>
           <span className="text-[16px] font-medium" style={{ color: "var(--color-ink-3)" }}>
-            Built on <ZeroG /> Galileo. Testnet preview.
+            Built on <ZeroG /> {CHAIN_SHORT}. {CHAIN_TIER}.
           </span>
         </div>
       </div>

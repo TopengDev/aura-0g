@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { EASE } from "@/lib/motion";
 import { ZeroG } from "@/components/atoms/ZeroG";
+import { CHAIN_ID } from "@/lib/chains";
 import { imageUrl, type Output } from "@/lib/api";
 
 // Section 1 - HERO. AURA's hero is CHARACTER-ART-FORWARD and asymmetric: a left editorial column
@@ -123,7 +124,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
               <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink)", letterSpacing: "0" }}>{outputCount}</span> verifiable Relics
             </span>
             <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)" }}>
-              chain <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-2)", letterSpacing: "0" }}>16602</span>
+              chain <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-2)", letterSpacing: "0" }}>{CHAIN_ID}</span>
             </span>
           </motion.div>
         </div>

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { PageHeader, ProvLine, Chip, Segmented } from "@/components/product/primitives";
 import { Pager, paginate, AGENTS_PAGE_SIZE } from "@/components/product/Pager";
+import { CHAIN_ID } from "@/lib/chains";
 import { agentPortraitUrl } from "@/lib/api";
 import type { Agent, MarketListing } from "@/lib/api";
 
@@ -152,7 +153,7 @@ export function AgentsBrowse({ rows, totalCount }: { rows: AgentRow[]; totalCoun
 
         <p className="mt-8 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
           Showing {pageRows.length} of {visible.length} catalog Auras
-          {visible.length !== rows.length ? ` (filtered from ${rows.length})` : ""}. {totalCount} Auras minted on-chain (chain 16602).
+          {visible.length !== rows.length ? ` (filtered from ${rows.length})` : ""}. {totalCount} Auras minted on-chain (chain {CHAIN_ID}).
         </p>
       </div>
     </section>

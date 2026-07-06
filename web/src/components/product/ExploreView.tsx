@@ -8,7 +8,7 @@ import { PageHeader, Panel, ProvLine, Chip } from "@/components/product/primitiv
 import { RarityBadge } from "@/components/product/RarityBadge";
 import { Pager, paginate, OUTPUTS_PAGE_SIZE } from "@/components/product/Pager";
 import { ZeroG } from "@/components/atoms/ZeroG";
-import { EXPLORER } from "@/lib/chains";
+import { EXPLORER, CHAIN_SHORT, CHAIN_ID } from "@/lib/chains";
 import {
   agentPortraitUrl,
   imageUrl,
@@ -167,7 +167,7 @@ export function ExploreView({ data }: { data: ExploreData }) {
           <SectionHead
             kicker="Live activity"
             title="Every move, on-chain."
-            note="Mints, sales, listings, and transfers as they settle on 0G Galileo."
+            note={`Mints, sales, listings, and transfers as they settle on 0G ${CHAIN_SHORT}.`}
           />
           {activity.length === 0 ? (
             <EmptyRow label="No on-chain activity yet." />
@@ -183,7 +183,7 @@ export function ExploreView({ data }: { data: ExploreData }) {
             </Reveal>
           )}
           <p className="mt-6 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
-            Reads live from the indexer over <ZeroG /> Galileo (chain <span className="font-mono-x tabular-nums">16602</span>).
+            Reads live from the indexer over <ZeroG /> {CHAIN_SHORT} (chain <span className="font-mono-x tabular-nums">{CHAIN_ID}</span>).
           </p>
         </div>
       </section>

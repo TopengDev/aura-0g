@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { EXPLORER } from "@/lib/chains";
+import { EXPLORER, CHAIN_FULL } from "@/lib/chains";
 import { shortHex, type MarketListing } from "@/lib/api";
 import { useTrade, type TradeKind } from "@/lib/useTrade";
 import { ActionButton, Chip, ProvLine } from "@/components/product/primitives";
@@ -76,7 +76,7 @@ export function TradePanel({
       {!isConnected ? (
         <div className="space-y-3">
           <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
-            Connect a wallet on the 0G Galileo testnet to {isListed ? "buy" : "trade"} this {noun}.
+            Connect a wallet on the {CHAIN_FULL} to {isListed ? "buy" : "trade"} this {noun}.
           </p>
           <ConnectButton.Custom>
             {({ openConnectModal }) => (

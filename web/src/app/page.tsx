@@ -9,6 +9,7 @@ import {
   nonFeaturedOutputs,
   isTestAgentName,
 } from "@/lib/api";
+import { CHAIN_ID } from "@/lib/chains";
 import { Hero } from "@/components/home/Hero";
 import { CharacterGallery } from "@/components/home/CharacterGallery";
 import { Thesis } from "@/components/home/Thesis";
@@ -58,7 +59,7 @@ export default async function HomePage() {
     agents: agentCount,
     outputs: outputCount,
     events: counts?.counts.events ?? activity.length,
-    chainId: health?.chainId ?? 16602,
+    chainId: health?.chainId ?? CHAIN_ID,
     sponsorBalance: health?.sponsorBalance ? Number(health.sponsorBalance) : null,
   };
 

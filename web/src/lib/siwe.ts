@@ -19,8 +19,12 @@
 
 import { createSiweMessage } from "viem/siwe";
 import { API_BASE } from "./api";
+import { APP_CHAIN } from "./chains";
 
-const CHAIN_ID = 16602;
+// The chainId bound into the SIWE message follows the app chain (mainnet 16661 post-cutover). The server
+// verifies only the domain (not chainId), but binding the real chain keeps the signed message consistent
+// with the wallet's connected network instead of the stale hardcoded testnet id.
+const CHAIN_ID = APP_CHAIN.id;
 
 /** The host the SIWE message binds to. Build-time env pin > runtime browser host > localhost dev. */
 function siweDomain(): string {

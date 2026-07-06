@@ -19,7 +19,7 @@ import {
   StepRail,
   type StepStatus,
 } from "@/components/product/primitives";
-import { EXPLORER } from "@/lib/chains";
+import { EXPLORER, CHAIN_FULL } from "@/lib/chains";
 import { useMint } from "@/lib/useMint";
 import {
   agentPortraitUrl,
@@ -474,7 +474,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                 {!isConnected ? (
                   <div className="space-y-3">
                     <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
-                      Connect a wallet on the 0G Galileo testnet. You sign in once (SIWE) to generate, and
+                      Connect a wallet on the {CHAIN_FULL}. You sign in once (SIWE) to generate, and
                       sign again only to mint.
                     </p>
                     <ConnectButton.Custom>

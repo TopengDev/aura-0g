@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
 import { ZeroG } from "@/components/atoms/ZeroG";
+import { CHAIN_SHORT } from "@/lib/chains";
 import { useInView } from "@/lib/useInView";
 
 // Section 8 - CTA close. Skeleton: centered-form (max-contrast, minimal). Technique T1: full-bleed
@@ -27,7 +28,7 @@ export function CtaClose() {
           </h2>
           <p className="mx-auto mt-6 max-w-[52ch] text-[16px] leading-relaxed" style={{ color: "color-mix(in oklab, var(--color-cream) 78%, transparent)" }}>
             Generate for free with any Aura. When a Relic is worth keeping, mint it with provenance and
-            royalties on <ZeroG /> Galileo.
+            royalties on <ZeroG /> {CHAIN_SHORT}.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">

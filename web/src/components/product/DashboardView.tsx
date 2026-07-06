@@ -16,7 +16,7 @@ import {
   ConnectGate,
   TextInput,
 } from "@/components/product/primitives";
-import { EXPLORER } from "@/lib/chains";
+import { EXPLORER, CHAIN_FULL } from "@/lib/chains";
 import { useTrade } from "@/lib/useTrade";
 import {
   activityForAddress,
@@ -105,7 +105,7 @@ export function DashboardView() {
           <Reveal delay={0.05}>
             <ConnectGate
               title="Connect your wallet"
-              body="Your portfolio is keyed to your address on the 0G Galileo testnet. Connect to see your Auras, Relics, listings, and earnings."
+              body={`Your portfolio is keyed to your address on the ${CHAIN_FULL}. Connect to see your Auras, Relics, listings, and earnings.`}
             >
               <ConnectButton.Custom>
                 {({ openConnectModal }) => <ActionButton onClick={openConnectModal}>Connect wallet</ActionButton>}

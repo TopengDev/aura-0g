@@ -18,7 +18,7 @@ import {
   StepRail,
   type StepStatus,
 } from "@/components/product/primitives";
-import { EXPLORER } from "@/lib/chains";
+import { EXPLORER, CHAIN_FULL } from "@/lib/chains";
 import { useMint } from "@/lib/useMint";
 import {
   confirmAgentMint,
@@ -318,7 +318,7 @@ export function CreateView() {
                 {!isConnected ? (
                   <div className="space-y-3">
                     <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
-                      Connect a wallet on the 0G Galileo testnet. You sign in once (SIWE) to build, and
+                      Connect a wallet on the {CHAIN_FULL}. You sign in once (SIWE) to build, and
                       sign again to mint the Aura.
                     </p>
                     <ConnectButton.Custom>

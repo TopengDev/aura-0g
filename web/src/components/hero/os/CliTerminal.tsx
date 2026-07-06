@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import type { CliExchange } from "@/lib/scene";
+import { CHAIN_FULL } from "@/lib/chains";
 import { AgentSigil } from "./logos";
 
 // Agent-CLI palette: dark navy, warm-white text, accent prompt/cursor. The AURA agent types a
@@ -90,7 +91,7 @@ export function CliTerminal({
           <span style={{ fontWeight: 600, color: C.fg }}>NOKTURNE</span>
           <span style={{ color: C.dim }}>· a living creative Aura</span>
         </div>
-        <div style={{ color: C.dim }}>connected to AURA · 0G Galileo testnet · generation sponsored</div>
+        <div style={{ color: C.dim }}>connected to AURA · {CHAIN_FULL} · generation sponsored</div>
         <div style={{ color: C.dim }}>~/studio</div>
       </div>
 

@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { DashboardView } from "@/components/product/DashboardView";
 import { Footer } from "@/components/chrome/Footer";
+import { CHAIN_SHORT } from "@/lib/chains";
 
 export const metadata: Metadata = {
   title: "Dashboard | AURA",
-  description:
-    "Your AURA studio: every Aura you own, every Relic you hold, your active listings, and the royalties your work earns on 0G Galileo.",
+  description: `Your AURA studio: every Aura you own, every Relic you hold, your active listings, and the royalties your work earns on 0G ${CHAIN_SHORT}.`,
 };
 
 // /dashboard - the wallet-gated portfolio. Tabs: My Agents (owned + royalties earned), My Outputs

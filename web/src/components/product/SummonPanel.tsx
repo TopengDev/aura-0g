@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useAccount, useReadContract } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther } from "viem";
-import { APP_CHAIN, EXPLORER } from "@/lib/chains";
+import { APP_CHAIN, EXPLORER, CHAIN_FULL } from "@/lib/chains";
 import { CONTRACTS, SUMMON_ENABLED, summonEscrowAbi } from "@/lib/contracts";
 import { fetchSummonStatus, imageUrl, shortHex, type SummonStatus } from "@/lib/api";
 import { useSummon } from "@/lib/useSummon";
@@ -204,7 +204,7 @@ export function SummonPanel({
       ) : !isConnected ? (
         <div className="space-y-3">
           <p className="text-[16px]" style={{ color: "var(--color-ink-2)" }}>
-            Connect a wallet on the 0G Galileo testnet to summon {agentName}.
+            Connect a wallet on the {CHAIN_FULL} to summon {agentName}.
           </p>
           <ConnectButton.Custom>
             {({ openConnectModal }) => <ActionButton onClick={openConnectModal}>Connect wallet</ActionButton>}
