@@ -329,6 +329,30 @@ export async function fetchOutputs(limit = 8): Promise<Output[]> {
   return data?.outputs ?? [];
 }
 
+// One CURSOR-paginated page of recent outputs (newest-first). The indexer exposes a keyset cursor: the
+// opaque decimal `orderKey` of the last row on the page. Pass the previous page's `nextCursor` to fetch the
+// next page; `nextCursor` is null ONLY at the true end of the gallery. This is what makes /explore an
+// uncapped infinite feed (vs a fixed fetch sliced client-side, which could only ever reach `limit` relics).
+//
+// SUBTLETY (verified against server/src/routes/indexer.ts curateOutputs): the server strips the hidden
+// token set AFTER the indexer paginates, so a page may carry FEWER than `limit` visible items -- or zero --
+// yet still return a non-null `nextCursor`. Callers MUST follow `nextCursor` until it is null and must NOT
+// treat a short/empty page as the end. Fails soft to null on a network/parse error (the caller can retry).
+export interface OutputsPage {
+  outputs: Output[];
+  nextCursor: string | null;
+}
+export async function fetchOutputsPage(
+  params: { cursor?: string | null; limit?: number } = {},
+): Promise<OutputsPage | null> {
+  const { cursor, limit = 24 } = params;
+  const qs = new URLSearchParams({ limit: String(limit) });
+  if (cursor) qs.set("cursor", cursor);
+  const data = await getJson<{ outputs?: Output[]; nextCursor?: string | null }>(`/outputs?${qs.toString()}`);
+  if (!data) return null;
+  return { outputs: data.outputs ?? [], nextCursor: data.nextCursor ?? null };
+}
+
 export async function fetchActivity(limit = 12): Promise<Activity[]> {
   const data = await getJson<{ items: Activity[] }>(`/api/activity?limit=${limit}`);
   return data?.items ?? [];
