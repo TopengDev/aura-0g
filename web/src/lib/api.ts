@@ -978,13 +978,39 @@ export const CATALOG_NAMES = new Set(["NOKTURNE", "MIRAI", "RISO", "SCRIPTORIUM"
 
 // Single source of truth for "this is an internal test/e2e-proof agent" (hidden from all public
 // surfaces: catalog, trending, creators, AND the activity feed). Real agents (including same-named
-// ones like the two CHILLDAWGs) are NOT matched.
+// ones like the two CHILLDAWGs) are NOT matched. Kept BYTE-FOR-BYTE in lockstep with the server's
+// aura/curation.ts isTestAgentName so every surface (web render + raw /api/agents) hides the SAME set.
+// Patterns (all anchored/substring-verified NOT to hit any real aura name -- NOKTURNE/MIRAI/RISO/
+// SCRIPTORIUM/SUMI/UKIYO/RIOT/AUREON/NYXARA/AETHAINE/VELLUM/VANTABLOOM/AURA-FUSION-1/... all pass):
+//   - ^TESTAGENT | ^BRAINTEST : the original e2e-proof agent stubs.
+//   - ^SALE-E2E              : the Flow-B agent-sale verification artifacts (minted 4x "SALE-E2E-THROWAWAY").
+//   - THROWAWAY (substring)  : belt-and-suspenders so ANY future *THROWAWAY* e2e artifact is hidden by name.
 export function isTestAgentName(name: string | null | undefined): boolean {
-  return /^(TESTAGENT|BRAINTEST)/i.test(name ?? "");
+  return /^(TESTAGENT|BRAINTEST|SALE-E2E)|THROWAWAY/i.test(name ?? "");
+}
+
+// ── Surgical by-ID hide (env-driven, analogous to the server's AURA_HIDDEN_OUTPUT_TOKENS for relics) ──
+// A general primitive for hiding specific agentIds from every public browse surface REGARDLESS of name --
+// for one-offs whose on-chain NAME is immutable / unrecoverable (e.g. a fused throwaway) and cannot be
+// caught by the name filter. NEXT_PUBLIC_ so the SAME set is honored in the browser AND during SSR.
+// "35,36,37,38" hides those ids; unset / "" hides none. This is defense-in-depth on the web: the server
+// (aura/curation.ts + routes/indexer.ts) already strips the same ids from /agents + /api/agents, so a
+// hidden agent never reaches the web catalog in the first place -- this keeps the web self-consistent
+// if it is ever pointed at an unfiltered backend.
+const HIDDEN_AGENT_IDS = new Set(
+  (process.env.NEXT_PUBLIC_AURA_HIDDEN_AGENT_IDS ?? "")
+    .split(",")
+    .map((s) => Number(s.trim()))
+    .filter((n) => Number.isFinite(n)),
+);
+
+export function isHiddenAgentId(agentId: number | null | undefined): boolean {
+  if (agentId === null || agentId === undefined) return false;
+  return HIDDEN_AGENT_IDS.has(Number(agentId));
 }
 
 export function isFeatured(a: Agent): boolean {
-  return !isTestAgentName(a.name);
+  return !isTestAgentName(a.name) && !isHiddenAgentId(a.agentId);
 }
 
 export function featuredAgents(agents: Agent[]): Agent[] {

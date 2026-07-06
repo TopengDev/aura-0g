@@ -17,7 +17,7 @@ import { metaForName } from "../aura/catalog.js";
 import { personaMetaFor } from "../aura/persona-store.js";
 import { getProvenance } from "../aura/provenance.js";
 import { getMarketplace } from "../aura/marketplace.js";
-import { hasHiddenOutputs, isHiddenOutput } from "../aura/curation.js";
+import { hasHiddenOutputs, isHiddenOutput, isHiddenAgent } from "../aura/curation.js";
 
 /** Fetch JSON from the indexer with a timeout. Throws on non-2xx or timeout (caller decides fallback). */
 async function indexerGet(pathAndQuery: string): Promise<unknown> {
@@ -61,6 +61,32 @@ function curateOutputs(data: unknown): unknown {
   }
   if (Array.isArray(d.items)) {
     d.items = (d.items as unknown[]).filter((o) => !hidden((o as { tokenId?: unknown } | null)?.tokenId));
+  }
+  return d;
+}
+
+// ── agent-browse curation (throwaway / test agents hidden from public LIST feeds) ────────────────────
+// The AGENT analog of curateOutputs: the Flow-B agent-sale e2e minted 4 un-removable "SALE-E2E-THROWAWAY"
+// agents (ids 35-38) that leaked into the LIVE public catalog (GET /api/agents count 28 -> 32). They are
+// on-chain-immutable (orphaned keys / immutable name / no burn), so they are curated OUT of the public
+// browse surfaces at the proxy layer (needs no indexer/Ponder redeploy). Hide predicate + env parse live
+// in aura/curation.ts (isHiddenAgent = by-name OR by-id via AURA_HIDDEN_AGENT_IDS), shared with any other
+// server surface. Applied to LIST arrays ONLY (agents[] grid, agentsOwned[] portfolio, a bare agent
+// array, and an items[] list of agent-shaped rows). A SINGLE-agent DETAIL object passes through untouched
+// so GET /agents/:id (e.g. /api/agents/35) still resolves -- hidden from BROWSE/COUNT, not hard-404'd.
+function isAgentRow(o: unknown): o is { agentId?: number | bigint | string | null; name?: string | null } {
+  return !!o && typeof o === "object" && "agentId" in (o as Record<string, unknown>);
+}
+
+/** Drop curated-out agents from any agent LIST arrays in a proxied response. Mutates + returns the fresh
+ *  parse. A top-level single-agent object (detail read) is returned untouched (never filtered to null). */
+function curateAgentsInResponse(data: unknown): unknown {
+  if (!data || typeof data !== "object") return data;
+  const keep = (el: unknown) => !(isAgentRow(el) && isHiddenAgent(el));
+  if (Array.isArray(data)) return (data as unknown[]).filter(keep);
+  const d = data as Record<string, unknown>;
+  for (const k of Object.keys(d)) {
+    if (Array.isArray(d[k])) d[k] = (d[k] as unknown[]).filter(keep);
   }
   return d;
 }
@@ -166,8 +192,12 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
     try {
       const data = await indexerGet(`/${wildcard}${qs}`);
       // Re-attach the persona SOUL the indexer's read model cannot see (see enrichAgentsInResponse), then
-      // apply the output curation mask. Both are no-ops on responses that carry no agent/output arrays.
-      return reply.send(curateOutputs(enrichAgentsInResponse(data)));
+      // strip curated-out agents (throwaway/test) from any LIST arrays, then apply the output curation
+      // mask. All three are no-ops on responses that carry no agent/output arrays. Order is independent
+      // (they touch disjoint array fields), but agent curation runs on the persona-enriched object so a
+      // hidden agent is gone from every browse LIST (/api/agents, /api/discover, /api/creators/:w) while
+      // a single-agent DETAIL object (/api/agents/:id) passes through untouched.
+      return reply.send(curateAgentsInResponse(curateOutputs(enrichAgentsInResponse(data))));
     } catch (err) {
       app.log.warn({ err: String(err), path: wildcard }, "indexer proxy failed");
       return reply.code(502).send({
@@ -184,11 +214,14 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
   app.get("/agents", async () => {
     try {
       // indexer-first: overlay each user aura's stored persona soul (the chain-scan fallback below uses
-      // listAgents() -> resolveMeta, which is already persona-aware, so it needs no extra enrichment).
-      return enrichAgentsInResponse(await indexerGet("/agents"));
+      // listAgents() -> resolveMeta, which is already persona-aware, so it needs no extra enrichment), then
+      // strip curated-out throwaway/test agents from the grid (this is the raw list the webapp's
+      // fetchAgents() reads; it must return the clean count independent of the web-side isFeatured filter).
+      return curateAgentsInResponse(enrichAgentsInResponse(await indexerGet("/agents")));
     } catch {
       return await cachedFallback("agents", async () => ({
-        agents: await listAgents(),
+        // curate the chain-scan fallback too, so a down indexer still serves the clean grid.
+        agents: (await listAgents()).filter((a) => !isHiddenAgent(a as { agentId?: number; name?: string })),
         source: "chain-scan-fallback",
         note: "indexer unreachable",
       }));
