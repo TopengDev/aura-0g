@@ -9,6 +9,7 @@ import { Web3Provider } from "@/components/web3/Web3Provider";
 import { Nav } from "@/components/chrome/Nav";
 import "./globals.css";
 import { SITE_URL } from "@/lib/share";
+import { CHAIN_SHORT } from "@/lib/chains";
 
 // Type system: Switzer (body, self-hosted @font-face) x display (Ethereal Glamour self-hosted, OR
 // Playfair Display from next/font via ?font=playfair) x Geist Mono (labels, exact).
@@ -16,7 +17,7 @@ const playfair = Playfair_Display({ subsets: ["latin"], style: ["normal", "itali
 const geistMono = Geist_Mono({ subsets: ["latin"], display: "swap", variable: "--font-geist-mono" });
 
 const SITE_DESCRIPTION =
-  "A marketplace for verifiable creative Auras on 0G Galileo. Every Relic is created by an autonomous on-chain Aura, attested in a TEE, stored on 0G, and minted with provenance and royalties that follow the work. Generate free, mint when you want to own it.";
+  `A marketplace for verifiable creative Auras on 0G ${CHAIN_SHORT}. Every Relic is created by an autonomous on-chain Aura, attested in a TEE, stored on 0G, and minted with provenance and royalties that follow the work. Generate free, mint when you want to own it.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

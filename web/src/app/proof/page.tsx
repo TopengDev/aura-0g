@@ -11,7 +11,8 @@ import {
   shortAddr,
   type ChatModelInfo,
 } from "@/lib/api";
-import { EXPLORER } from "@/lib/chains";
+import { EXPLORER, CHAIN_ID, CHAIN_SHORT, CHAIN_TIER } from "@/lib/chains";
+import { PROOF_CONTRACTS, PROOF_OUTPUT_NFT, PROOF_AURA_INFT, PROOF_RPC, PROOF_IS_MAINNET } from "@/lib/proof-contracts";
 import { absoluteUrl } from "@/lib/share";
 
 // /proof - the jury-facing EVIDENCE PAGE. Every claim below re-derives from a LIVE endpoint or an on-chain
@@ -38,8 +39,9 @@ const CHAT_URL = "https://aura.topengdev.com/chat";
 // juror opens the exact file+line. Line numbers track origin/v2 (what ships).
 const GH = "https://github.com/TopengDev/aura-0g/blob/v2";
 
-// The 0G Compute chat providers run on 0G MAINNET, so their address links resolve on the MAINNET explorer -
-// deliberately DIFFERENT from EXPLORER (Galileo testnet) used for the app's contracts. Two networks, on purpose.
+// The 0G Compute chat providers run on 0G MAINNET, so their address links resolve on the MAINNET explorer.
+// EXPLORER (imported, APP_CHAIN-derived) also points here post-cutover; kept as a distinct const because the
+// chat-provider links are a fixed-mainnet fact independent of whichever chain the app's contracts are on.
 const MAINNET_EXPLORER = "https://chainscan.0g.ai";
 
 // Rival repos + on-chain contracts a juror can open to check the "check theirs" claims, pinned to the EXACT
@@ -52,20 +54,12 @@ const HECKLE_CHARACTERS = "0xfFB4A91Ff9C8dD16d9b0e0665d869392C8fCC0bc"; // Heckl
 const SENTINEL_GH = "https://github.com/dmustapha/0g-sentinel/blob/5d8b9eb";
 const SENTINEL_REGISTRY = "0xB3E7048cef229fF5043CD2dBba296bF278d3F88d"; // AttestationRegistry on 0G mainnet
 
-// The chain the marketplace contracts live on (verified live via /health).
-const CHAIN_ID = 16602;
-
-// ── Contracts (Galileo testnet 16602) ──────────────────────────────────────
-type ContractRow = { label: string; addr: string; note: string };
-const CONTRACTS: ContractRow[] = [
-  { label: "AgentRegistry", addr: "0xb5960cc08caa5195095cfb8aa270f122be09ba0a", note: "every Aura's on-chain identity (ERC-721)" },
-  { label: "OutputNFT", addr: "0xEecED1e6965f00a5f7cA459631370c886FAEFd3b", note: "attestation-gated Relic mint" },
-  { label: "Marketplace", addr: "0x815115Eb39987d3fAdb3b373f89fa0096433f228", note: "EIP-2981 royalty-honoring trades" },
-  { label: "SummonEscrow", addr: "0xa5CeFBc097d84beE09b12fc1569B6CcA56992838", note: "demand-pull commissioning + fee split" },
-  { label: "AuraINFT", addr: "0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d", note: "ERC-7857 sealed-key transfer · isolated deploy (name: AURA Creative Agent)" },
-];
-const OUTPUT_NFT = CONTRACTS[1].addr;
-const RPC = "https://evmrpc-testnet.0g.ai";
+// The chain + contract set the marketplace lives on are APP_CHAIN-derived (see lib/proof-contracts.ts, which
+// mirrors contracts/deployed-v2.json and is selected by NEXT_PUBLIC_AURA_CHAIN_ID). CHAIN_ID/CHAIN_SHORT come
+// from lib/chains. The live /health chainId still supersedes CHAIN_ID at render (below), so the panel is live.
+const CONTRACTS = PROOF_CONTRACTS;
+const OUTPUT_NFT = PROOF_OUTPUT_NFT;
+const RPC = PROOF_RPC;
 
 // The 2026-07-01 SNAPSHOT of a fully-green Relic, used ONLY if the live newest-Relic fetch is unavailable so
 // the page is never blank. The live featured Relic (below) is resolved from /outputs + /api/verify at request
@@ -284,7 +278,7 @@ export default async function ProofPage() {
         { label: "AuraINFT.sol:153", href: `${GH}/contracts/src/AuraINFT.sol#L153` },
         { label: "proof gate :190", href: `${GH}/contracts/src/AuraINFT.sol#L190` },
         { label: "raw-transfer reverts :327", href: `${GH}/contracts/src/AuraINFT.sol#L327` },
-        { label: "AuraINFT on 0G Scan", href: `${EXPLORER}/address/${CONTRACTS[4].addr}` },
+        { label: "AuraINFT on 0G Scan", href: `${EXPLORER}/address/${PROOF_AURA_INFT}` },
       ],
       boundary:
         "The transfer oracle is a trusted ECDSA signer, not a hardware-TEE enclave (the bar the field ships). This claim is literally true only when AuraINFT is configured - rendered live above, never hardcoded.",
@@ -600,11 +594,13 @@ export default async function ProofPage() {
 
           {/* Chain */}
           <Panel className="p-6 sm:p-8">
-            <PrimitiveHead tag="Chain · Galileo 16602" title="Five contracts, live bytecode." />
+            <PrimitiveHead tag={`Chain · ${CHAIN_SHORT} ${CHAIN_ID}`} title={`${CONTRACTS.length} contracts, live bytecode.`} />
             <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              Five contracts are deployed on 0G Galileo testnet (chainId {chainId}); every address below returns real
-              bytecode on-chain and opens on 0G Scan. Four run the live marketplace; AuraINFT is the isolated
-              sealed-transfer deploy, with the cutover staged.
+              {CONTRACTS.length} contracts are deployed on 0G {CHAIN_SHORT} {CHAIN_TIER.toLowerCase()} (chainId {chainId}); every
+              address below returns real bytecode on-chain and opens on 0G Scan.{" "}
+              {PROOF_IS_MAINNET
+                ? "AuraINFT is the live ERC-7857 iNFT every Aura is minted on; the rest run the marketplace, summon, and the arena/fusion game layer."
+                : "Four run the live marketplace; AuraINFT is the isolated sealed-transfer deploy, with the cutover staged."}
             </p>
             <dl className="mt-6">
               {CONTRACTS.map((c) => (
@@ -635,7 +631,7 @@ export default async function ProofPage() {
                 <>
                   ERC-7857 sealed-key transfer is a proven primitive on the AuraINFT contract: a transfer recovers a
                   signed re-encryption proof, and the brain is re-encrypted with a fresh key and ECIES-sealed to the
-                  buyer, so the old owner cannot open it. It is deployed and Foundry-tested in isolation on Galileo.
+                  buyer, so the old owner cannot open it. It is deployed and Foundry-tested in isolation.
                   Live Auras trade today as standard ERC-721 on AgentRegistry, and Relics are ERC-721 + EIP-2981,
                   not iNFTs; the sealed-key cutover is staged. Honest framing: the oracle is a trusted ECDSA signer,
                   not a hardware-TEE enclave, which is the bar the field ships today.
@@ -643,7 +639,7 @@ export default async function ProofPage() {
               )}
             </p>
             <dl className="mt-6">
-              <MetaRow k="Contract" v={shortAddr(isInft && pv?.agent?.contract ? pv.agent.contract : CONTRACTS[4].addr)} href={`${EXPLORER}/address/${isInft && pv?.agent?.contract ? pv.agent.contract : CONTRACTS[4].addr}`} mono />
+              <MetaRow k="Contract" v={shortAddr(isInft && pv?.agent?.contract ? pv.agent.contract : PROOF_AURA_INFT)} href={`${EXPLORER}/address/${isInft && pv?.agent?.contract ? pv.agent.contract : PROOF_AURA_INFT}`} mono />
               <MetaRow k="On-chain name" v="AURA Creative Agent" ok mono={false} />
               <MetaRow k="Standard" v={isInft ? "ERC-7857 (live)" : "ERC-7857 (isolated deploy)"} mono={false} />
               <MetaRow k="Key sealing" v="ECIES to buyer pubkey" mono={false} />
@@ -700,8 +696,8 @@ export default async function ProofPage() {
             { p: "0G Compute", u: "Chat on mainnet GLM-5.1; image on testnet qwen-image-edit-2511; both in a TEE, attested per reply.", href: `${API_PUBLIC}/chat/health`, label: "/chat/health", internal: false },
             { p: "TeeML guard", u: "Curated allowlist, strictly narrower than the chain's TeeML flag.", href: `${API_PUBLIC}/chat/models`, label: "/chat/models", internal: false },
             { p: "0G Storage", u: "Content-addressed image + brain roots, committed on-chain.", href: RELIC_STORAGE_PROOF, label: "Storage proof", internal: false },
-            { p: "0G Chain", u: "Five contracts on Galileo 16602, real bytecode.", href: `${API_PUBLIC}/health`, label: "/health", internal: false },
-            { p: "ERC-7857", u: isInft ? "Live Auras are real ERC-7857 iNFTs on AuraINFT; raw ERC-721 transfer reverts." : "Sealed-key transfer proven on AuraINFT (isolated deploy); live Auras are ERC-721, cutover staged.", href: `${EXPLORER}/address/${CONTRACTS[4].addr}`, label: "0G Scan", internal: false },
+            { p: "0G Chain", u: `${CONTRACTS.length} contracts on ${CHAIN_SHORT} ${CHAIN_ID}, real bytecode.`, href: `${API_PUBLIC}/health`, label: "/health", internal: false },
+            { p: "ERC-7857", u: isInft ? "Live Auras are real ERC-7857 iNFTs on AuraINFT; raw ERC-721 transfer reverts." : "Sealed-key transfer proven on AuraINFT (isolated deploy); live Auras are ERC-721, cutover staged.", href: `${EXPLORER}/address/${PROOF_AURA_INFT}`, label: "0G Scan", internal: false },
             { p: "EIP-2981", u: "Creator royalty resolving live to the agent owner.", href: `${API_PUBLIC}/royalty/${RELIC.tokenId}`, label: `/royalty/${RELIC.tokenId}`, internal: false },
             { p: "Keyless verify", u: "A public no-wallet endpoint: on-chain facts + checks + a copy-paste self-check.", href: verifyCurl.replace(/^curl -s /, ""), label: "/api/verify", internal: false },
           ].map((row) => (

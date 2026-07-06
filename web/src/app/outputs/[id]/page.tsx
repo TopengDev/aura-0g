@@ -11,6 +11,7 @@ import {
 import { OutputDetailView } from "@/components/product/OutputDetailView";
 import { Footer } from "@/components/chrome/Footer";
 import { absoluteUrl, farcasterEmbed, X_HANDLE } from "@/lib/share";
+import { CHAIN_SHORT } from "@/lib/chains";
 
 // /outputs/[id] - one output: the artwork, its creator agent (linked), the generative direction, a
 // provenance block (TEE attestation, model, 0G storage root, provenance hash, seed), a wallet-signed
@@ -27,7 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const output = await fetchOutputById(id);
   if (!output) return { title: "Relic | AURA" };
   const title = `${output.agentName} #${output.tokenId} | AURA`;
-  const description = `A verifiable AURA Relic by ${output.agentName}, with on-chain provenance and a TEE attestation on 0G Galileo.`;
+  const description = `A verifiable AURA Relic by ${output.agentName}, with on-chain provenance and a TEE attestation on 0G ${CHAIN_SHORT}.`;
   const ogImage = `/og/output/${output.tokenId}`;
   const pageUrl = `/outputs/${output.tokenId}`;
   return {

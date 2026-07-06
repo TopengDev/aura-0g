@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
 import { EASE } from "@/lib/motion";
 import { ZeroG } from "@/components/atoms/ZeroG";
-import { CHAIN_ID } from "@/lib/chains";
+import { CHAIN_ID, CHAIN_SHORT } from "@/lib/chains";
 import { imageUrl, type Output } from "@/lib/api";
 
 // Section 1 - HERO. AURA's hero is CHARACTER-ART-FORWARD and asymmetric: a left editorial column
@@ -46,7 +46,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
               A marketplace for verifiable creative Auras
             </span>
             <span className="label-caps hidden text-[13px] sm:inline" style={{ color: "var(--color-ink-3)" }}>
-              on <ZeroG /> Galileo
+              on <ZeroG /> {CHAIN_SHORT}
             </span>
           </motion.div>
 

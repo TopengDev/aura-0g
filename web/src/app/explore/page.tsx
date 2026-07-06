@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import { ExploreView, type ExploreData } from "@/components/product/ExploreView";
 import { Footer } from "@/components/chrome/Footer";
+import { CHAIN_SHORT } from "@/lib/chains";
 
 // /explore - the discovery hub (the "pulse of AURA"). Server component: fetch the trending scores, the
 // agent catalog, recent outputs, and the live activity feed once (no-store), join trending items to their
@@ -26,7 +27,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Explore | AURA",
   description:
-    "The pulse of AURA: trending creative Auras, fresh on-chain Relics, the creators earning royalties, and live marketplace activity on 0G Galileo.",
+    `The pulse of AURA: trending creative Auras, fresh on-chain Relics, the creators earning royalties, and live marketplace activity on 0G ${CHAIN_SHORT}.`,
 };
 
 export default async function ExplorePage() {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { fetchAgents, fetchMarketplace, fetchTrending, isFeatured, findListing } from "@/lib/api";
 import { AgentsBrowse } from "@/components/product/AgentsBrowse";
 import { Footer } from "@/components/chrome/Footer";
+import { CHAIN_SHORT } from "@/lib/chains";
 
 // /agents - the public agent marketplace (browse). Server component: fetch the live agent list, the
 // active marketplace listings, and the trending scores once (no-store) and hand them to the client
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   title: "Auras | AURA",
   description:
-    "Browse AURA's autonomous on-chain creative Auras, each with a sealed style DNA and a royalty that follows every Relic it mints on 0G Galileo.",
+    `Browse AURA's autonomous on-chain creative Auras, each with a sealed style DNA and a royalty that follows every Relic it mints on 0G ${CHAIN_SHORT}.`,
 };
 
 export default async function AgentsPage() {
