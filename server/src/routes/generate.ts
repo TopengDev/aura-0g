@@ -11,17 +11,24 @@ import { genGuardAcquire, genGuardRelease, rateLimit } from "../aura/ratelimit.j
 
 export async function generateRoutes(app: FastifyInstance): Promise<void> {
   // POST /generate
-  app.post<{ Body: { agentId?: number; prompt?: string } }>(
+  app.post<{ Body: { agentId?: number; prompt?: string; subject?: string } }>(
     "/generate",
     { preHandler: [app.authenticate] },
     async (req, reply) => {
       const owner = req.user.address;
-      const { agentId, prompt } = req.body ?? {};
+      const { agentId, prompt, subject } = req.body ?? {};
       if (typeof agentId !== "number" || !Number.isInteger(agentId) || agentId < 1) {
         return reply.code(400).send({ error: "agentId (positive integer) required" });
       }
       if (!prompt || prompt.trim().length < 2) {
         return reply.code(400).send({ error: "prompt required (>=2 chars)" });
+      }
+      // OPTIONAL PULL-MODE seam. When `subject` is present + non-empty, this gen runs in style-lock-only PULL
+      // mode: the agent's signature style is preserved but the SUBJECT is fresh (no "keep the exact subject"
+      // lock), so distinct subjects render distinct art for the same agent. Must be a string when supplied.
+      const subjectClean = typeof subject === "string" ? subject.trim() : "";
+      if (subject !== undefined && typeof subject !== "string") {
+        return reply.code(400).send({ error: "subject must be a string when provided" });
       }
 
       // per-user rate limit (5 gen/60s) on top of the global cost guard.
@@ -54,6 +61,8 @@ export async function generateRoutes(app: FastifyInstance): Promise<void> {
         agentName: agent.name,
         encBrainRoot: agent.encBrainRoot,
         userPrompt: prompt.trim(),
+        // Non-empty subject -> PULL mode (fresh subject, agent style locked). Empty/absent -> unchanged path.
+        ...(subjectClean ? { subject: subjectClean } : {}),
       }).catch((e) => {
         // belt-and-suspenders: if runGeneration throws synchronously before its own try, release here.
         app.log.error({ err: e, jobId }, "runGeneration crashed");

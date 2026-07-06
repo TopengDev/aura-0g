@@ -33,6 +33,12 @@ const abi = ethers.AbiCoder.defaultAbiCoder();
 const DOMAIN_PULL = ethers.keccak256(ethers.toUtf8Bytes("AURA-PULL-v1"));
 const TAG_SUBJECT = ethers.keccak256(ethers.toUtf8Bytes("AURA-PULL-subject-v1"));
 const TAG_RARITY = ethers.keccak256(ethers.toUtf8Bytes("AURA-PULL-rarity-v1"));
+// The HTTP /generate pull seam has NO on-chain summon anchor (no requestId/summonBlockHash), so it roots its
+// seed in a distinct domain over the caller-supplied subject + agentId + a fresh server random nonce. It is
+// deliberately NOT the provable gacha DOMAIN_PULL: this seed only anchors Provenance.seed for a directly
+// commissioned (subject-driven) HTTP gen; it is not a recomputable gacha pull. Full keccak256 -> ~uniform in
+// 2^256 and astronomically always >= PULL_SEED_FLOOR (so it reads as a real seed, not the legacy decorative one).
+const DOMAIN_HTTP_PULL = ethers.keccak256(ethers.toUtf8Bytes("AURA-HTTP-PULL-v1"));
 
 /** Below this, a seed is a legacy/non-pull decorative seed (Math.random*1e9 < 2^30) -> Common. A real
  *  pull seedRoot (full keccak) is astronomically always above it. 2^64 is a wide, unmistakable boundary. */
@@ -72,6 +78,21 @@ export function pullSeedRoot(args: {
       BigInt(args.agentId),
       args.summonBlockHash,
     ],
+  );
+  return BigInt(ethers.keccak256(encoded));
+}
+
+/**
+ * HTTP /generate pull-seam seed. No on-chain summon anchor exists on this path, so the seed is rooted in a
+ * distinct domain over the caller-supplied subject + agentId + a fresh server random nonce (bytes32). The
+ * nonce makes two gens of the SAME (subject, agentId) still get distinct seeds (so imageRoots differ), and
+ * the full keccak256 is ~uniform in 2^256 (already < 2^256, no mod needed) and >= PULL_SEED_FLOOR. This is
+ * NOT the provable gacha DOMAIN_PULL: it only anchors Provenance.seed for a directly-commissioned HTTP gen.
+ */
+export function httpPullSeedRoot(subject: string, agentId: bigint | number, nonce: string): bigint {
+  const encoded = abi.encode(
+    ["bytes32", "string", "uint256", "bytes32"],
+    [DOMAIN_HTTP_PULL, subject, BigInt(agentId), nonce],
   );
   return BigInt(ethers.keccak256(encoded));
 }

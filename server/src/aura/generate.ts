@@ -22,6 +22,7 @@ import { setStatus, setResult, setError, saveGeneratedImage, getJob } from "./jo
 import { genGuardRelease, genGuardRefund } from "./ratelimit.js";
 import { REPO_ROOT, ENFORCE_TEE_VERIFICATION } from "./config.js";
 import { metaForName } from "./catalog.js";
+import { httpPullSeedRoot } from "./gacha.js";
 import type { JobStatus } from "./types.js";
 
 export interface ResolvedGenConfig {
@@ -299,6 +300,11 @@ export interface GenerateInput {
   agentName: string;
   encBrainRoot: string;
   userPrompt: string;
+  // HTTP PULL-MODE seam (additive, backward-compatible). When a non-empty `subject` is supplied by the
+  // caller (POST /generate { ..., subject }), this gen is driven in style-lock-only PULL mode: the subject
+  // renders as a fresh focal scene in the agent's signature style (distinct art per distinct subject),
+  // instead of the subject-LOCKED "change only this" path. Absent -> EXACT current behavior (zero regression).
+  subject?: string;
 }
 
 /**
@@ -307,9 +313,17 @@ export interface GenerateInput {
  */
 export async function runGeneration(input: GenerateInput): Promise<void> {
   const { jobId, agentId, agentName, encBrainRoot, userPrompt } = input;
+  // HTTP PULL seam: a non-empty `subject` drives style-lock-only PULL mode for this gen. There is no
+  // on-chain summon anchor here, so the seedRoot is derived server-side (keccak over subject+agentId+a fresh
+  // random nonce, already uniform in 2^256). subjectProse is the caller's subject verbatim (rendered as the
+  // fresh focal scene). Absent/blank subject -> `pull` stays undefined -> unchanged subject-locked behavior.
+  const subject = input.subject?.trim();
+  const pull = subject
+    ? { seedRoot: httpPullSeedRoot(subject, agentId, ethers.hexlify(ethers.randomBytes(32))), subjectProse: subject }
+    : undefined;
   try {
     const proof = await generateAndProve(
-      { agentId, agentName, encBrainRoot, userPrompt, label: `gen-${jobId}` },
+      { agentId, agentName, encBrainRoot, userPrompt, label: `gen-${jobId}`, pull },
       {
         onStage: (status, detail) => setStatus(jobId, status, detail),
         onImageReady: (bytes) => saveGeneratedImage(jobId, bytes),
