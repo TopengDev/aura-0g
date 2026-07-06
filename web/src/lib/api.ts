@@ -860,12 +860,15 @@ export function featuredAgents(agents: Agent[]): Agent[] {
 }
 
 // ── Featured CHARACTER outputs (the showpiece art that now LEADS the app) ───
-// The 9 character pieces (tokenIds 7-15) are the real minted artworks; tokens 1-4 are the showcase
-// pseudo-outputs (0g://showcase-*). These 5 are the strongest, in deliberate display order: #12 and
-// #15 are the showpieces (street-samurai + illuminated knight), then the raven, the netrunner fox-girl,
-// and the detective fox. The Home hero + explore surfaces lead with these by tokenId. The order here is
-// the curatorial order (NOT recency), so the two showpieces always land first/largest.
-export const FEATURED_OUTPUT_IDS: number[] = [12, 15, 9, 13, 7];
+// Christopher's hand-picked mainnet showpieces (2026-07-06). The relic cleanup hid every token <= 41
+// (AURA_HIDDEN_OUTPUT_TOKENS=1..41), which removed the old featured set (7,9,12,13,15), so the hero went
+// empty; these three replacements are all > 41 (VISIBLE). Order is SLOT-MAPPED to the Hero, NOT recency:
+//   index 0 -> the LEAD/MAIN big showpiece (relic 55),
+//   index 1 -> the lower-left overlap slot   (relic 63, BOTTOM-LEFT),
+//   index 2 -> the top-right corner slot      (relic 91, TOP-RIGHT).
+// (Hero.tsx destructures [lead, second, ...overflow]; second renders bottom-left, overflow[0] top-right.)
+// The explore lead also leads with index 0/1 as its 2x cells, so relic 55 stays first/primary everywhere.
+export const FEATURED_OUTPUT_IDS: number[] = [55, 63, 91];
 
 // Return the curated featured outputs from a fetched batch, in FEATURED_OUTPUT_IDS order (skipping any
 // not present in the batch). A character-art gallery on top of the recency feed. The caller must fetch a
@@ -873,6 +876,15 @@ export const FEATURED_OUTPUT_IDS: number[] = [12, 15, 9, 13, 7];
 export function featuredOutputs(outputs: Output[]): Output[] {
   const byId = new Map<number, Output>(outputs.map((o) => [o.tokenId, o]));
   return FEATURED_OUTPUT_IDS.map((id) => byId.get(id)).filter((o): o is Output => !!o);
+}
+
+// Fetch the curated showpieces DIRECTLY by tokenId, in FEATURED_OUTPUT_IDS slot order. The /outputs feed is
+// newest-first, so once many relics exist the featured ids (55/63/91) fall outside any reasonable page and
+// featuredOutputs(fetchedBatch) returns []; the hero must therefore fetch them explicitly. Degrade-safe: a
+// missing / hidden / not-yet-minted id simply drops out (the hero renders whatever survives, never crashes).
+export async function fetchFeaturedOutputs(revalidate?: number): Promise<Output[]> {
+  const results = await Promise.all(FEATURED_OUTPUT_IDS.map((id) => fetchOutputById(id, revalidate)));
+  return results.filter((o): o is Output => !!o);
 }
 
 // The remaining outputs (not in the featured set), newest-first as fetched. Used to fill the rest of a

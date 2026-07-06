@@ -5,7 +5,7 @@ import {
   fetchIndexerCounts,
   fetchOutputs,
   featuredAgents,
-  featuredOutputs,
+  fetchFeaturedOutputs,
   nonFeaturedOutputs,
   isTestAgentName,
 } from "@/lib/api";
@@ -35,18 +35,19 @@ import { Footer } from "@/components/chrome/Footer";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [health, counts, agents, outputs, activity] = await Promise.all([
+  const [health, counts, agents, outputs, activity, heroFeature] = await Promise.all([
     fetchHealth(),
     fetchIndexerCounts(),
     fetchAgents(),
     fetchOutputs(20),
     fetchActivity(12),
+    fetchFeaturedOutputs(),
   ]);
 
   const featured = featuredAgents(agents);
-  // The curated showpiece characters (tokenIds 12, 15, 9, 13, 7), in that order. The hero leads with the
-  // first 3; the gallery strip shows the full curated set, then fills with the freshest other art.
-  const heroFeature = featuredOutputs(outputs);
+  // The curated showpiece characters (relics 55 / 63 / 91), fetched BY ID (they sit outside the newest-first
+  // /outputs page). The hero slots them lead / bottom-left / top-right; the gallery strip shows the curated
+  // set first, then fills with the freshest other art.
   const galleryOutputs = [...heroFeature, ...nonFeaturedOutputs(outputs)].slice(0, 8);
 
   // Keep internal test-agent events (Created BRAINTEST/TESTAGENT ...) out of the home activity ticker.

@@ -39,7 +39,7 @@ import { agentPortraitUrl, featuredAgents, fetchAgents, imageUrl, shortAddr, typ
 export function ArenaView() {
   const t = useTranslations("game.arena");
   const c = useTranslations("game.common");
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const auth = useAuth();
   const arena = useArenaVote();
 
@@ -62,6 +62,24 @@ export function ArenaView() {
   useEffect(() => {
     if (battleId !== null) void refreshState();
   }, [battleId, refreshState]);
+
+  // Rehydrate a persisted commit (salt) for THIS battle + wallet, so a reload between commit and reveal can
+  // still reveal byte-identically (the salt is kept in localStorage at commit). Only hydrate when we have no
+  // in-memory prep (a fresh commit this session already holds it).
+  useEffect(() => {
+    if (battleId === null || !address || prep) return;
+    const saved = arena.loadPrep(battleId);
+    if (saved) setPrep(saved);
+  }, [battleId, address, prep, arena]);
+
+  // While a battle is loaded and not yet finalized, refresh the on-chain state periodically so the phase,
+  // weights, pool, and the finalize affordance stay live as the commit/reveal windows elapse (client-side
+  // countdowns drive the button gating; this keeps the underlying state fresh without a manual reload).
+  useEffect(() => {
+    if (battleId === null || bstate?.finalized) return;
+    const id = setInterval(() => void refreshState(), 15000);
+    return () => clearInterval(id);
+  }, [battleId, bstate?.finalized, refreshState]);
 
   const ensureToken = useCallback(async (): Promise<string | null> => {
     let token = auth.token;
@@ -450,8 +468,27 @@ function VotePanel({
   const [choice, setChoice] = useState<1 | 2>(1);
   const [stake, setStake] = useState("0.01");
   const gated = state.phase === "gated" || !enabled;
+
+  // LIVE phase clock: the commit/reveal windows are on-chain deadlines (unix secs). The reveal MUST NOT be
+  // clickable outside its window (ArenaVote.reveal reverts "not reveal window"), so we gate the buttons off a
+  // 1s-ticking clock vs the ACTUAL commitEnd/revealEnd, and show a countdown, instead of ever presenting a
+  // Reveal that reverts. (Bug-2a fix.)
+  const [now, setNow] = useState<number>(() => Math.floor(Date.now() / 1000));
+  useEffect(() => {
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const commitEnd = bstate?.commitEnd ?? 0;
+  const revealEnd = bstate?.revealEnd ?? 0;
+  const haveWindows = commitEnd > 0 && revealEnd > 0;
+  const inCommit = haveWindows && now < commitEnd;
+  const inReveal = haveWindows && now >= commitEnd && now < revealEnd;
+  const revealOver = haveWindows && now >= revealEnd;
   const finalized = bstate?.finalized ?? false;
-  const awaitingFinalize = !finalized && bstate?.phase === "awaiting-finalize";
+  const awaitingFinalize = !finalized && revealOver;
+  const secsToReveal = Math.max(0, commitEnd - now);
+  const secsToRevealClose = Math.max(0, revealEnd - now);
+  const mmss = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 
   return (
     <Panel className="p-6 sm:p-7">
@@ -496,13 +533,33 @@ function VotePanel({
             </Field>
           </div>
           <div className="flex flex-wrap gap-3">
-            <ActionButton onClick={() => onCommit(choice, stake)} disabled={busy || gated || !!prep}>
+            <ActionButton onClick={() => onCommit(choice, stake)} disabled={busy || gated || !!prep || !inCommit}>
               {busy && state.action === "commit" ? state.step ?? t("vote.committing") : t("vote.commit")}
             </ActionButton>
-            <ActionButton onClick={onReveal} disabled={busy || gated || !prep} variant="outline">
+            <ActionButton onClick={onReveal} disabled={busy || gated || !prep || !inReveal} variant="outline">
               {busy && state.action === "reveal" ? state.step ?? t("vote.revealing") : t("vote.reveal")}
             </ActionButton>
           </div>
+
+          {/* PHASE HINT: never present a clickable Reveal that would revert. During the commit window the
+              Reveal is disabled with a live "opens in mm:ss" countdown; during the reveal window it is live
+              with a "closes in mm:ss" countdown; once commit closes with no ballot the commit is disabled. */}
+          {!inCommit && !prep && haveWindows && !revealOver ? (
+            <p className="text-[14px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+              The commit window has closed. Reveal is open only to voters who committed.
+            </p>
+          ) : null}
+          {inCommit && prep ? (
+            <p className="text-[14px] font-medium leading-relaxed" style={{ color: "var(--color-accent)" }}>
+              Reveal opens in <span className="font-mono-x tabular-nums">{mmss(secsToReveal)}</span> (when the commit window closes).
+            </p>
+          ) : null}
+          {inReveal ? (
+            <p className="text-[14px] font-medium leading-relaxed" style={{ color: "var(--color-accent)" }}>
+              Reveal window open{prep ? "" : " (no committed ballot found for this wallet)"} · closes in{" "}
+              <span className="font-mono-x tabular-nums">{mmss(secsToRevealClose)}</span>.
+            </p>
+          ) : null}
           {prep ? (
             <div className="rounded-[14px] border p-4" style={{ borderColor: "color-mix(in oklab, var(--color-accent) 26%, var(--color-border))", background: "color-mix(in oklab, var(--color-accent) 5%, var(--color-paper))" }}>
               <div className="label-caps text-[13px] uppercase tracking-[0.1em]" style={{ color: "var(--color-accent)" }}>{t("vote.salt")}</div>

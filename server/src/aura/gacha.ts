@@ -285,6 +285,23 @@ export function mapSubject(seed: bigint): { tuple: SubjectTuple; prose: string; 
   return { tuple, prose, indices: idx };
 }
 
+/**
+ * SUBJECT-ONLY prose for the Creative Arena's SHARED battle theme. Keeps ONLY the true-subject dimensions
+ * (protagonist, action, setting, secondary motif) and DELIBERATELY DROPS every style-bearing dimension -
+ * form-material, time/weather, lighting, mood, composition, colour accent, camera, narrative twist. Those
+ * are exactly the tokens (e.g. "golden hour", "brass ... form", "bioluminescent high-contrast light",
+ * "a viridian undertone") that, when baked into a SHARED subject rendered by two agents, dominate the once-
+ * stated style-lock and make BOTH pieces converge on one generic look (verified 2026-07-06: a NYXARA-vs-RIOT
+ * battle rendered two near-identical warm golden-hour photoreal scenes, neither in its agent's style). By
+ * fixing only WHAT + WHERE here, each agent keeps its OWN palette/lighting/mood/composition = its signature
+ * style -> the arena's "same subject, own style" contract. The SUMMON path keeps the full mapSubject prose
+ * (a per-pull unique subject is fine there; only the SHARED-subject arena needed the style tokens stripped).
+ */
+export function battleSubjectProse(seed: bigint): string {
+  const { tuple } = mapSubject(seed);
+  return `${tuple.protagonist}, ${tuple.action}, in ${tuple.setting}; ${tuple.motif}`;
+}
+
 // ─────────────────────────────── provable rarity ───────────────────────────────
 // rarityRoll = uint(keccak256(abi.encode(seedBytes32, TAG_RARITY))) % 10000, bucketed 80/15/4/1.
 // Christopher's distribution: Common 80% / Rare 15% / Epic 4% / Legendary 1%.

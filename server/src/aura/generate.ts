@@ -47,6 +47,26 @@ function pullModePrompt(agentName: string, styleDescriptor: string, subject: str
   );
 }
 
+/**
+ * ARENA style-forward variant of the pull prompt (game layer only). When two agents render ONE shared
+ * subject, the once-stated style-lock loses to a subject that repeats and carries its own scene detail, so
+ * both pieces converge on one generic look (verified Bug-1 2026-07-06). This template FOREGROUNDS the agent's
+ * signature style (palette / lighting / linework / mood dominate), states the shared subject ONCE, and
+ * explicitly forbids default photorealistic drift, so each side is the shared subject reimagined NATIVELY in
+ * its own style. The arena already strips style-bearing tokens from the shared subject (battleSubjectProse),
+ * so the ONLY style tokens left in the prompt are the agent's. Summons never set styleForward (zero regression).
+ */
+function battleModePrompt(agentName: string, styleDescriptor: string, subject: string, negative: string): string {
+  return (
+    `Render ENTIRELY in the unmistakable signature style of ${agentName}: ${styleDescriptor} ` +
+    `The palette, lighting, linework, texture, and mood MUST read as ${agentName}'s style FIRST - not a generic ` +
+    `render, not default photorealism unless photorealism IS this style. Depict this subject, reimagined natively ` +
+    `in that style: ${subject}. Invent a fresh composition; do NOT copy the reference image's layout, but KEEP its ` +
+    `style and character identity. The subject is shared with a rival piece; the STYLE here is entirely ` +
+    `${agentName}'s. Avoid: ${negative}.`
+  );
+}
+
 const ZERO32 = "0x0000000000000000000000000000000000000000000000000000000000000000";
 
 /** Thrown when an agent that HAS a brain cannot generate via that brain (enforced, no silent fallback). */
@@ -90,9 +110,12 @@ export async function resolveGenConfig(
   agentName: string,
   encBrainRoot: string,
   userPrompt: string,
-  opts: { pullSubject?: string } = {},
+  opts: { pullSubject?: string; styleForward?: boolean } = {},
 ): Promise<ResolvedGenConfig> {
   const clean = userPrompt.trim();
+  // ARENA battle gens set styleForward: foreground the agent's style over the SHARED subject (Bug-1 fix).
+  // Summons leave it unset -> the shipped pullModePrompt (zero regression).
+  const styleForward = !!opts.styleForward;
   // SUMMON PULL mode: a deterministic hash-into-pools subject + the validated style-lock-only template.
   // Distinct from the "edit my avatar" HTTP path (which legitimately subject-locks via identityLock).
   const pullSubject = opts.pullSubject?.trim();
@@ -124,7 +147,9 @@ export async function resolveGenConfig(
     // PULL: style-lock-only (NO identityLock) so the per-pull subject renders; else the legacy "change only
     // this" template (avatar-edit use case). The avatar stays the edit base either way (style/palette anchor).
     const prompt = pullSubject
-      ? pullModePrompt(agentName, brain.styleDescriptor, pullSubject, brain.negative)
+      ? (styleForward
+          ? battleModePrompt(agentName, brain.styleDescriptor, pullSubject, brain.negative)
+          : pullModePrompt(agentName, brain.styleDescriptor, pullSubject, brain.negative))
       : `${brain.identityLock} Change only this: ${clean}. ${brain.styleDescriptor}. Avoid: ${brain.negative}.`;
     return { baseBytes, prompt, usedBrain: true, agentName };
   }
@@ -143,7 +168,10 @@ export async function resolveGenConfig(
   let prompt: string;
   if (pullSubject) {
     const aesthetic = metaForName(agentName)?.aesthetic ?? `${agentName} signature style.`;
-    prompt = pullModePrompt(agentName, aesthetic, pullSubject, "no photorealism if stylized, no unwanted artifacts, no watermark");
+    const neg = "no photorealism if stylized, no unwanted artifacts, no watermark";
+    prompt = styleForward
+      ? battleModePrompt(agentName, aesthetic, pullSubject, neg)
+      : pullModePrompt(agentName, aesthetic, pullSubject, neg);
   } else {
     prompt = fallbackPrompt(agentName, clean);
   }
@@ -190,6 +218,10 @@ export interface GenerateCoreInput {
   // the hash-into-pools subject that drives the style-lock-only render prompt. Absent on the HTTP/catalog
   // path, which keeps its small decorative random seed (-> Common rarity, no behavior change).
   pull?: { seedRoot: bigint; subjectProse: string };
+  // ARENA battle gens (additive, game layer only). When true, the PULL prompt is built style-forward
+  // (battleModePrompt) so the SHARED subject renders in each agent's OWN style instead of one generic scene
+  // (Bug-1 fix). Only createBattleFlow sets it; every other caller leaves it undefined (zero regression).
+  styleForward?: boolean;
   // FUSION path (additive, game layer only). When present, generateAndProve SKIPS resolveGenConfig and uses
   // this caller-supplied { baseBytes, prompt } directly - the fused child has no brain yet, so the fuse
   // pipeline supplies a parent reference as the edit base + the genome-derived blended-style prompt. Every
@@ -214,6 +246,7 @@ export async function generateAndProve(input: GenerateCoreInput, hooks: Generate
   // resolves from the agent's brain/catalog as before.
   const cfg = input.overrideConfig ?? (await resolveGenConfig(agentId, agentName, encBrainRoot, userPrompt, {
     pullSubject: input.pull?.subjectProse,
+    styleForward: input.styleForward,
   }));
 
   hooks.onStage?.("generating", `generating inside the TEE (~45s) [${cfg.usedBrain ? "brain" : "catalog"}]`);

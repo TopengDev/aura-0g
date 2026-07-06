@@ -41,6 +41,33 @@ export interface ArenaState {
 
 const IDLE: ArenaState = { phase: "idle", action: null, txHash: null, error: null, step: null, gatedError: null };
 
+// Persist the commit prep (incl. the client-secret salt) so a page reload between commit and reveal does NOT
+// lose the salt (losing it -> the reveal preimage can't match the commitment -> "commitment mismatch" revert,
+// or a forfeited non-reveal). Keyed by chain + battleId + voter so two wallets / two battles never collide.
+// The salt is a blinding nonce for THIS voter's own ballot, kept only until reveal - safe in the voter's own
+// localStorage (it is never another party's secret, and the ballot stays blind to everyone else regardless).
+function saltKey(battleId: number, address: string): string {
+  return `aura.arena.vote.${APP_CHAIN.id}.${battleId}.${address.toLowerCase()}`;
+}
+export function saveVotePrep(battleId: number, address: string, prep: VotePrep): void {
+  try {
+    localStorage.setItem(saltKey(battleId, address), JSON.stringify(prep));
+  } catch {
+    /* storage unavailable (private mode / quota) -> the in-memory prep still works this session */
+  }
+}
+export function loadVotePrep(battleId: number, address: string | undefined): VotePrep | null {
+  try {
+    if (!address) return null;
+    const raw = localStorage.getItem(saltKey(battleId, address));
+    if (!raw) return null;
+    const p = JSON.parse(raw) as VotePrep;
+    return p && typeof p.salt === "string" && p.battleId === battleId ? p : null;
+  } catch {
+    return null;
+  }
+}
+
 export function useArenaVote() {
   const config = useConfig();
   const { address } = useAccount();
@@ -77,6 +104,8 @@ export function useArenaVote() {
         setState((s) => ({ ...s, txHash: hash, phase: "confirming", step: "Locking your stake on-chain" }));
         const receipt = await pollReceipt(config, hash, APP_CHAIN.id);
         if (receipt.status !== "success") throw new Error("commit reverted on-chain.");
+        // Persist the salt/prep NOW so a reload before the reveal window opens can still reveal byte-identically.
+        saveVotePrep(prep.battleId, address, prep);
         setState((s) => ({ ...s, phase: "success", step: "Ballot committed (keep your salt)" }));
         return prep;
       } catch (e) {
@@ -146,6 +175,9 @@ export function useArenaVote() {
   const finalize = useCallback((battleId: number) => runWrite("finalize", battleId), [runWrite]);
   const claim = useCallback((battleId: number) => runWrite("claim", battleId), [runWrite]);
 
+  // Rehydrate a persisted commit prep (salt) for a battle from localStorage (reload-safe reveal).
+  const loadPrep = useCallback((battleId: number): VotePrep | null => loadVotePrep(battleId, address), [address]);
+
   const busy = state.phase === "preparing" || state.phase === "signing" || state.phase === "confirming";
-  return { state, busy, commitVote, revealVote, finalize, claim, reset };
+  return { state, busy, commitVote, revealVote, finalize, claim, reset, loadPrep };
 }

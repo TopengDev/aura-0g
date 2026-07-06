@@ -10,7 +10,7 @@
 // catalog), so the battle is a like-for-like STYLE contest, not a subject lottery.
 import { ethers } from "ethers";
 import { generateAndProve, type GenProof } from "../generate.js";
-import { mapSubject } from "../gacha.js";
+import { battleSubjectProse } from "../gacha.js";
 import { CONTRACTS } from "../config.js";
 import { arenaVoteConfigured, GAME_CHAIN_ID } from "./contracts.js";
 
@@ -49,10 +49,13 @@ export interface BattleTheme {
  */
 export function deriveBattleTheme(battleId: number, agentA: number, agentB: number, blockHash: string): BattleTheme {
   const themeSeed = battleThemeSeed(battleId, agentA, agentB, blockHash);
-  const { prose } = mapSubject(BigInt(themeSeed)); // reuse the SHIPPED gacha subject composer over the theme seed
+  // SUBJECT-ONLY prose (protagonist + action + setting + motif), NOT the full mapSubject prose: the shared
+  // theme fixes only WHAT + WHERE, so each agent keeps its OWN palette/lighting/mood/composition (its style).
+  // The style-bearing dimensions were what made both battle pieces converge on one generic look (Bug-1 fix).
+  const subjectProse = battleSubjectProse(BigInt(themeSeed));
   return {
     themeSeed,
-    subjectProse: prose,
+    subjectProse,
     perAgentSeedA: perAgentSeed(themeSeed, agentA),
     perAgentSeedB: perAgentSeed(themeSeed, agentB),
   };
@@ -158,8 +161,11 @@ export async function createBattleFlow(
   opts: { commitDur?: number; revealDur?: number; deps: CreateBattleDeps },
 ): Promise<CreateBattleResult> {
   if (a.id === b.id) throw new ArenaError(400, "self-match: a battle's two agents must differ");
-  const commitDur = opts.commitDur ?? 3600; // 1h commit window (default; operator-tunable)
-  const revealDur = opts.revealDur ?? 3600; // 1h reveal window
+  // DEMO-FRIENDLY windows: short commit + reveal so a full commit -> wait -> reveal -> finalize cycle
+  // completes in one sitting (the arena is a headline demo feature). Operator-tunable via opts; the web
+  // does not pass durations, so these defaults govern every UI-created battle. 180s each = a ~6min cycle.
+  const commitDur = opts.commitDur ?? 180; // 3-minute commit window (demo default; operator-tunable)
+  const revealDur = opts.revealDur ?? 180; // 3-minute reveal window (demo default; operator-tunable)
   const { deps } = opts;
 
   // optional same-owner precheck (the contract enforces it too; this gives a clean 400 before spending gas).
@@ -181,7 +187,17 @@ export async function createBattleFlow(
   const theme = deriveBattleTheme(battleId, a.id, b.id, blockHash);
   const genFor = async (agent: BattleAgent, seed: bigint): Promise<BattleImage> => {
     const g: GenProof = await deps.generate(
-      { agentId: agent.id, agentName: agent.name, encBrainRoot: agent.encBrainRoot, userPrompt: "arena battle piece", label: `battle-${battleId}-agent-${agent.id}`, pull: { seedRoot: seed, subjectProse: theme.subjectProse } },
+      {
+        agentId: agent.id,
+        agentName: agent.name,
+        encBrainRoot: agent.encBrainRoot,
+        userPrompt: "arena battle piece",
+        label: `battle-${battleId}-agent-${agent.id}`,
+        pull: { seedRoot: seed, subjectProse: theme.subjectProse },
+        // STYLE-FORWARD prompt (arena only): foreground the agent's signature style so the SHARED subject is
+        // reimagined natively in each agent's own palette/lighting/mood, not rendered as one generic scene.
+        styleForward: true,
+      },
       {},
     );
     return { agentId: agent.id, imageRoot: g.imageRoot, seed: g.seed.toString(), provenanceHash: g.provenanceHash, teeAttestation: g.teeAttestation, teeVerified: g.verified, model: g.model };
