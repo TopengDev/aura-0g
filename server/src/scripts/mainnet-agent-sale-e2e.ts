@@ -39,19 +39,20 @@ const FUND = { S: ethers.parseEther("0.008"), b1: ethers.parseEther("0.012"), b2
 
 const out: Record<string, unknown> = { chainId: null, agentId: null, txs: {}, assertions: [], balances: {}, split: {} };
 let passed = 0;
+// THROW (do NOT process.exit) on a failed assertion, so the try/finally cleanup still fires and reclaims the
+// throwaway agent to the platform. process.exit bypasses finally -> orphaned agents.
 const ok = (cond: boolean, msg: string) => {
   (out.assertions as string[]).push(`${cond ? "PASS" : "FAIL"}: ${msg}`);
   if (!cond) {
     console.error("  FAIL:", msg);
-    console.log("\n=== E2E SUMMARY (FAILED) ===\n" + JSON.stringify(out, null, 2));
-    process.exit(1);
+    throw new Error(`assertion failed: ${msg}`);
   }
   passed++;
   console.log("  PASS:", msg);
 };
 
 async function main() {
-  const { GALILEO, GAS, sponsorPrivateKey } = await import("../aura/config.js");
+  const { GALILEO, GAS, sponsorPrivateKey, CONTRACTS } = await import("../aura/config.js");
   const provider = new ethers.JsonRpcProvider(GALILEO.rpc, GALILEO.chainId, { staticNetwork: true });
   out.chainId = GALILEO.chainId;
   ok(GALILEO.chainId === 16661, `harness targets 0G mainnet 16661 (got ${GALILEO.chainId})`);
@@ -172,6 +173,15 @@ async function main() {
   const sMemBefore = await chatmem.loadOwnerMemory(agentId, S.address);
   ok(!sMemBefore.notOwner && sMemBefore.records.length === 1, "seller S can read its relationship memory BEFORE the sale (it is the owner)");
 
+  // helper: a seller approves the platform custodian as an ERC-721 operator (so the custodian can submit the
+  // proof-gated transfer at settle). setApprovalForAll is standard ERC-721 but not in the server INFT_ABI, so
+  // bind a minimal ABI here.
+  const APPROVAL_ABI = ["function setApprovalForAll(address operator, bool approved)"];
+  async function approveCustodian(w: ethers.HDNodeWallet): Promise<void> {
+    const c = new ethers.Contract(CONTRACTS.auraINFT, APPROVAL_ABI, w);
+    await (await c.setApprovalForAll(PLATFORM, true, GAS)).wait();
+  }
+
   // helper: pay the custodian from a buyer wallet and return the funding tx hash.
   async function payCustodian(buyer: ethers.HDNodeWallet, custodian: string, amountWei: bigint): Promise<string> {
     const tx = await buyer.sendTransaction({ to: ethers.getAddress(custodian), value: amountWei, gasPrice: GAS.gasPrice });
@@ -180,9 +190,45 @@ async function main() {
     return tx.hash;
   }
 
+  // SELF-CLEANING: on ANY exit (success or failure), return the throwaway agent to the platform from whichever
+  // harness wallet currently owns it, so a failed run never leaves a throwaway-owned agent. (A run that dies
+  // before this - e.g. mid-mint - leaves the agent with an ephemeral wallet; that residual is reported.)
+  async function reclaimAgentToPlatform(): Promise<void> {
+    if (!agentId) return;
+    let owner = "";
+    try {
+      owner = ((await readInft.ownerOf(agentId)) as string).toLowerCase();
+    } catch {
+      return;
+    }
+    if (owner === PLATFORM.toLowerCase()) {
+      console.log(`  cleanup: agent #${agentId} already platform-owned`);
+      return;
+    }
+    const w = [S, buyer1, buyer2, buyer3].find((x) => x.address.toLowerCase() === owner);
+    if (!w) {
+      console.warn(`  cleanup: agent #${agentId} owned by ${owner} (not a live harness wallet) - cannot reclaim`);
+      return;
+    }
+    try {
+      await approveCustodian(w);
+      const { prepareSecureTransfer, confirmSecureTransfer } = await import("../aura/sale-service.js");
+      const prep = await prepareSecureTransfer(agentId, w.address, PLATFORM);
+      const inftClean = auraInftWrite(sponsor);
+      const tx = await inftClean.transfer(prep.args.from, prep.args.to, prep.args.tokenId, prep.args.newSealedKey, prep.args.newEncBrainRoot, prep.args.newDataHash, prep.args.deadline, prep.args.proof, GAS);
+      await tx.wait();
+      await confirmSecureTransfer(agentId, prep.pending);
+      (out.txs as any).cleanupTransfer = tx.hash;
+      console.log(`  cleanup: agent #${agentId} returned to platform, tx ${tx.hash}`);
+    } catch (e) {
+      console.error(`  cleanup FAILED (agent #${agentId} still owned by ${owner}): ${(e as Error).message}`);
+    }
+  }
+
+  try {
   // ── SALE 1: S -> buyer1 ────────────────────────────────────────────────────────────────────────────
   console.log("\n  === SALE 1: S -> buyer1 ===");
-  await (await inftS.setApprovalForAll(PLATFORM, true, GAS)).wait(); // seller approves the custodian to move the token
+  await approveCustodian(S); // seller approves the custodian to move the token at settle
   const list1 = await inject("POST", `/agents/${agentId}/sale/list`, S.address, { priceWei: PRICE1.toString() });
   ok(list1.statusCode === 200, `sale/list 200 as owner S (got ${list1.statusCode}: ${list1.body.slice(0, 160)})`);
   (out.txs as any).list1 = "recorded (off-chain listing)";
@@ -229,8 +275,7 @@ async function main() {
 
   // ── RESALE HOP: buyer1 -> buyer2 (VISIBLE creator royalty: creator S != seller buyer1) ───────────────
   console.log("\n  === RESALE: buyer1 -> buyer2 (visible creator royalty) ===");
-  const inftB1 = auraInftWrite(buyer1);
-  await (await inftB1.setApprovalForAll(PLATFORM, true, GAS)).wait();
+  await approveCustodian(buyer1);
   const list2 = await inject("POST", `/agents/${agentId}/sale/list`, buyer1.address, { priceWei: PRICE2.toString() });
   ok(list2.statusCode === 200, `RESALE list 200 as buyer1 (got ${list2.statusCode})`);
   const commit2 = await inject("POST", `/agents/${agentId}/sale/commit`, buyer2.address, {});
@@ -262,42 +307,36 @@ async function main() {
 
   // ── REFUND PATH: buyer2 lists, buyer3 commits + pays, the escrow EXPIRES, buyer3 refunds ─────────────
   console.log("\n  === REFUND: buyer3 commits + pays, escrow expires, refunds ===");
-  const inftB2 = auraInftWrite(buyer2);
-  await (await inftB2.setApprovalForAll(PLATFORM, true, GAS)).wait();
+  await approveCustodian(buyer2);
   const list3 = await inject("POST", `/agents/${agentId}/sale/list`, buyer2.address, { priceWei: PRICE3.toString() });
   ok(list3.statusCode === 200, `REFUND setup list 200 as buyer2 (got ${list3.statusCode})`);
-  process.env.AGENT_SALE_WINDOW_SEC = "3"; // short window so the escrow expires quickly (read live at commit)
+  process.env.AGENT_SALE_WINDOW_SEC = "2"; // short window so the escrow expires quickly (read live at commit)
   const commit3 = await inject("POST", `/agents/${agentId}/sale/commit`, buyer3.address, {});
   const cj3 = commit3.json() as any;
-  ok(commit3.statusCode === 200, `REFUND commit 200 (deadline ~now+3s)`);
+  ok(commit3.statusCode === 200, `REFUND commit 200 (deadline ~now+2s, escrowId ${cj3.escrowId})`);
   const pay3 = await payCustodian(buyer3, cj3.custodian, BigInt(cj3.amountWei));
   (out.txs as any).pay3 = pay3;
   const b3Bal0 = await provider.getBalance(buyer3.address);
   // settle BEFORE expiry must be refused ONLY after expiry; here we deliberately wait out the deadline.
-  console.log("  waiting for the escrow deadline to pass...");
-  await new Promise((r) => setTimeout(r, 6000));
-  const earlyRefundOwner = (await readInft.ownerOf(agentId)) as string;
+  console.log(`  waiting for the escrow deadline (now=${Math.floor(Date.now() / 1000)}, deadline=${cj3.deadline}) to pass...`);
+  await new Promise((r) => setTimeout(r, 9000));
   const refund3 = await inject("POST", `/agents/${agentId}/sale/refund`, buyer3.address, { escrowId: cj3.escrowId, paymentTx: pay3 });
   const rj3 = refund3.json() as any;
-  ok(refund3.statusCode === 200 && rj3.refunded === true && !!rj3.refundTx, `REFUND 200, refunded=${rj3.refunded}, refundTx=${rj3.refundTx}`);
+  console.log(`  refund response: status=${refund3.statusCode} body=${refund3.body.slice(0, 240)}`);
+  ok(refund3.statusCode === 200 && rj3.refunded === true && !!rj3.refundTx, `REFUND ok (status ${refund3.statusCode}, refunded=${rj3.refunded}, refundTx=${rj3.refundTx})`);
   (out.txs as any).refund3 = rj3.refundTx;
   const b3Bal1 = await provider.getBalance(buyer3.address);
   ok(b3Bal1 > b3Bal0, `REFUND: buyer3 got the escrowed price back (+${ethers.formatEther(b3Bal1 - b3Bal0)} 0G)`);
   ok(((await readInft.ownerOf(agentId)) as string).toLowerCase() === buyer2.address.toLowerCase(), "REFUND: ownership unchanged (agent still owned by buyer2, no transfer)");
   process.env.AGENT_SALE_WINDOW_SEC = "3600";
 
-  // ── CLEANUP: transfer the throwaway agent back to the platform so nothing is left mis-owned ──────────
-  console.log("\n  === CLEANUP: return the throwaway agent to the platform ===");
-  await (await inftB2.setApprovalForAll(PLATFORM, true, GAS)).wait();
-  const { prepareSecureTransfer, confirmSecureTransfer } = await import("../aura/sale-service.js");
-  const prepClean = await prepareSecureTransfer(agentId, buyer2.address, PLATFORM);
-  const inftClean = auraInftWrite(sponsor);
-  const cleanTx = await inftClean.transfer(prepClean.args.from, prepClean.args.to, prepClean.args.tokenId, prepClean.args.newSealedKey, prepClean.args.newEncBrainRoot, prepClean.args.newDataHash, prepClean.args.deadline, prepClean.args.proof, GAS);
-  await cleanTx.wait();
-  await confirmSecureTransfer(agentId, prepClean.pending);
-  (out.txs as any).cleanupTransfer = cleanTx.hash;
-  ok(((await readInft.ownerOf(agentId)) as string).toLowerCase() === PLATFORM.toLowerCase(), "CLEANUP: throwaway agent returned to the platform (no throwaway-owned agent left)");
+  } finally {
+    // SELF-CLEANING: always return the throwaway agent to the platform (success OR failure path).
+    console.log("\n  === CLEANUP: return the throwaway agent to the platform ===");
+    await reclaimAgentToPlatform();
+  }
 
+  ok(((await readInft.ownerOf(agentId)) as string).toLowerCase() === PLATFORM.toLowerCase(), "CLEANUP: throwaway agent returned to the platform (no throwaway-owned agent left)");
   (out.balances as any).sponsorEnd = ethers.formatEther(await provider.getBalance(sponsor.address));
   out.passed = passed;
   console.log(`\n=== AGENT-SALE E2E: ${passed}/${passed} assertions PASS on 0G mainnet 16661 ===`);
