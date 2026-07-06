@@ -1,17 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { ActivityTicker } from "@/components/home/ActivityTicker";
 import { PageHeader, Panel, ProvLine, Chip } from "@/components/product/primitives";
 import { RarityBadge } from "@/components/product/RarityBadge";
+import { Pager, paginate, OUTPUTS_PAGE_SIZE } from "@/components/product/Pager";
 import { ZeroG } from "@/components/atoms/ZeroG";
-import { useOnScreen } from "@/lib/useInView";
 import { EXPLORER, CHAIN_SHORT, CHAIN_ID } from "@/lib/chains";
 import {
   agentPortraitUrl,
-  fetchOutputsPage,
   imageUrl,
   shortHex,
   FEATURED_OUTPUT_IDS,
@@ -31,10 +30,6 @@ import { describeActivity, kindLabel, timeAgo } from "@/lib/format";
 export interface ExploreData {
   trending: { item: TrendingItem; agent: Agent }[];
   outputs: Output[];
-  // The SSR first page's cursor (the indexer keyset `nextCursor`). The recent-outputs gallery is an
-  // infinite feed that appends subsequent cursor pages client-side until this exhausts to null (see
-  // RecentOutputsFeed). null => the whole gallery already fits in the SSR first page.
-  outputsCursor: string | null;
   creators: CreatorRollup[];
   activity: Activity[];
   totalAgents: number;
@@ -43,6 +38,11 @@ export interface ExploreData {
 
 export function ExploreView({ data }: { data: ExploreData }) {
   const { trending, outputs, creators, activity } = data;
+
+  // Paginate the recent-outputs gallery (it grows with every mint). The two curated showpieces only get
+  // the 2x emphasis on page 1 (where they lead); deeper pages tile evenly.
+  const [outPage, setOutPage] = useState(1);
+  const { items: pageOutputs, pageCount: outPageCount, page: curOutPage } = paginate(outputs, outPage, OUTPUTS_PAGE_SIZE);
 
   return (
     <>
@@ -116,7 +116,23 @@ export function ExploreView({ data }: { data: ExploreData }) {
           {outputs.length === 0 ? (
             <EmptyRow label="No Relics minted yet. Generate the first one." />
           ) : (
-            <RecentOutputsFeed initial={outputs} initialCursor={data.outputsCursor} />
+            <>
+              <div className="mt-10 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+                {pageOutputs.map((o, i) => {
+                  // The two curated showpieces lead the gallery at 2x size (an editorial featured emphasis),
+                  // but ONLY on page 1 where they actually lead; deeper pages tile evenly. featured order is
+                  // set upstream so index 0/1 are the showpieces.
+                  const featured = FEATURED_OUTPUT_IDS.indexOf(o.tokenId);
+                  const big = curOutPage === 1 && (featured === 0 || featured === 1);
+                  return (
+                    <Reveal key={o.tokenId} delay={Math.min(0.04 * i, 0.3)} className={big ? "col-span-2 row-span-2" : ""}>
+                      <OutputCard output={o} big={big} />
+                    </Reveal>
+                  );
+                })}
+              </div>
+              <Pager page={curOutPage} pageCount={outPageCount} onPage={setOutPage} className="mt-12" />
+            </>
           )}
         </div>
       </section>
@@ -266,107 +282,6 @@ function TrendingCard({ rank, item, agent }: { rank: number; item: TrendingItem;
         </div>
       </div>
     </Link>
-  );
-}
-
-// ── recent-outputs INFINITE FEED (cursor-paginated over the whole gallery) ──────────
-// The recent-outputs gallery is an UNCAPPED infinite scroll: the server SSRs the first cursor page (fast
-// first paint, featured showpieces leading), and this client sub-component appends every subsequent page
-// via the indexer keyset cursor as a sentinel nears the viewport, until the cursor exhausts to null. This
-// reaches EVERY valid relic (all 48 today + any future mint) with zero fixed cap -- replacing the old
-// client-side Pager that could only page over the single SSR-fetched array (so only the first N were ever
-// reachable). Only THIS section changed; trending / creators / activity are untouched.
-//
-// The server curates the hidden token set AFTER the indexer paginates, so a page can carry fewer (or zero)
-// visible items yet still advance the cursor. We therefore (a) follow nextCursor until it is null (never
-// stop on a short page) and (b) let the still-on-screen sentinel + the cursor-change effect auto-advance
-// past any hidden-only page. A `seen` set dedupes (belt-and-suspenders vs the featured-led first page).
-const OUTPUTS_CURSOR_PAGE = 24; // relics fetched per infinite-scroll page (matches the SSR first page)
-
-function RecentOutputsFeed({ initial, initialCursor }: { initial: Output[]; initialCursor: string | null }) {
-  const [items, setItems] = useState<Output[]>(initial);
-  const [cursor, setCursor] = useState<string | null>(initialCursor);
-  const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-  const seen = useRef<Set<number>>(new Set(initial.map((o) => o.tokenId)));
-  const loadingRef = useRef(false);
-  const initialCount = initial.length;
-  // Pre-arm the sentinel 600px before it scrolls into view, so the next page lands ahead of the edge.
-  const [sentinelRef, onScreen] = useOnScreen<HTMLDivElement>("600px");
-
-  const loadMore = useCallback(async () => {
-    if (loadingRef.current || cursor == null) return;
-    loadingRef.current = true;
-    setStatus("loading");
-    const page = await fetchOutputsPage({ cursor, limit: OUTPUTS_CURSOR_PAGE });
-    if (!page) {
-      // Network/parse failure: keep the cursor unchanged so a manual retry re-fetches the SAME page.
-      setStatus("error");
-      loadingRef.current = false;
-      return;
-    }
-    const fresh = page.outputs.filter(
-      (o) => !o.imageRoot?.startsWith("0g://showcase-") && !seen.current.has(o.tokenId),
-    );
-    for (const o of fresh) seen.current.add(o.tokenId);
-    if (fresh.length > 0) setItems((prev) => [...prev, ...fresh]);
-    setCursor(page.nextCursor);
-    setStatus("idle");
-    loadingRef.current = false;
-  }, [cursor]);
-
-  // Load whenever the sentinel is on-screen and another page exists. Re-runs on each cursor change, which
-  // drives normal paging AND the auto-skip over hidden-only pages. Stops cleanly when cursor becomes null.
-  useEffect(() => {
-    if (onScreen && cursor != null && status !== "error" && !loadingRef.current) void loadMore();
-  }, [onScreen, cursor, status, loadMore]);
-
-  return (
-    <>
-      <div className="mt-10 grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-        {items.map((o, i) => {
-          // The two curated showpieces lead the gallery at 2x size (editorial featured emphasis), but ONLY
-          // among the first SSR page where they actually lead; every appended tile renders evenly.
-          const featured = FEATURED_OUTPUT_IDS.indexOf(o.tokenId);
-          const big = i < initialCount && (featured === 0 || featured === 1);
-          return (
-            <Reveal key={o.tokenId} delay={Math.min(0.04 * i, 0.3)} className={big ? "col-span-2 row-span-2" : ""}>
-              <OutputCard output={o} big={big} />
-            </Reveal>
-          );
-        })}
-      </div>
-
-      {/* Infinite-scroll sentinel: entering the viewport (600px early) triggers the next cursor page. */}
-      <div ref={sentinelRef} aria-hidden className="h-px w-full" />
-
-      {/* Loading state / graceful end-of-gallery terminus / retry-on-error. */}
-      <div className="mt-12 flex items-center justify-center" aria-live="polite">
-        {cursor != null ? (
-          status === "error" ? (
-            <button
-              type="button"
-              onClick={() => {
-                setStatus("idle");
-                void loadMore();
-              }}
-              className="micro rounded-[10px] px-4 py-2 text-[16px] font-semibold hover:-translate-y-px active:translate-y-0"
-              style={{ border: "1px solid var(--color-border-strong)", color: "var(--color-ink-2)", background: "var(--color-paper)" }}
-            >
-              Could not load more Relics. Retry
-            </button>
-          ) : (
-            <span className="label-caps inline-flex items-center gap-2 text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
-              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
-              Loading more Relics
-            </span>
-          )
-        ) : (
-          <span className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-ink-3)" }}>
-            End of gallery · {items.length} Relics
-          </span>
-        )}
-      </div>
-    </>
   );
 }
 

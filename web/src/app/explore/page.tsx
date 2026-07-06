@@ -3,7 +3,7 @@ import {
   fetchAgents,
   fetchActivity,
   fetchIndexerCounts,
-  fetchOutputsPage,
+  fetchAllOutputs,
   fetchTrending,
   creatorsLeaderboard,
   featuredOutputs,
@@ -12,11 +12,6 @@ import {
   isTestAgentName,
   type Agent,
 } from "@/lib/api";
-
-// First-page size for the SSR paint of the recent-outputs infinite feed. Kept modest so first paint is
-// fast; the client appends the rest of the gallery via the cursor (see RecentOutputsFeed). A multiple of
-// the 2/3/4-col grid so the SSR grid ends on a clean row.
-const OUTPUTS_FIRST_PAGE = 24;
 import { ExploreView, type ExploreData } from "@/components/product/ExploreView";
 import { Footer } from "@/components/chrome/Footer";
 import { CHAIN_SHORT } from "@/lib/chains";
@@ -36,21 +31,17 @@ export const metadata: Metadata = {
 };
 
 export default async function ExplorePage() {
-  const [agents, trending, firstPage, activity, counts] = await Promise.all([
+  const [agents, trending, rawOutputs, activity, counts] = await Promise.all([
     fetchAgents(),
     fetchTrending(),
-    fetchOutputsPage({ limit: OUTPUTS_FIRST_PAGE }),
+    fetchAllOutputs(),
     fetchActivity(24),
     fetchIndexerCounts(),
   ]);
 
-  // SSR the FIRST cursor page (fast first paint); the client appends the rest of the gallery via the
-  // page's nextCursor as the user scrolls (infinite feed, uncapped). LEAD this first page with the curated
-  // character showpieces (12, 15, 9, 13, 7), then the rest newest-first (showcase pseudo-outputs excluded),
-  // so /explore opens with the strongest art. The showpiece 2x emphasis applies to this first page only.
-  const rawOutputs = firstPage?.outputs ?? [];
+  // LEAD the recent-outputs gallery with the curated character showpieces (12, 15, 9, 13, 7), then the
+  // rest newest-first (showcase pseudo-outputs excluded). So /explore opens with the strongest art.
   const outputs = [...featuredOutputs(rawOutputs), ...nonFeaturedOutputs(rawOutputs)];
-  const outputsCursor = firstPage?.nextCursor ?? null;
 
   // Join each trending item to its full agent record (for the accent + tagline + style). Skip any whose
   // agent isn't in the catalog (e.g. the excluded test agent), so trending stays consistent with /agents.
@@ -66,7 +57,6 @@ export default async function ExplorePage() {
   const data: ExploreData = {
     trending: trendingJoined,
     outputs,
-    outputsCursor,
     creators: creatorsLeaderboard(agents),
     activity: cleanActivity,
     // True on-chain totals from the indexer counts (the outputs[] array is capped at the fetch limit).

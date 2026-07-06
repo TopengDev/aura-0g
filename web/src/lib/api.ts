@@ -331,8 +331,8 @@ export async function fetchOutputs(limit = 8): Promise<Output[]> {
 
 // One CURSOR-paginated page of recent outputs (newest-first). The indexer exposes a keyset cursor: the
 // opaque decimal `orderKey` of the last row on the page. Pass the previous page's `nextCursor` to fetch the
-// next page; `nextCursor` is null ONLY at the true end of the gallery. This is what makes /explore an
-// uncapped infinite feed (vs a fixed fetch sliced client-side, which could only ever reach `limit` relics).
+// next page; `nextCursor` is null ONLY at the true end of the gallery. This is the building block for
+// fetchAllOutputs (below), which walks the cursor to assemble the whole gallery.
 //
 // SUBTLETY (verified against server/src/routes/indexer.ts curateOutputs): the server strips the hidden
 // token set AFTER the indexer paginates, so a page may carry FEWER than `limit` visible items -- or zero --
@@ -351,6 +351,32 @@ export async function fetchOutputsPage(
   const data = await getJson<{ outputs?: Output[]; nextCursor?: string | null }>(`/outputs?${qs.toString()}`);
   if (!data) return null;
   return { outputs: data.outputs ?? [], nextCursor: data.nextCursor ?? null };
+}
+
+// Fetch the ENTIRE recent-outputs gallery (EVERY relic), newest-first, by walking the indexer keyset
+// cursor page by page until `nextCursor` is null (the true end), concatenating every page. This returns a
+// genuinely UNCAPPED array that keeps covering the whole gallery as it grows -- unlike fetchOutputs(N),
+// which could only ever surface the first N. /explore hands this full array to its numbered Pager so the
+// pager spans all relics (pageCount = ceil(total / OUTPUTS_PAGE_SIZE)), exactly the way /agents' Pager
+// spans the full agent catalog (fetchAgents is likewise uncapped).
+//
+// The server strips hidden tokens AFTER the indexer paginates (see fetchOutputsPage), so a page can carry
+// fewer than `pageLimit` visible items -- or zero -- yet still advance the cursor; we therefore follow
+// `nextCursor` until it is null and never stop on a short page. Keyset pages are strictly decreasing in
+// `orderKey`, so pages never overlap (no dedupe needed). `pageLimit` defaults to the indexer's MAX_LIMIT
+// (100) for the fewest round-trips. A page guard bounds a pathological non-terminating cursor, and a
+// network/parse failure mid-walk returns what was gathered so far (fail-soft, like the other fetchers).
+export async function fetchAllOutputs(pageLimit = 100): Promise<Output[]> {
+  const all: Output[] = [];
+  let cursor: string | null = null;
+  for (let guard = 0; guard < 1000; guard++) {
+    const page: OutputsPage | null = await fetchOutputsPage({ cursor, limit: pageLimit });
+    if (!page) break; // network/parse failure: return what we have so far (fail-soft)
+    all.push(...page.outputs);
+    cursor = page.nextCursor;
+    if (cursor === null) break; // true end of the gallery
+  }
+  return all;
 }
 
 export async function fetchActivity(limit = 12): Promise<Activity[]> {
