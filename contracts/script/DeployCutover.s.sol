@@ -12,6 +12,7 @@ import {AuraFusion} from "../src/AuraFusion.sol";
 import {ArenaReputation} from "../src/ArenaReputation.sol";
 import {PersonhoodGate} from "../src/PersonhoodGate.sol";
 import {AuraMigration} from "./AuraMigration.sol";
+import {AuraCatalogMainnet} from "../src/AuraCatalogMainnet.sol";
 
 /// @title DeployCutover - the ATOMIC AuraINFT cutover deploy (closes overclaim O1) + the GAME LAYER.
 /// @notice Deploys the FULL v2 stack against ONE registry = the REAL ERC-7857 AuraINFT (not the AgentRegistry
@@ -52,8 +53,15 @@ import {AuraMigration} from "./AuraMigration.sol";
 ///                          image-edit enclave signer 0x2A94D671f1A5e080f75A8164087Cdd35c8442e69. Only pinned
 ///                          when the deployer == attestor (setTeeSigner is attestor-gated); else pin it after.
 ///   AGENT_REGISTRY_ADDR  - the EXISTING registry to MIGRATE FROM (live: 0xb596...). Unset => no migration
-///                          (a fresh, empty AuraINFT - e.g. a clean local run).
+///                          (a fresh, empty AuraINFT - e.g. a clean local run). IGNORED when EMBEDDED_CATALOG=1.
+///   EMBEDDED_CATALOG     - "1" => MAINNET path: re-mint the byte-faithful EMBEDDED catalog (AuraCatalogMainnet)
+///                          instead of an on-chain read of AGENT_REGISTRY_ADDR (the source registry has NO code
+///                          on mainnet, so an on-chain read reverts). Same AuraMigration.remint + same
+///                          require(nextAgentId()==id) id-preservation; ALL agents consolidated to the deployer
+///                          (owner override), summon-pricing gated to the curated set. Unset/"0" => the on-chain
+///                          -read path below, byte-identical to today (zero regression to the forge suite + E2E).
 ///   MIGRATE_AGENT_COUNT  - migrate source ids 1..N (contiguous catalog). Default 30. Halts at the first gap.
+///                          (On-chain-read path only; the embedded path mints the full 30-entry AuraCatalogMainnet.)
 ///   SUMMON_PRICE         - per-agent summon price in wei for deployer-owned migrated agents. Default 0.01 ether.
 ///   --- game layer ---
 ///   ARENA_QUORUM         - min DISTINCT revealed voters for a battle to confer a RATED verdict. Default 3.
@@ -78,6 +86,8 @@ contract DeployCutover is Script {
         address sourceRegistry = vm.envOr("AGENT_REGISTRY_ADDR", address(0));
         uint256 migrateCount = vm.envOr("MIGRATE_AGENT_COUNT", uint256(30));
         uint256 summonPrice = vm.envOr("SUMMON_PRICE", uint256(0.01 ether));
+        // MAINNET cutover flag: re-mint the EMBEDDED catalog (no cross-chain read). "1" activates it.
+        bool embeddedCatalog = vm.envOr("EMBEDDED_CATALOG", uint256(0)) == 1;
 
         // ── game-layer params (folded into this same cutover; all wired to the ONE registry = AuraINFT) ──
         uint256 arenaQuorum = vm.envOr("ARENA_QUORUM", uint256(3));
@@ -129,7 +139,30 @@ contract DeployCutover is Script {
         //    silently misalign (the live catalog is contiguous 1..N).
         uint256 migrated = 0;
         uint256 priced = 0;
-        if (sourceRegistry != address(0)) {
+        if (embeddedCatalog) {
+            // ── MAINNET path (EMBEDDED_CATALOG=1): re-mint the byte-faithful embedded catalog ──
+            // The live source registry (0xb596) has NO code on mainnet, so an on-chain read reverts the whole
+            // simulation (fail-closed). Instead we iterate AuraCatalogMainnet - a GENERATED, fork-parity-verified
+            // snapshot of the 30 testnet agents - through the SAME AuraMigration.remint path, keeping the SAME
+            // require(nextAgentId()==id) id-preservation invariant (ids stay contiguous 1..30, so VELLUM..SOLACE
+            // keep ids 11..30). Per the diligence Q2 ownership verdict, EVERY agent consolidates to the deployer
+            // (owner override = me); summon-pricing is gated to the curated set (the 6 non-curated test/external
+            // agents are minted only to preserve ids, not surfaced into the priced demo economy).
+            AgentRegistry.Agent[] memory cat = AuraCatalogMainnet.agents();
+            bool[] memory cur = AuraCatalogMainnet.curated();
+            for (uint256 i = 0; i < cat.length; i++) {
+                uint256 id = i + 1;
+                require(inft.nextAgentId() == id, "embedded migration id gap");
+                uint256 newId = AuraMigration.remint(inft, me, cat[i]); // owner override = deployer (consolidate)
+                require(newId == id, "embedded migration id mismatch");
+                migrated++;
+                // price the curated set for Summon (all embedded agents are deployer-owned here).
+                if (summonPrice > 0 && cur[i]) {
+                    escrow.setSummonPrice(id, summonPrice);
+                    priced++;
+                }
+            }
+        } else if (sourceRegistry != address(0)) {
             AgentRegistry src = AgentRegistry(sourceRegistry);
             for (uint256 id = 1; id <= migrateCount; id++) {
                 // read the source agent; a revert = end of the contiguous catalog -> stop.
@@ -165,6 +198,7 @@ contract DeployCutover is Script {
         console.log("teeSigner (Option A)          :", teeSigner);
         console.log("teeSigner pinned in this run  :", teePinned);
         console.log("auraInft deploy block         :", auraInftDeployBlock);
+        console.log("catalog source                :", embeddedCatalog ? "EMBEDDED (mainnet cutover)" : "on-chain read");
         console.log("agents migrated onto AuraINFT :", migrated);
         console.log("agents priced for summon      :", priced);
         console.log("--- game layer (bound to AuraINFT) ---");
