@@ -12,6 +12,12 @@ export const REPO_ROOT = path.resolve(__dirname, "..", "..", "..");
 // object literal can't read its own `chainId` property mid-definition).
 const ECONOMY_CHAIN_ID = Number(process.env.CHAIN_ID ?? 16602);
 
+// Storage-testnet seam engaged? Resolved ONCE at module load (env is fixed at boot) so the network-aware
+// storageScan below can point the relic proof link at the network where the blob ACTUALLY lives (0G testnet)
+// when the economy runs on mainnet. `storageTestnetSeamActive()` is a hoisted function declaration, so it is
+// callable here even though it is defined further down (see the "STORAGE testnet seam" block).
+const STORAGE_SEAM_ACTIVE = storageTestnetSeamActive();
+
 export const GALILEO = {
   // live RPC eth_chainId returns 0x40da = 16602 (NOT 16601 as some docs say). RPC is authoritative.
   // chainId + rpc are env-overridable so the SAME backend runs against a local anvil for the Summon
@@ -32,13 +38,19 @@ export const GALILEO = {
   // https://indexer-storage-turbo.0g.ai (the SDK auto-discovers the Flow+Market contracts from it, so no
   // address change is needed). STORAGE_FILE_INFO_BASE derives from this, so the proof link follows it.
   storageIndexerTurbo: process.env.AURA_STORAGE_INDEXER_TURBO ?? "https://indexer-storage-testnet-turbo.0g.ai",
-  // Network-aware 0G Storage explorer (parallels `explorer` above): 0G MAINNET (16661) -> storagescan.0g.ai;
-  // else Galileo TESTNET -> storagescan-galileo.0g.ai. Env-overridable (AURA_STORAGE_SCAN). This backs
-  // storageScanUrl() (server/src/aura/contracts.ts), so a mainnet-minted relic no longer links to a testnet
-  // storage explorer that has no record of it.
+  // Network-aware 0G Storage explorer (parallels `explorer` above). It backs storageScanUrl()
+  // (server/src/aura/contracts.ts), so the relic proof link must point at the network where the blob ACTUALLY
+  // lives. Precedence: AURA_STORAGE_SCAN override > STORAGE-TESTNET SEAM active (blob is on 0G testnet even
+  // though the economy is mainnet) -> storagescan-galileo.0g.ai > else key off the economy chain (MAINNET
+  // 16661 -> storagescan.0g.ai; else Galileo TESTNET -> storagescan-galileo.0g.ai). The seam branch is what
+  // keeps a mainnet-economy relic's proof link pointing at the testnet storage explorer that has the record.
   storageScan:
     process.env.AURA_STORAGE_SCAN ??
-    (ECONOMY_CHAIN_ID === 16661 ? "https://storagescan.0g.ai" : "https://storagescan-galileo.0g.ai"),
+    (STORAGE_SEAM_ACTIVE
+      ? "https://storagescan-galileo.0g.ai"
+      : ECONOMY_CHAIN_ID === 16661
+        ? "https://storagescan.0g.ai"
+        : "https://storagescan-galileo.0g.ai"),
 } as const;
 
 // ── deployed v2 contracts (read from contracts/deployed-v2.json so there is ONE source of truth) ──
@@ -238,6 +250,37 @@ export const IMAGE_TESTNET_CHAIN_ID = Number(process.env.AURA_IMAGE_TESTNET_CHAI
 // economy sponsor. Returns null when unset so imageSigner() falls back to the sponsor signer unchanged.
 export function imageTestnetKey(): string | null {
   const pk = process.env.AURA_IMAGE_TESTNET_KEY;
+  return pk && pk.trim() ? normalizePk(pk) : null;
+}
+
+// ── STORAGE testnet seam (decouple 0G Storage WRITES from the economy chain) ─────────────────────────
+// After the economy cutover to 0G mainnet (16661), GALILEO.rpc points at the mainnet RPC and the sponsor
+// signer is a mainnet wallet, so store() submits the 0G-Storage fee tx on MAINNET + uploads to the MAINNET
+// storage node. The mainnet storage node LAGS the chain head, so the 0g-ts-sdk upload loops "Waiting for
+// storage node to sync (height=X)" forever -> POST /agents/create (2 uploads) + every gen (relic store) HANG
+// -> nginx 504. Testnet 0G Storage was fast + reliable for months. This seam pins the upload to the TESTNET
+// RPC + a testnet-funded signer (+ the testnet turbo indexer via AURA_STORAGE_INDEXER_TURBO) while the
+// economy stays mainnet - the exact same dual-network shape as the IMAGE testnet seam above. UNSET => today's
+// EXACT behavior (upload via GALILEO.rpc + the passed sponsor signer), zero regression for a pure-testnet or
+// pre-cutover deploy. Non-secret RPC/chainId; the key is env-injected at deploy, NEVER committed.
+export const STORAGE_TESTNET_RPC = process.env.AURA_STORAGE_RPC ?? "https://evmrpc-testnet.0g.ai";
+export const STORAGE_TESTNET_CHAIN_ID = Number(process.env.AURA_STORAGE_TESTNET_CHAIN_ID ?? 16602);
+
+/** True when the storage-testnet seam is engaged: AURA_STORAGE_TESTNET is set (non-empty, not "0") OR
+ *  AURA_STORAGE_RPC is present. Pure (takes env) so it is unit-testable, and a hoisted function declaration
+ *  so module-load consts (STORAGE_SEAM_ACTIVE, used by GALILEO.storageScan above) can key off it. */
+export function storageTestnetSeamActive(env: NodeJS.ProcessEnv = process.env): boolean {
+  const flag = (env.AURA_STORAGE_TESTNET ?? "").trim();
+  const rpc = (env.AURA_STORAGE_RPC ?? "").trim();
+  return (flag !== "" && flag !== "0") || rpc !== "";
+}
+
+// Optional dedicated key that pays the TESTNET storage-fee tx, ISOLATED from the (now mainnet) economy
+// sponsor. Falls back to the IMAGE testnet key (AURA_IMAGE_TESTNET_KEY) because both fund 0G TESTNET services
+// from the same testnet-funded wallet, so a single testnet key can pay both compute + storage. Returns null
+// when neither is set, so store() falls back to the passed sponsor signer unchanged (zero regression).
+export function storageTestnetKey(): string | null {
+  const pk = process.env.AURA_STORAGE_TESTNET_KEY ?? process.env.AURA_IMAGE_TESTNET_KEY;
   return pk && pk.trim() ? normalizePk(pk) : null;
 }
 

@@ -8,7 +8,13 @@ import { ethers } from "ethers";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { GALILEO } from "./config.js";
+import {
+  GALILEO,
+  STORAGE_TESTNET_RPC,
+  STORAGE_TESTNET_CHAIN_ID,
+  storageTestnetKey,
+  storageTestnetSeamActive,
+} from "./config.js";
 
 // dynamic import keeps the native SDK out of the module graph until first use (server runtime only).
 async function sdk() {
@@ -42,6 +48,34 @@ export interface StoreResult {
 }
 
 /**
+ * Resolve the (rpc, signer) the 0G-Storage fee tx + node sync run against. When the STORAGE-TESTNET SEAM is
+ * engaged (AURA_STORAGE_TESTNET set OR AURA_STORAGE_RPC present) AND a testnet-funded key is available, build
+ * a DEDICATED testnet provider+signer so the upload targets the fast + proven 0G TESTNET storage node even
+ * though the economy (GALILEO.rpc) is now 0G mainnet - the mirror of compute.ts imageSigner('testnet'). Paired
+ * with AURA_STORAGE_INDEXER_TURBO pointed at the testnet turbo indexer, all three (indexer + rpc + signer)
+ * are testnet-consistent, so the SDK stops looping "Waiting for storage node to sync".
+ *
+ * Falls back to the passed sponsor `signer` on GALILEO.rpc == today's EXACT behavior (zero regression) when
+ * the seam is unset. If the seam is flagged but no testnet key resolves it also falls back (misconfiguration)
+ * with a one-line warn, never crashing the upload path. The passed `signer` arg is always the fallback.
+ */
+function uploadContext(fallback: ethers.Wallet): { rpc: string; signer: ethers.Wallet } {
+  if (storageTestnetSeamActive()) {
+    const key = storageTestnetKey();
+    if (key) {
+      // explicit chainId => fail-closed if the testnet RPC ever answers with the wrong network.
+      const provider = new ethers.JsonRpcProvider(STORAGE_TESTNET_RPC, STORAGE_TESTNET_CHAIN_ID);
+      return { rpc: STORAGE_TESTNET_RPC, signer: new ethers.Wallet(key, provider) };
+    }
+    console.warn(
+      "[storage] storage-testnet seam is ON but neither AURA_STORAGE_TESTNET_KEY nor AURA_IMAGE_TESTNET_KEY is set - " +
+        "falling back to the economy sponsor signer + GALILEO.rpc (upload will target the economy storage node).",
+    );
+  }
+  return { rpc: GALILEO.rpc, signer: fallback };
+}
+
+/**
  * Deterministic, idempotent upload to 0G Storage. Same bytes => same root, so re-running is safe.
  * finalityRequired:false => return as soon as the root is known (the root is the content address;
  * the on-chain mint only needs the root, not a per-node finality flag that can lag on testnet).
@@ -56,8 +90,12 @@ export async function store(signer: ethers.Wallet, bytes: Buffer, label: string)
   if (mErr || !tree) throw mErr ?? new Error("merkleTree returned no tree");
   const root: string = tree.rootHash() ?? "";
   if (!root) throw new Error("merkleTree rootHash null");
+  // STORAGE-TESTNET SEAM: pin the fee tx + node sync to 0G testnet (fast + proven) when engaged; else the
+  // passed sponsor signer + GALILEO.rpc == today's exact behavior. `idx` (the turbo indexer) is separately
+  // network-selected via AURA_STORAGE_INDEXER_TURBO, so indexer + rpc + signer stay testnet-consistent.
+  const { rpc: upRpc, signer: upSigner } = uploadContext(signer);
   try {
-    const [res, upErr] = await idx.upload(mem, GALILEO.rpc, signer as any, {
+    const [res, upErr] = await idx.upload(mem, upRpc, upSigner as any, {
       ...(defaultUploadOption as any),
       finalityRequired: false,
     });
