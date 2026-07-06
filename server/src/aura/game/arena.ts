@@ -161,11 +161,15 @@ export async function createBattleFlow(
   opts: { commitDur?: number; revealDur?: number; deps: CreateBattleDeps },
 ): Promise<CreateBattleResult> {
   if (a.id === b.id) throw new ArenaError(400, "self-match: a battle's two agents must differ");
-  // DEMO-FRIENDLY windows: short commit + reveal so a full commit -> wait -> reveal -> finalize cycle
-  // completes in one sitting (the arena is a headline demo feature). Operator-tunable via opts; the web
-  // does not pass durations, so these defaults govern every UI-created battle. 180s each = a ~6min cycle.
-  const commitDur = opts.commitDur ?? 180; // 3-minute commit window (demo default; operator-tunable)
-  const revealDur = opts.revealDur ?? 180; // 3-minute reveal window (demo default; operator-tunable)
+  // DEMO windows sized to ABSORB generation latency. The commit/reveal deadlines are set on-chain at
+  // createBattle, but the two TEE gens + 0G-storage upload run INSIDE createBattleFlow BEFORE it returns and
+  // take up to ~4min (0G testnet storage sync is the variable bottleneck). Live-verified 2026-07-07: a 180s
+  // commit window had already CLOSED by the time the battle was returned, so every commit reverted "commit
+  // window closed". The commit window must therefore comfortably exceed max-gen-time + real voting time.
+  // 600s commit leaves ~5-6min to vote after a slow gen; 300s reveal is ample (no gen on that leg). Operator-
+  // tunable via opts; the web passes none, so these defaults govern every UI-created battle.
+  const commitDur = opts.commitDur ?? 600; // 10-minute commit window (absorbs gen latency + voting; tunable)
+  const revealDur = opts.revealDur ?? 300; // 5-minute reveal window (demo default; operator-tunable)
   const { deps } = opts;
 
   // optional same-owner precheck (the contract enforces it too; this gives a clean 400 before spending gas).
