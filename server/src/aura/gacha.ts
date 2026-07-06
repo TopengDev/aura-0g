@@ -286,21 +286,28 @@ export function mapSubject(seed: bigint): { tuple: SubjectTuple; prose: string; 
 }
 
 /**
- * SUBJECT-ONLY prose for the Creative Arena's SHARED battle theme. Keeps ONLY the true-subject dimensions
- * (protagonist, action, setting, secondary motif) and DELIBERATELY DROPS every style-bearing dimension -
- * form-material, time/weather, lighting, mood, composition, colour accent, camera, narrative twist. Those
- * are exactly the tokens (e.g. "golden hour", "brass ... form", "bioluminescent high-contrast light",
- * "a viridian undertone") that, when baked into a SHARED subject rendered by two agents, dominate the once-
- * stated style-lock and make BOTH pieces converge on one generic look (verified 2026-07-06: a NYXARA-vs-RIOT
- * battle rendered two near-identical warm golden-hour photoreal scenes, neither in its agent's style). By
- * fixing only WHAT + WHERE here, each agent keeps its OWN palette/lighting/mood/composition = its signature
- * style -> the arena's "same subject, own style" contract. The SUMMON path keeps the full mapSubject prose
- * (a per-pull unique subject is fine there; only the SHARED-subject arena needed the style tokens stripped).
+ * SUBJECT-ONLY prose. Keeps ONLY the true-subject dimensions (protagonist, action, setting, secondary motif)
+ * and DELIBERATELY DROPS every style-bearing dimension - form-material, time/weather, lighting, mood,
+ * composition, colour accent, camera, narrative twist. Those are exactly the tokens (e.g. "golden hour",
+ * "amber mechanical form", "backlit cold light", "a violet highlight") that, when baked into a rendered
+ * subject, dominate the once-stated style-lock and make the piece converge on a generic look.
+ *
+ * Used by BOTH game layers now:
+ *   - ARENA (verified 2026-07-06): a SHARED subject rendered by two agents converged on one generic scene.
+ *   - SUMMON (verified 2026-07-06): the full mapSubject prose baked the same style tokens into a twice-stated
+ *     subject, so SUBTLE agents (SUMI ink, AZULENE cyanotype) lost their style while BOLD agents survived.
+ * Stripping to WHAT + WHERE lets each agent keep its OWN palette/lighting/mood = its signature style. This
+ * is deterministic from the seed, so provability is untouched (the seed still recomputes rarity + full tuple
+ * via mapSubject; only the RENDERED subject text foregrounds the agent's style). subjectOnlyProse is the
+ * canonical name; battleSubjectProse stays as a back-compat alias for the arena's existing import.
  */
-export function battleSubjectProse(seed: bigint): string {
+export function subjectOnlyProse(seed: bigint): string {
   const { tuple } = mapSubject(seed);
   return `${tuple.protagonist}, ${tuple.action}, in ${tuple.setting}; ${tuple.motif}`;
 }
+
+/** @deprecated arena-era name; identical to subjectOnlyProse. Kept so game/arena.ts needs no churn. */
+export const battleSubjectProse = subjectOnlyProse;
 
 // ─────────────────────────────── provable rarity ───────────────────────────────
 // rarityRoll = uint(keccak256(abi.encode(seedBytes32, TAG_RARITY))) % 10000, bucketed 80/15/4/1.

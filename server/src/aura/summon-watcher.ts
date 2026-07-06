@@ -21,7 +21,7 @@ import { summonRead, summonWrite, readProvider, SUMMON_ABI, parseEvent } from ".
 import { sponsorSigner } from "./wallet.js";
 import { signSettlementMintAuth, type MintAuthParams } from "./attestation.js";
 import { generateAndProve, type GenProof } from "./generate.js";
-import { pullSeedRoot, mapSubject, ZERO_BYTES32 } from "./gacha.js";
+import { pullSeedRoot, subjectOnlyProse, ZERO_BYTES32 } from "./gacha.js";
 import { rawAgent } from "./agents.js";
 import { summonGuardAcquire, summonGuardRelease, summonGuardRefund } from "./ratelimit.js";
 import {
@@ -52,7 +52,10 @@ export type SummonGenFn = (args: {
 }) => Promise<GenProof>;
 
 const defaultGenFn: SummonGenFn = ({ agentId, agentName, encBrainRoot, prompt, pull }) =>
-  generateAndProve({ agentId, agentName, encBrainRoot, userPrompt: prompt, label: `summon-${agentId}-${seedLabel()}`, pull });
+  // styleForward: EVERY summon foregrounds the agent's signature style over the (now subject-only) pull
+  // subject - the same Bug-1 fix the arena shipped, extended to the summon path so subtle agents (SUMI ink,
+  // AZULENE cyanotype) render in their OWN style instead of a generic scene (instrumented 2026-07-06).
+  generateAndProve({ agentId, agentName, encBrainRoot, userPrompt: prompt, label: `summon-${agentId}-${seedLabel()}`, pull, styleForward: true });
 
 // time-based label without Date.now() typing fuss; only used as a 0G object name.
 function seedLabel(): string {
@@ -256,7 +259,13 @@ export class SummonWatcher {
         agentId: row.agent_id,
         summonBlockHash,
       });
-      const pull = { seedRoot, subjectProse: mapSubject(seedRoot).prose };
+      // SUBJECT-ONLY prose (WHAT + WHERE), NOT the full mapSubject prose: the full prose bakes generic style
+      // tokens (lighting / mood / colour accent / form / camera) into a twice-stated subject that OVERPOWERS
+      // the once-stated style-lock, so SUBTLE agents (SUMI, AZULENE) rendered off-style (instrumented
+      // 2026-07-06). Paired with styleForward below (styleForwardPrompt) this restores each agent's OWN style.
+      // Provability is untouched: the seed still recomputes rarity + the full 12-dim tuple (mapSubject) for
+      // the proof panel; only the RENDERED subject text is stripped to foreground the agent's style.
+      const pull = { seedRoot, subjectProse: subjectOnlyProse(seedRoot) };
 
       this.setStatus(id, "generating", "generating the commissioned output inside the TEE (~42s)");
       this.bumpAttempts(id);

@@ -48,22 +48,27 @@ function pullModePrompt(agentName: string, styleDescriptor: string, subject: str
 }
 
 /**
- * ARENA style-forward variant of the pull prompt (game layer only). When two agents render ONE shared
- * subject, the once-stated style-lock loses to a subject that repeats and carries its own scene detail, so
- * both pieces converge on one generic look (verified Bug-1 2026-07-06). This template FOREGROUNDS the agent's
- * signature style (palette / lighting / linework / mood dominate), states the shared subject ONCE, and
- * explicitly forbids default photorealistic drift, so each side is the shared subject reimagined NATIVELY in
- * its own style. The arena already strips style-bearing tokens from the shared subject (battleSubjectProse),
- * so the ONLY style tokens left in the prompt are the agent's. Summons never set styleForward (zero regression).
+ * STYLE-FORWARD variant of the pull prompt, used by BOTH the arena (shared-subject battle) AND summons.
+ * ROOT CAUSE it fixes (instrumented 2026-07-06): the shipped pullModePrompt states the subject TWICE ("New
+ * original scene: X ... invent a brand-new scene with X as the clear focal subject") while stating the
+ * style-lock ONCE, and the summon subject (full mapSubject prose) bakes GENERIC style tokens into that
+ * subject - lighting ("backlit cold light"), mood, composition, a colour accent ("a violet highlight"),
+ * form-material ("amber mechanical form"), camera. A twice-stated subject carrying its own style tokens
+ * OVERPOWERS the once-stated style-lock. BOLD agents (RIOT, UKIYO) survive because their loud signature
+ * still dominates; SUBTLE / monochrome agents (SUMI ink, AZULENE cyanotype) lose - the injected "amber" /
+ * "violet highlight" even directly contradict their own negatives ("no colour other than ink"). This
+ * template instead FOREGROUNDS the agent's style (palette / lighting / linework / mood dominate), states
+ * the subject ONCE, and forbids default photorealistic drift, so the piece is the subject reimagined
+ * NATIVELY in the agent's style. Callers pair it with a SUBJECT-ONLY prose (arena: battleSubjectProse /
+ * subjectOnlyProse; summon: subjectOnlyProse) so the only style tokens left in the prompt are the agent's.
  */
-function battleModePrompt(agentName: string, styleDescriptor: string, subject: string, negative: string): string {
+function styleForwardPrompt(agentName: string, styleDescriptor: string, subject: string, negative: string): string {
   return (
     `Render ENTIRELY in the unmistakable signature style of ${agentName}: ${styleDescriptor} ` +
     `The palette, lighting, linework, texture, and mood MUST read as ${agentName}'s style FIRST - not a generic ` +
-    `render, not default photorealism unless photorealism IS this style. Depict this subject, reimagined natively ` +
-    `in that style: ${subject}. Invent a fresh composition; do NOT copy the reference image's layout, but KEEP its ` +
-    `style and character identity. The subject is shared with a rival piece; the STYLE here is entirely ` +
-    `${agentName}'s. Avoid: ${negative}.`
+    `render, not default photorealism unless photorealism IS this style. Depict this subject ONCE, reimagined ` +
+    `natively in that style: ${subject}. Invent a fresh composition; do NOT copy the reference image's layout, ` +
+    `but KEEP its style and character identity. The STYLE here is entirely ${agentName}'s. Avoid: ${negative}.`
   );
 }
 
@@ -148,7 +153,7 @@ export async function resolveGenConfig(
     // this" template (avatar-edit use case). The avatar stays the edit base either way (style/palette anchor).
     const prompt = pullSubject
       ? (styleForward
-          ? battleModePrompt(agentName, brain.styleDescriptor, pullSubject, brain.negative)
+          ? styleForwardPrompt(agentName, brain.styleDescriptor, pullSubject, brain.negative)
           : pullModePrompt(agentName, brain.styleDescriptor, pullSubject, brain.negative))
       : `${brain.identityLock} Change only this: ${clean}. ${brain.styleDescriptor}. Avoid: ${brain.negative}.`;
     return { baseBytes, prompt, usedBrain: true, agentName };
@@ -170,7 +175,7 @@ export async function resolveGenConfig(
     const aesthetic = metaForName(agentName)?.aesthetic ?? `${agentName} signature style.`;
     const neg = "no photorealism if stylized, no unwanted artifacts, no watermark";
     prompt = styleForward
-      ? battleModePrompt(agentName, aesthetic, pullSubject, neg)
+      ? styleForwardPrompt(agentName, aesthetic, pullSubject, neg)
       : pullModePrompt(agentName, aesthetic, pullSubject, neg);
   } else {
     prompt = fallbackPrompt(agentName, clean);
