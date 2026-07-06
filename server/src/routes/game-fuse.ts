@@ -73,8 +73,10 @@ export async function gameFuseRoutes(app: FastifyInstance): Promise<void> {
   });
 
   // POST /game/fuse/execute - run the child pipeline for a MINED fusion request the caller owns, returning the
-  // executeFusion args (+ the child portrait, genome, memory verdict). This runs a sponsor-paid TEE generation.
-  app.post<{ Body: { requestId?: number; childName?: string; royaltyBps?: number; creatorResaleBps?: number } }>(
+  // executeFusion args (+ the child portrait, genome, memory verdict, its 0G-derived name + blended persona).
+  // This runs a sponsor-paid TEE generation. NOTE: the child's name is FULLY AUTOMATIC (0G-derived), so this
+  // route accepts NO childName - any client-supplied name is ignored by design.
+  app.post<{ Body: { requestId?: number; royaltyBps?: number; creatorResaleBps?: number } }>(
     "/game/fuse/execute",
     { preHandler: [app.authenticate] },
     async (req, reply) => {
@@ -92,7 +94,6 @@ export async function gameFuseRoutes(app: FastifyInstance): Promise<void> {
       }
       try {
         const result = await executeFusionPipeline(requestId, {
-          childName: req.body?.childName,
           royaltyBps: req.body?.royaltyBps,
           creatorResaleBps: req.body?.creatorResaleBps,
         });

@@ -279,3 +279,68 @@ export async function rawAgent(agentId: number): Promise<{ agentId: number; name
     return null;
   }
 }
+
+// ─────────────────────────── GLOBAL name uniqueness ───────────────────────────
+// There is no on-chain name-uniqueness constraint anywhere (create-agent, fusion, and the mint all accept
+// any string), so two Auras COULD share a name. This is the single shared check that keeps every Aura's name
+// globally distinct: it collects every EXISTING aura name (case-insensitively) and reports collisions. It is
+// wired into BOTH the create-agent path (reject a duplicate mint) and the fusion pipeline (regenerate a
+// collided 0G name). BEST-EFFORT: names are not enforced on-chain, so a residual race between two as-yet-
+// unminted creates/fusions is possible - this narrows the window, it does not close it on-chain.
+
+const normName = (n: string): string => (n ?? "").normalize("NFKC").trim().toLowerCase();
+
+/**
+ * The set of ALL existing aura names, normalized (NFKC + trim + lowercase), for a global uniqueness check.
+ * Source ladder: the INDEXER agent list (the authoritative live minted set the app already reads) with a
+ * chain-scan fallback (onChainAgents) when the indexer is down; unioned with the display CATALOG so a
+ * curated-but-not-yet-minted catalog name is also reserved. Best-effort: any source that throws is skipped
+ * (the remaining sources still populate the set); it never throws.
+ */
+export async function collectTakenNames(): Promise<Set<string>> {
+  const names = new Set<string>();
+  // catalog names are reserved even if a given one is not currently minted.
+  for (const n of Object.keys(CATALOG)) names.add(normName(n));
+  // indexer-first (the live, complete minted set), chain-scan fallback only if the indexer list failed.
+  let gotIndexerList = false;
+  try {
+    const data = await indexerGet("/agents");
+    const arr: unknown[] = Array.isArray((data as any)?.agents)
+      ? (data as any).agents
+      : Array.isArray(data)
+        ? (data as unknown[])
+        : [];
+    for (const a of arr) {
+      const nm = (a as any)?.name;
+      if (typeof nm === "string" && nm.trim()) {
+        names.add(normName(nm));
+        gotIndexerList = true;
+      }
+    }
+  } catch {
+    /* indexer unreachable -> chain-scan fallback below */
+  }
+  if (!gotIndexerList) {
+    try {
+      for (const a of await onChainAgents()) names.add(normName(a.name));
+    } catch {
+      /* chain unreadable too -> return whatever we have (at least the catalog) */
+    }
+  }
+  return names;
+}
+
+/**
+ * True iff `name` collides (case-insensitively) with any existing aura name. Best-effort (see
+ * collectTakenNames): an empty/whitespace name is treated as NOT taken (validation handles that separately).
+ * Never throws.
+ */
+export async function isNameTaken(name: string): Promise<boolean> {
+  const n = normName(name);
+  if (!n) return false;
+  try {
+    return (await collectTakenNames()).has(n);
+  } catch {
+    return false; // source failure -> do not block on a uniqueness check we could not perform
+  }
+}

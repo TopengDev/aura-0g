@@ -15,7 +15,14 @@ import type { IntrinsicRecord, StyleVec } from "../aura/memory/types.js";
 import type { GenProof } from "../aura/generate.js";
 import { deriveChildGenome, fuseSeed, type Genome } from "../aura/game/fuse-genome.js";
 import { genomeToStyleVec, blendedStyleDescriptor, genomeToStyle, STYLE_POOLS } from "../aura/game/genome-style.js";
-import { buildChildIdentity, executeFusionPipeline, type FusePipelineDeps } from "../aura/game/fuse.js";
+import {
+  buildChildIdentity,
+  executeFusionPipeline,
+  type FusePipelineDeps,
+  type PersistChildInput,
+  type DeriveChildNameInput,
+} from "../aura/game/fuse.js";
+import { sanitizeName, deterministicFusedName } from "../aura/name-derive.js";
 import { fuseChildMemory, readIntrinsicViaEscrow, blendIntrinsic, assertFusionMemoryShape } from "../aura/game/fuse-memory.js";
 
 let pass = 0;
@@ -147,6 +154,10 @@ async function main() {
 
   // ── D. full pipeline with mocked gen/store: the child mint payload ──
   const portraitRoot = "0xportraitrootdeadbeef";
+  // widened via `as` so TS keeps the union type at the read sites below (these are assigned inside the dep
+  // closures, which control-flow analysis does not track back to the outer scope).
+  let persisted = null as PersistChildInput | null; // captures the persistChild payload (assert the staged persona)
+  let lastNameInput = null as DeriveChildNameInput | null; // captures the deriveChildName input (assert the blend flows in)
   const deps: Partial<FusePipelineDeps> = {
     async getRequest() {
       return { fuser: fuser.address, parentA: 1n, parentB: 2n, targetBlock: 100n, fee: 0n, executed: false, refunded: false };
@@ -171,13 +182,31 @@ async function main() {
     async store(bytes) {
       return { rootHash: "0x" + createHash("sha256").update(bytes).digest("hex") };
     },
-    persistChild: () => {}, // no-op: the DB stage seam is exercised by the route/e2e, not this pure unit test
-
+    persistChild: (input) => {
+      persisted = input; // capture the stage payload so we can assert the RICH persona is staged (offline)
+    },
+    // Identity seams mocked OFFLINE (the real defaults hit 0G + the indexer): fixed parents, a fixed derived
+    // name, and a rich blended persona. This keeps the unit test hermetic while exercising the NEW wiring.
+    getParentIdentity: async (id) =>
+      id === 1n
+        ? { name: "PARENT-A", aesthetic: "risograph duotone pink-and-blue", personality: "Warm and playful.", lore: "A zine-press spirit.", tagline: null, signatureCharacter: "a fennec fox mascot" }
+        : { name: "PARENT-B", aesthetic: "charcoal chiaroscuro", personality: "Stark and architectural.", lore: "A shadow-cast mason.", tagline: null, signatureCharacter: null },
+    deriveChildName: async (input) => {
+      lastNameInput = input; // capture so we can assert the parents + blended style flowed into name derivation
+      return "HYBRID";
+    },
+    deriveChildPersona: async (input) => ({
+      aesthetic: input.blendedStyleDescriptor,
+      personality: "I am the hush where two hands meet.",
+      lore: "Born where PARENT-A's warmth crossed PARENT-B's shadow, I keep a little of each.",
+      tagline: "Two lineages, one new light.",
+      signatureCharacter: "a fox lit by a single candle",
+    }),
     getParentL1: async (pid) => (pid === 1n ? pAL1 : pBL1),
     memoryBackend: backend,
     now: () => new Date("2026-07-05T00:00:00Z"),
   };
-  const res = await executeFusionPipeline(42, { childName: "HYBRID", royaltyBps: 700, creatorResaleBps: 1000, deps });
+  const res = await executeFusionPipeline(42, { royaltyBps: 700, creatorResaleBps: 1000, deps });
 
   const seedForFuser = fuseSeed({ requestId: 42, fuser: fuser.address, aFingerprint: A_FP, bFingerprint: B_FP, blockHash: BH });
   const expectChildForFuser = deriveChildGenome(GENOME_A, GENOME_B, seedForFuser);
@@ -209,6 +238,34 @@ async function main() {
   // the real fuser's seed - NOT the fixed-vector `picks` above, which used a different fuser).
   const resPicks = genomeToStyle(res.childGenome);
   ok(res.portrait.prompt.includes(resPicks.palette) && res.portrait.prompt.includes(resPicks.light), "the gen prompt carried the genome-blended style (visible blend into the render)");
+
+  // ── E. IDENTITY: the child has an auto-derived NAME (not AURA-FUSION-N) + a RICH blended persona ──
+  ok(res.childName === "HYBRID", "child name comes from the (0G) deriveChildName seam");
+  ok(!/^AURA-FUSION-\d+$/.test(res.childName), "child name is NOT the ugly AURA-FUSION-N sentinel");
+  ok(!!lastNameInput && lastNameInput.parentA.name === "PARENT-A" && lastNameInput.parentB.name === "PARENT-B",
+    "name derivation received BOTH parents' identity (the blend inputs)");
+  ok(!!lastNameInput && lastNameInput.blendedStyleDescriptor === blendedStyleDescriptor(res.childGenome),
+    "name derivation received the child's genome-blended style descriptor");
+  ok(res.persona.personality === "I am the hush where two hands meet." && !!res.persona.lore,
+    "child carries a RICH blended persona (personality + lore), not just a floor");
+  ok(res.persona.derived === true, "res.persona.derived flags the 0G enrichment landed");
+  ok(res.persona.signatureCharacter === "a fox lit by a single candle", "child persona has a blended signatureCharacter");
+  // the RICH persona was handed to the persist/stage seam (so /game/fuse/finalize promotes the rich soul, not a floor).
+  ok(!!persisted && persisted.name === "HYBRID" && persisted.persona.personality === "I am the hush where two hands meet." && persisted.persona.derived === true,
+    "persistChild received the RICH persona to stage (promoted to the child agentId at finalize)");
+  ok(!!persisted && persisted.persona.lore !== null && persisted.aesthetic.length > 10,
+    "staged persona carries lore + a real aesthetic (blended style)");
+
+  // ── F. name helpers (PURE, offline): sanitizer + deterministic genome-seeded fallback ──
+  ok(sanitizeName('  "Name: Aetheris."  ') === "AETHERIS", "sanitizeName strips a label + quotes + punctuation and uppercases");
+  ok(sanitizeName("Aur*el_ia`n") === "AURELIAN", "sanitizeName strips markdown emphasis");
+  ok(sanitizeName("The blend is a beautiful thing\nAetheris") === "THE BLEND IS A BEAUTIFUL THING", "sanitizeName keeps only the first line");
+  ok(sanitizeName("") === "" && sanitizeName("123!@#") === "", "sanitizeName rejects empty + a letterless string (a name must contain a letter)");
+  const dn = deterministicFusedName(res.childGenome, "RIOT", "NYXARA", 0);
+  ok(dn.length >= 3 && /^[A-Z' \-]+$/.test(dn) && !/^AURA-FUSION-/.test(dn), `deterministicFusedName is a clean uppercase coinage (${dn}), never AURA-FUSION-N`);
+  ok(deterministicFusedName(res.childGenome, "RIOT", "NYXARA", 0) === dn, "deterministicFusedName is deterministic in (genome, parents, attempt)");
+  ok(deterministicFusedName(res.childGenome, "RIOT", "NYXARA", 1) !== dn, "deterministicFusedName varies by attempt (so the uniqueness loop can walk to a free variant)");
+  ok(!/-\d+$/.test(deterministicFusedName(res.childGenome, "RIOT", "NYXARA", 7)), "deterministicFusedName never appends a bare -N counter");
 
   console.log(`\n=== fuse pipeline: ${pass}/${pass} assertions PASS ===\n`);
 }

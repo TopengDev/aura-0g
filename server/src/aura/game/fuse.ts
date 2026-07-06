@@ -23,6 +23,13 @@ import { sponsorSigner } from "../wallet.js";
 import { resolveBytesByRoot, cacheImageByRoot } from "../image-cache.js";
 import { brainByAgentId, brainByRoot, stageBrain } from "../store.js";
 import { stagePersona, personaByEncBrainRoot } from "../persona-store.js";
+import {
+  deriveFusedPersona,
+  type FuseParentPersona,
+  type DerivedFusedPersonaFields,
+} from "../persona-derive.js";
+import { deriveFusedName, deterministicFusedName } from "../name-derive.js";
+import { collectTakenNames, getAgentIdentity } from "../agents.js";
 import { pubkeyOf } from "../pubkey.js";
 import { sealKeyToPubkey, sealedToHex } from "../sealing.js";
 import { encryptBrain, type BrainPlain } from "../brain.js";
@@ -198,7 +205,33 @@ export interface PersistChildInput {
   sealedKey: string | null;
   dataHash: string;
   envelope: Buffer; // the encrypted brain envelope, cached under encBrainRoot (mirror create-agent)
-  aesthetic: string; // the blended style descriptor -> the child's floor chat persona
+  aesthetic: string; // the child's aesthetic (refined blended style if the 0G persona landed, else the raw blend)
+  // The child's RICH blended chat persona (derived from BOTH parents + the genome via 0G TEE compute). Staged
+  // by persistChild keyed by encBrainRoot; promoted to the childId at /game/fuse/finalize. `derived` is true
+  // once the 0G enrichment landed (personality/lore present), false for the floor.
+  persona: {
+    personality: string | null;
+    lore: string | null;
+    tagline: string;
+    signatureCharacter: string | null;
+    derived: boolean;
+  };
+}
+
+/** Inputs for the two 0G-TEE derivation seams the fusion pipeline runs (both injectable + defaulted). */
+export interface DeriveChildNameInput {
+  requestId: number;
+  parentA: FuseParentPersona;
+  parentB: FuseParentPersona;
+  childGenome: Genome;
+  blendedStyleDescriptor: string;
+}
+export interface DeriveChildPersonaInput {
+  childName: string;
+  parentA: FuseParentPersona;
+  parentB: FuseParentPersona;
+  childGenome: Genome;
+  blendedStyleDescriptor: string;
 }
 
 /** The injectable boundaries. Every field has a real default (defaultFuseDeps); tests override the seams. */
@@ -215,9 +248,64 @@ export interface FusePipelineDeps {
   // endpoint resolves brainByAgentId(childId).canonicalBaseRoot -> the child's real portrait). DB side effect;
   // tests inject a no-op. Idempotent: skips a re-stage of the same encBrainRoot.
   persistChild(input: PersistChildInput): void;
+  // Resolve a parent's identity (name + persona/style) for the child's NAME + PERSONA blend. Default reads
+  // getAgentIdentity -> resolveMeta, which already unifies the two sources the task names: a CATALOG aura's
+  // curated meta AND a user aura's stored persona (personaByAgentId). Injected so tests need no chain read.
+  getParentIdentity(parentAgentId: bigint): Promise<FuseParentPersona>;
+  // Derive the child's beautiful, GLOBALLY-UNIQUE name via 0G TEE compute (default = deriveUniqueChildName:
+  // 0G coinage from both parents + the blended style, checked against collectTakenNames, regenerated on a
+  // collision, deterministic genome-seeded fallback). ALWAYS resolves to a clean non-empty name.
+  deriveChildName(input: DeriveChildNameInput): Promise<string>;
+  // Derive the child's RICH blended persona (personality/lore/tagline/signatureCharacter/aesthetic) via 0G
+  // TEE compute from BOTH parents + the genome (default = deriveFusedPersona). ALWAYS resolves (floor on fail).
+  deriveChildPersona(input: DeriveChildPersonaInput): Promise<DerivedFusedPersonaFields>;
   getParentL1?(parentAgentId: bigint): Promise<IntrinsicRecord[]>;
   memoryBackend?: SegmentBackend;
   now(): Date;
+}
+
+/**
+ * DEFAULT child-name derivation: a beautiful, GLOBALLY-UNIQUE 0G-derived name. Snapshots every existing aura
+ * name ONCE (collectTakenNames - indexer/chain-scan/catalog), then: (1) up to NAME_0G_ROUNDS 0G coinages,
+ * each steered away from the taken + already-tried names, returning the first free one; (2) if all 0G rounds
+ * failed or collided, walk the deterministic genome-seeded mythic space until a free, tasteful variant is
+ * found (never AURA-FUSION-N, never a "-2" counter). Best-effort + never throws: a total source failure still
+ * yields a deterministic name (uniqueness un-guaranteed, matching the documented residual race).
+ */
+const NAME_0G_ROUNDS = 2; // "loop a few times" against 0G on a collision before the deterministic fallback
+export async function deriveUniqueChildName(input: DeriveChildNameInput): Promise<string> {
+  const norm = (n: string): string => n.normalize("NFKC").trim().toLowerCase();
+  let taken: Set<string>;
+  try {
+    taken = await collectTakenNames();
+  } catch {
+    taken = new Set<string>();
+  }
+  // never reuse either parent's name.
+  taken.add(norm(input.parentA.name));
+  taken.add(norm(input.parentB.name));
+  const tried: string[] = [];
+
+  // (1) 0G coinage rounds.
+  for (let round = 0; round < NAME_0G_ROUNDS; round++) {
+    const cand = await deriveFusedName({
+      parentA: input.parentA,
+      parentB: input.parentB,
+      blendedStyleDescriptor: input.blendedStyleDescriptor,
+      avoid: [...taken, ...tried],
+    });
+    if (cand && !taken.has(norm(cand))) return cand;
+    if (cand) tried.push(cand);
+  }
+
+  // (2) deterministic genome-seeded fallback; walk `attempt` to a free, tasteful variant (bounded loop over a
+  //     large mythic space, so a free one is found long before the cap).
+  for (let attempt = 0; attempt < 96; attempt++) {
+    const cand = deterministicFusedName(input.childGenome, input.parentA.name, input.parentB.name, attempt);
+    if (cand && !taken.has(norm(cand))) return cand;
+  }
+  // unreachable in practice (the pool dwarfs 96 + the taken set); a stable last resort keeps the type total.
+  return deterministicFusedName(input.childGenome, input.parentA.name, input.parentB.name, 0) || "AURELION";
 }
 
 /** Real defaults: chain reads via AuraFusion, TEE gen via generateAndProve, 0G store via storage.ts. */
@@ -284,20 +372,52 @@ export function defaultFuseDeps(): FusePipelineDeps {
       // too). The child PORTRAIT bytes are already cached by generateAndProve (source:"output"), so only the
       // envelope needs adding here for a fully re-generatable child.
       cacheImageByRoot(input.encBrainRoot, input.envelope, { contentType: "application/octet-stream", source: "brain" });
-      // Floor chat persona for the child (its blended aesthetic gives a non-generic voice); promoted at finalize.
+      // RICH blended chat persona for the child (derived from BOTH parents + the genome via 0G TEE compute):
+      // its personality/lore/tagline/signatureCharacter make it a full living Aura, not a floor voice. Staged
+      // by encBrainRoot; promoted to the childId at /game/fuse/finalize. Idempotent (skip if already staged).
       if (!personaByEncBrainRoot(input.encBrainRoot)) {
         stagePersona({
           encBrainRoot: input.encBrainRoot,
           name: input.name,
           aesthetic: input.aesthetic,
-          signatureCharacter: null,
-          personality: null,
-          lore: null,
-          tagline: "A fused descendant Aura on 0G.",
-          derived: false,
+          signatureCharacter: input.persona.signatureCharacter,
+          personality: input.persona.personality,
+          lore: input.persona.lore,
+          tagline: input.persona.tagline,
+          derived: input.persona.derived,
         });
       }
     },
+    // Resolve a parent's identity for the child's name + persona blend. getAgentIdentity -> resolveMeta unifies
+    // the CATALOG meta (RIOT-style curated auras) and a user aura's stored persona (personaByAgentId, e.g.
+    // NYXARA). Falls back to a bare name if the read fails, so the derivation still has something to blend.
+    async getParentIdentity(parentAgentId) {
+      const id = Number(parentAgentId);
+      try {
+        const d = await getAgentIdentity(id);
+        if (d?.meta) {
+          return {
+            name: d.meta.name || `Aura #${id}`,
+            aesthetic: d.meta.aesthetic || "",
+            personality: d.meta.personality ?? null,
+            lore: d.meta.lore ?? null,
+            tagline: d.meta.tagline ?? null,
+            signatureCharacter: d.meta.signatureCharacter ?? null,
+          };
+        }
+      } catch {
+        /* unreadable on-chain / indexer -> minimal identity below */
+      }
+      return { name: `Aura #${id}`, aesthetic: "", personality: null, lore: null, tagline: null, signatureCharacter: null };
+    },
+    deriveChildName: (input) => deriveUniqueChildName(input),
+    deriveChildPersona: (input) =>
+      deriveFusedPersona({
+        childName: input.childName,
+        parentA: input.parentA,
+        parentB: input.parentB,
+        blendedStyleDescriptor: input.blendedStyleDescriptor,
+      }),
     now: () => new Date(),
   };
 }
@@ -320,6 +440,16 @@ export interface FuseExecuteResult {
     model: string;
   };
   memory: { inheritedL1Count: number; l1Reset: false; l2Reset: boolean; l1SegRoot: string } | null;
+  // the child's RICH blended persona (its SOUL): staged now by encBrainRoot, promoted to the childId at
+  // finalize so the child chats in-character + shows lore/tagline on its detail page (via enrichAgentSoul).
+  persona: {
+    aesthetic: string;
+    personality: string | null;
+    lore: string | null;
+    tagline: string;
+    signatureCharacter: string | null;
+    derived: boolean; // true once the 0G enrichment landed (personality/lore present), false = floor
+  };
   // the computed executeFusion args the fuser submits (non-custodial; mints the child with lineage).
   executeArgs: {
     contract: string;
@@ -340,7 +470,8 @@ export interface FuseExecuteResult {
 }
 
 export interface FuseExecuteOptions {
-  childName?: string;
+  // NOTE: there is deliberately NO childName here. Naming a fused child is FULLY AUTOMATIC + 0G-derived (a
+  // beautiful, globally-unique coinage from both parents + the genome); the pipeline never accepts a name.
   royaltyBps?: number;
   creatorResaleBps?: number;
   deps?: Partial<FusePipelineDeps>;
@@ -369,9 +500,30 @@ export async function executeFusionPipeline(requestId: number, opts: FuseExecute
   const seed = await deps.getFuseSeed(requestId);
   const childGenome = deriveChildGenome(la.genome, lb.genome, seed);
   const generation = Math.max(la.generation, lb.generation) + 1;
-  const childName = (opts.childName?.trim() || `AURA-FUSION-${requestId}`).slice(0, 48);
   const royaltyBps = clampBps(opts.royaltyBps ?? DEFAULT_ROYALTY_BPS);
   const creatorResaleBps = clampBps(opts.creatorResaleBps ?? DEFAULT_CREATOR_RESALE_BPS);
+
+  // 3b. IDENTITY (fully automatic, 0G-derived). Resolve BOTH parents' identity (a CATALOG aura's curated meta
+  //     OR a user aura's stored persona), then derive the child's BEAUTIFUL, GLOBALLY-UNIQUE name via 0G TEE
+  //     compute (from both parents + the genome-blended style). Best-effort: deriveChildName never throws and
+  //     always yields a clean non-empty name (deterministic genome-seeded fallback), so a fusion is never
+  //     blocked by a 0G/indexer hiccup. This REPLACES the ugly AURA-FUSION-N sentinel entirely - the name is
+  //     computed here BEFORE the render prompt + the styleFingerprint, both of which commit it.
+  const blendedDescriptor = blendedStyleDescriptor(childGenome);
+  const [parentAIdentity, parentBIdentity] = await Promise.all([
+    deps.getParentIdentity(req.parentA),
+    deps.getParentIdentity(req.parentB),
+  ]);
+  const childName =
+    (
+      await deps.deriveChildName({
+        requestId,
+        parentA: parentAIdentity,
+        parentB: parentBIdentity,
+        childGenome,
+        blendedStyleDescriptor: blendedDescriptor,
+      })
+    ).slice(0, 48) || `AURA-FUSION-${requestId}`;
 
   // 4. the genome -> prompt (visible blend), then TEE-attested generation on 0G Compute using a PARENT
   //    reference as the edit base. STYLE is the genome-derived blend; the base anchors a coherent hybrid.
@@ -424,10 +576,25 @@ export async function executeFusionPipeline(requestId: number, opts: FuseExecute
     throw new FuseError(409, "sign in first: the child iNFT seals its brain to your wallet pubkey (recovered at SIWE login). Log in, then execute the fusion.");
   }
 
-  // 6b. STAGE the child brain in server custody (the create-agent parity that was missing: create-agent.ts
-  //     stageBrain -> agents-create.ts promoteBrainByRoot). Without this, brainByAgentId(childId) is null and
-  //     the agent-portrait endpoint has no canonicalBaseRoot to resolve, so a fusion child renders no portrait
-  //     on its detail page. Keyed by encBrainRoot now; /game/fuse/finalize promotes it to the childId post-mint.
+  // 6a. PERSONA (the child's SOUL): derive a RICH persona BLENDED from BOTH parents (their personality + lore
+  //     + motifs) and shaped by the child's genome-derived style, via the SAME 0G TEE compute path chat uses.
+  //     Best-effort: deriveChildPersona never throws (floor = the blended style + a parents-named tagline), so
+  //     the mint is never blocked. It uses PARENTS + genome (public/on-chain), NOT the child's AES brain key,
+  //     so it works even though the child's key is sealed to the fuser (unrecoverable server-side).
+  const childPersona = await deps.deriveChildPersona({
+    childName,
+    parentA: parentAIdentity,
+    parentB: parentBIdentity,
+    childGenome,
+    blendedStyleDescriptor: blendedDescriptor,
+  });
+  const personaDerived = !!(childPersona.personality || childPersona.lore);
+  const childAesthetic = childPersona.aesthetic?.trim() || identity.blendedStyleDescriptor;
+
+  // 6b. STAGE the child brain + its RICH persona in server custody (the create-agent parity: create-agent.ts
+  //     stageBrain + stagePersona -> promote at confirm-mint). Without the brain stage, brainByAgentId(childId)
+  //     is null and the agent-portrait endpoint has no canonicalBaseRoot; without the persona stage the child
+  //     chats generic. Keyed by encBrainRoot now; /game/fuse/finalize promotes BOTH to the childId post-mint.
   deps.persistChild({
     owner: req.fuser,
     name: childName,
@@ -439,7 +606,14 @@ export async function executeFusionPipeline(requestId: number, opts: FuseExecute
     sealedKey: childSealedKey,
     dataHash: childDataHash,
     envelope,
-    aesthetic: identity.blendedStyleDescriptor,
+    aesthetic: childAesthetic,
+    persona: {
+      personality: childPersona.personality,
+      lore: childPersona.lore,
+      tagline: childPersona.tagline,
+      signatureCharacter: childPersona.signatureCharacter,
+      derived: personaDerived,
+    },
   });
 
   // 7. MEMORY: blend the parents' L1 into the child (INHERIT), start L2 empty (RESET). Best-effort: if parent
@@ -488,6 +662,14 @@ export async function executeFusionPipeline(requestId: number, opts: FuseExecute
       model: gen.model,
     },
     memory,
+    persona: {
+      aesthetic: childAesthetic,
+      personality: childPersona.personality,
+      lore: childPersona.lore,
+      tagline: childPersona.tagline,
+      signatureCharacter: childPersona.signatureCharacter,
+      derived: personaDerived,
+    },
     executeArgs: {
       contract: CONTRACTS.auraFusion,
       chainId: GAME_CHAIN_ID,

@@ -16,6 +16,7 @@ import { encryptBrain, type BrainPlain } from "./brain.js";
 import { stageBrain } from "./store.js";
 import { stagePersona, enrichPersonaByRoot } from "./persona-store.js";
 import { derivePersona, floorPersona } from "./persona-derive.js";
+import { isNameTaken } from "./agents.js";
 import { sealKeyToPubkey, sealedToHex } from "./sealing.js";
 import { pubkeyOf } from "./pubkey.js";
 import { CONTRACTS, GALILEO } from "./config.js";
@@ -92,6 +93,17 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
   }
 
   const name = input.name.trim();
+
+  // GLOBAL name uniqueness: no two Auras may share a name (created OR fused). Reject a duplicate BEFORE any
+  // sponsor-paid 0G upload, so a collision is cheap (the route refunds the create guard on this {ok:false}).
+  // Case-insensitive against the live aura set (indexer /agents, chain-scan fallback, unioned with the
+  // catalog). Best-effort: isNameTaken never throws (a source failure returns false rather than block a
+  // create on an indexer hiccup), so uniqueness is enforced when observable + a narrow residual race remains
+  // (names are not enforced on-chain). The fusion pipeline runs the SAME check on its 0G-derived name.
+  if (await isNameTaken(name)) {
+    return { ok: false, status: 409, error: `the name "${name}" is already taken by another Aura - please choose a different name` };
+  }
+
   const signer = sponsorSigner();
 
   // 1. store the reference image -> canonicalBaseRoot (the brain's base-image pointer).
