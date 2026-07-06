@@ -145,6 +145,29 @@ function migrate(d: Database.Database): void {
       created_at    TEXT NOT NULL
     );
 
+    -- Chat PERSONA store (the Aura's SOUL for chat). Mirrors agent_brains: staged by enc_brain_root at
+    -- create (agent_id NULL), promoted to the concrete agent_id at /agents/confirm-mint. This is the
+    -- chat-readable meta (voice/lore/aesthetic) for USER-created auras, which are NOT in the hardcoded
+    -- catalog and would otherwise fall through to the flat generic fallbackMeta. Catalog auras keep their
+    -- hand-written meta and never touch this table. Nothing here is secret (it is public display voice).
+    CREATE TABLE IF NOT EXISTS agent_personas (
+      ref_key             TEXT PRIMARY KEY,       -- 'agent:<id>' once minted, or 'pending:<uuid>' before
+      agent_id            INTEGER,
+      enc_brain_root      TEXT NOT NULL,          -- the join key used to promote pending -> agent_id
+      name                TEXT NOT NULL,
+      aesthetic           TEXT NOT NULL,          -- refined one-line style (the FLOOR = raw styleDescriptor)
+      signature_character TEXT,                   -- the user's signatureCharacter (a strong voice on its own)
+      personality         TEXT,                   -- LLM-derived first-person voice (null = floor only)
+      lore                TEXT,                   -- LLM-derived origin myth (null = floor only)
+      tagline             TEXT,                   -- one-line tagline (floor: a simple derived line)
+      rarity              TEXT,
+      derived             INTEGER NOT NULL DEFAULT 0, -- 1 once the LLM enrichment landed, 0 = floor only
+      created_at          TEXT NOT NULL,
+      updated_at          TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_personas_agent ON agent_personas(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_personas_root ON agent_personas(enc_brain_root);
+
     -- ERC-7857 de-mock: each owner's recovered secp256k1 PUBKEY (recovered from their SIWE login sig).
     -- ECIES sealing (sealing.ts) seals the data-key to this pubkey; the re-encryption oracle needs the
     -- BUYER's pubkey to seal a transferred key to them.

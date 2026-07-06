@@ -14,6 +14,8 @@ import { cacheImageByRoot, cachedImageByRoot } from "./image-cache.js";
 import { createHash } from "node:crypto";
 import { encryptBrain, type BrainPlain } from "./brain.js";
 import { stageBrain } from "./store.js";
+import { stagePersona, enrichPersonaByRoot } from "./persona-store.js";
+import { derivePersona, floorPersona } from "./persona-derive.js";
 import { sealKeyToPubkey, sealedToHex } from "./sealing.js";
 import { pubkeyOf } from "./pubkey.js";
 import { CONTRACTS, GALILEO } from "./config.js";
@@ -168,6 +170,36 @@ export async function createAgent(input: CreateAgentInput): Promise<CreateAgentR
     sealedKey: sealedKeyHex,
     dataHash,
   });
+
+  // 6a. CHAT PERSONA (the aura's SOUL for chat). Persist the FLOOR synchronously - keyed by encBrainRoot,
+  //     promoted to agentId at /agents/confirm-mint - so a chat-readable persona ALWAYS exists the moment
+  //     this create returns (the raw style + signatureCharacter alone give a strong, non-generic voice).
+  //     Then derive a RICHER persona (personality + lore + refined aesthetic/tagline) via the chat LLM seam,
+  //     BEST-EFFORT + fire-and-forget: it lands moments later (well before the user finishes signing the
+  //     mint), and can NEVER block or fail the create (derivePersona itself never throws; the .catch here is
+  //     a final backstop). AGENTID TIMING: the create returns mint-args for the USER to sign, so the agentId
+  //     is unknown here -> we key the persona by encBrainRoot now and promote it in confirm-mint.
+  const floor = floorPersona({ name, styleDescriptor: input.styleDescriptor, signatureCharacter: input.signatureCharacter });
+  stagePersona({
+    encBrainRoot,
+    name,
+    aesthetic: floor.aesthetic,
+    signatureCharacter: input.signatureCharacter?.trim() || null,
+    personality: null,
+    lore: null,
+    tagline: floor.tagline,
+    derived: false,
+  });
+  void (async () => {
+    try {
+      const rich = await derivePersona({ name, styleDescriptor: input.styleDescriptor, signatureCharacter: input.signatureCharacter });
+      if (rich.personality || rich.lore) {
+        enrichPersonaByRoot(encBrainRoot, { personality: rich.personality, lore: rich.lore, tagline: rich.tagline, aesthetic: rich.aesthetic });
+      }
+    } catch (e: any) {
+      console.warn(`[create-agent] persona enrichment failed for ${name} (floor persona retained): ${String(e?.message).slice(0, 120)}`);
+    }
+  })();
 
   // 6b. VERIFY PERSISTENCE before returning. A create must NEVER hand back a root the gen flow can't
   // later load -- that was the silent failure (0G "succeeds" returning a local merkle root, but the bytes

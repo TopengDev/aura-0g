@@ -101,6 +101,7 @@ export async function agentsCreateRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(400).send({ error: "encBrainRoot and agentId required" });
       }
       const { promoteBrainByRoot } = await import("../aura/store.js");
+      const { promotePersonaByRoot } = await import("../aura/persona-store.js");
       const { rawAgent } = await import("../aura/agents.js");
       // verify the on-chain agent actually has this encBrainRoot AND is owned by the caller.
       const agent = await rawAgent(agentId);
@@ -112,7 +113,10 @@ export async function agentsCreateRoutes(app: FastifyInstance): Promise<void> {
         return reply.code(403).send({ error: "you do not own this agent" });
       }
       const promoted = promoteBrainByRoot(encBrainRoot, agentId, req.user.address);
-      return { ok: true, promoted, agentId };
+      // promote the chat persona to the same agentId (its SOUL follows the brain). Best-effort: a persona
+      // may be absent for a pre-persona agent, and the chat lookup falls back to encBrainRoot regardless.
+      const personaPromoted = promotePersonaByRoot(encBrainRoot, agentId);
+      return { ok: true, promoted, personaPromoted, agentId };
     },
   );
 }

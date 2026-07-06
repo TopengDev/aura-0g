@@ -7,6 +7,7 @@
 // scan. The chain scan survives ONLY as an indexer-down fallback, behind a short in-process cache.
 import { agentsRead, outputRead } from "./contracts.js";
 import { CATALOG, CATALOG_ORDER, metaForName } from "./catalog.js";
+import { personaMetaFor } from "./persona-store.js";
 import { INDEXER_URL, INDEXER_TIMEOUT_MS } from "./config.js";
 import type { AgentSummary, AgentDetail, AgentPublicMeta } from "./types.js";
 
@@ -138,6 +139,15 @@ function fallbackMeta(name: string): AgentPublicMeta {
   };
 }
 
+/** Resolve the chat/display meta (the aura's VOICE) with the SOUL ladder:
+ *    1. metaForName(name)            -> the ~30 hand-written CATALOG auras keep their curated meta (no regression).
+ *    2. personaMetaFor(id, root)     -> a USER-created aura's stored persona (its derived/floor soul).
+ *    3. fallbackMeta(name)           -> only a truly-empty aura (no catalog, no stored persona) hits the generic voice.
+ *  This is THE fix: user auras are no longer flat-generic in chat + on their agent page. */
+function resolveMeta(name: string, agentId: number, encBrainRoot?: string | null): AgentPublicMeta {
+  return metaForName(name) ?? personaMetaFor(agentId, encBrainRoot) ?? fallbackMeta(name);
+}
+
 /** All agents for the grid: on-chain agents (minted) + catalog-only agents (available). */
 export async function listAgents(): Promise<AgentSummary[]> {
   // NOTE: this is the indexer-DOWN fallback for GET /agents (routes/indexer.ts prefers the indexer). The
@@ -169,10 +179,11 @@ export async function listAgents(): Promise<AgentSummary[]> {
     }
   }
 
-  // any on-chain agent not in the catalog (e.g. a freshly user-created agent)
+  // any on-chain agent not in the catalog (e.g. a freshly user-created agent): resolve its stored persona
+  // so the GRID + agent page show its real soul, not the generic fallback.
   for (const oc of chain) {
     if (seen.has(oc.name.toUpperCase())) continue;
-    summaries.push(summaryFromChain(oc, counts, metaForName(oc.name) ?? fallbackMeta(oc.name)));
+    summaries.push(summaryFromChain(oc, counts, resolveMeta(oc.name, oc.agentId, oc.encBrainRoot)));
   }
   return summaries;
 }
@@ -203,7 +214,7 @@ export async function getAgentById(agentId: number): Promise<AgentDetail | null>
   } catch {
     return null;
   }
-  const meta = metaForName(a.name) ?? fallbackMeta(a.name);
+  const meta = resolveMeta(a.name, agentId, a.encBrainRoot);
   const { outputCount, outputs } = await agentOutputs(agentId);
   return {
     agentId,
@@ -237,7 +248,7 @@ export async function getAgentIdentity(agentId: number): Promise<AgentDetail | n
   } catch {
     return null;
   }
-  const meta = metaForName(a.name) ?? fallbackMeta(a.name);
+  const meta = resolveMeta(a.name, agentId, a.encBrainRoot);
   const outputCount = await agentOutputCount(agentId);
   return {
     agentId,
