@@ -16,6 +16,7 @@ import { generateRoutes } from "./routes/generate.js";
 import { mintArgsRoutes } from "./routes/mint-args.js";
 import { agentsCreateRoutes } from "./routes/agents-create.js";
 import { agentTransferRoutes } from "./routes/agent-transfer.js";
+import { agentSaleRoutes } from "./routes/agent-sale.js";
 import { imageRoutes } from "./routes/image.js";
 import { readsRoutes } from "./routes/reads.js";
 import { indexerRoutes } from "./routes/indexer.js";
@@ -69,6 +70,7 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   await app.register(mintArgsRoutes);
   await app.register(agentsCreateRoutes);
   await app.register(agentTransferRoutes); // ERC-7857 secure-transfer flow (oracle proof + memory reseal)
+  await app.register(agentSaleRoutes); // paid open-market agent sale (Flow B: server-custodian escrow + split)
   await app.register(imageRoutes); // public GET /image/:root -> real bytes (local cache, 0G fallback)
   // Public KEYLESS verify endpoint (GET /api/verify?token=). A STATIC route, so find-my-way gives it
   // precedence over the /api/* indexer wildcard below (static beats wildcard): it intercepts before the

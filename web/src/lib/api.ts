@@ -621,6 +621,98 @@ async function authedJson<T>(
   return (await res.json()) as T;
 }
 
+// ── PAID OPEN-MARKET AGENT SALE (Flow B: server-custodian escrow) ──────────────────────────────────
+// The "buy a living agent - ownership + brain + memory + royalty all transfer" flow. Served by the backend
+// sale routes (NOT the on-chain AuraMarketplace, whose safeTransferFrom reverts on the spec-strict AuraINFT).
+// Custodial MVP (honestly disclosed): the platform custodies the payment between commit + settle, submits the
+// proof-gated AuraINFT.transfer, and splits the ETH (creator royalty / platform fee / seller remainder).
+export interface AgentSale {
+  agentId: number;
+  seller: string;
+  priceWei: string;
+  price: string; // ether string
+  name?: string;
+  styleVersion?: number;
+  creatorResaleBps?: number;
+  custodian: string;
+}
+export interface AgentSaleMarket {
+  custodian: string;
+  platform: string;
+  platformBps: number;
+  platformPct: number;
+  custodial: boolean;
+  chainId: number;
+  activeSales: AgentSale[];
+  count: number;
+}
+export interface SaleCommitResult {
+  ok: boolean;
+  escrowId: number;
+  agentId: number;
+  seller: string;
+  buyer: string;
+  custodian: string;
+  amountWei: string;
+  amountEther: string;
+  deadline: number;
+}
+export interface SaleSplitLeg {
+  role: "royalty" | "platformFee" | "seller";
+  receiver: string;
+  wei: string;
+  tx: string | null;
+}
+export interface SaleSettleResult {
+  ok: boolean;
+  escrowId: number;
+  agentId: number;
+  transferTx: string;
+  ownerNow: string;
+  styleVersion: number;
+  relationshipEpoch: number;
+  split: SaleSplitLeg[];
+  alreadySettled?: boolean;
+}
+
+/** GET /market/agents -> the active priced agent sales + the custodian disclosure. Soft (null on failure). */
+export async function fetchAgentSales(): Promise<AgentSaleMarket | null> {
+  return getJson<AgentSaleMarket>("/market/agents");
+}
+
+/** Find this agent's active sale in a market response. */
+export function findAgentSale(market: AgentSaleMarket | null, agentId: number): AgentSale | null {
+  if (!market) return null;
+  return market.activeSales.find((s) => s.agentId === agentId) ?? null;
+}
+
+// POST /agents/:id/sale/commit -> reserve an escrow + the custodian address to pay (SIWE pubkey required).
+export async function saleCommit(token: string, agentId: number, buyerPubkey?: string): Promise<SaleCommitResult> {
+  return authedJson(`/agents/${agentId}/sale/commit`, token, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(buyerPubkey ? { buyerPubkey } : {}),
+  });
+}
+
+// POST /agents/:id/sale/settle -> verify payment, transfer, split. The buyer supplies the funding tx hash.
+export async function saleSettle(token: string, agentId: number, escrowId: number, paymentTx: string): Promise<SaleSettleResult> {
+  return authedJson(`/agents/${agentId}/sale/settle`, token, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ escrowId, paymentTx }),
+  });
+}
+
+// POST /agents/:id/sale/list -> record a priced listing (owner-only; the seller must have approved the custodian).
+export async function saleList(token: string, agentId: number, priceEther: string): Promise<{ ok: boolean; custodian: string; priceWei: string }> {
+  return authedJson(`/agents/${agentId}/sale/list`, token, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ priceEther }),
+  });
+}
+
 // POST /generate -> 202 { jobId, status }. Kicks off the background generation owned by the JWT address.
 export async function startGeneration(
   token: string,

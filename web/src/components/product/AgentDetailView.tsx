@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
 import { ZeroG } from "@/components/atoms/ZeroG";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, StatFigure, ActionButton } from "@/components/product/primitives";
-import { TradePanel } from "@/components/product/TradePanel";
+import { AgentSalePanel } from "@/components/product/AgentSalePanel";
 import { SummonPanel } from "@/components/product/SummonPanel";
 import { ShareOnX } from "@/components/product/ShareOnX";
 import { RatingBadge } from "@/components/game/RatingBadge";
@@ -12,7 +12,7 @@ import { absoluteUrl, auraShareText } from "@/lib/share";
 import { EXPLORER } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
 import { FamilyTree } from "@/components/game/FamilyTree";
-import { agentPortraitUrl, shortHex, type AgentDetail, type Lineage, type MarketListing, type Output } from "@/lib/api";
+import { agentPortraitUrl, shortHex, type AgentDetail, type AgentSale, type Lineage, type Output } from "@/lib/api";
 
 // One agent. Identity header (name, style-DNA fingerprint, model attestation, current owner, royalty
 // rates, styleVersion), the agent's output collection, stats, the trade panel (kind=agent, with the
@@ -20,12 +20,12 @@ import { agentPortraitUrl, shortHex, type AgentDetail, type Lineage, type Market
 export function AgentDetailView({
   agent: a,
   outputs,
-  listing,
+  sale,
   lineage = null,
 }: {
   agent: AgentDetail;
   outputs: Output[];
-  listing: MarketListing | null;
+  sale: AgentSale | null;
   lineage?: Lineage | null;
 }) {
   const accent = a.meta.accent;
@@ -168,14 +168,15 @@ export function AgentDetailView({
           {/* Right: trade panel (sticky on desktop) + generate CTA */}
           <div className="lg:sticky lg:top-20 lg:self-start">
             <Reveal delay={0.06}>
-              <TradePanel
-                kind="agent"
-                tokenId={a.agentId}
+              <AgentSalePanel
+                agentId={a.agentId}
+                agentName={a.name}
                 owner={a.owner}
-                listing={listing}
+                sale={sale}
                 note={
                   <>
-                    Buying this Aura transfers ownership <strong style={{ color: "var(--color-ink)" }}>and its entire future royalty stream</strong>. Every
+                    Buying this Aura transfers ownership, <strong style={{ color: "var(--color-ink)" }}>re-keys its brain to you, resets its memory</strong>{" "}
+                    (you start a fresh bond, the seller is walled off), <strong style={{ color: "var(--color-ink)" }}>and moves its entire future royalty stream</strong>. Every
                     future sale of any Relic {a.name} has minted (or ever mints) pays its <ZeroG />{" "}
                     royalty to whoever owns this Aura. The royalty follows the work.
                   </>

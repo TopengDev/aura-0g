@@ -17,23 +17,33 @@ export async function getMarketplace(): Promise<MarketplaceView> {
 
   const activeListings: MarketplaceView["activeListings"] = [];
 
-  // scan the AGENT collection
-  const nextAgent = Number(await reg.nextAgentId());
-  for (let i = 1; i < nextAgent; i++) {
+  // scan the AGENT collection - but ONLY when a real AgentRegistry is deployed. Post the mainnet ERC-7857
+  // cutover the legacy AgentRegistry is address(0) (agents live on AuraINFT, which the AuraMarketplace cannot
+  // trade - its safeTransferFrom reverts). Calling nextAgentId() on 0x000 reverts, so guard it. Priced AGENT
+  // sales are served by GET /market/agents (the server-custodian Flow B), not this on-chain marketplace scan.
+  const agentRegistryLive = /^0x[0-9a-fA-F]{40}$/.test(CONTRACTS.agentRegistry) && !/^0x0{40}$/i.test(CONTRACTS.agentRegistry);
+  if (agentRegistryLive) {
     try {
-      const key = await mkt.listingKey(CONTRACTS.agentRegistry, i);
-      const l = await mkt.listings(key);
-      if (l.active) {
-        activeListings.push({
-          collection: CONTRACTS.agentRegistry,
-          collectionName: "agent",
-          tokenId: i,
-          seller: l.seller,
-          price: ethers.formatEther(l.price),
-        });
+      const nextAgent = Number(await reg.nextAgentId());
+      for (let i = 1; i < nextAgent; i++) {
+        try {
+          const key = await mkt.listingKey(CONTRACTS.agentRegistry, i);
+          const l = await mkt.listings(key);
+          if (l.active) {
+            activeListings.push({
+              collection: CONTRACTS.agentRegistry,
+              collectionName: "agent",
+              tokenId: i,
+              seller: l.seller,
+              price: ethers.formatEther(l.price),
+            });
+          }
+        } catch {
+          /* skip */
+        }
       }
     } catch {
-      /* skip */
+      /* AgentRegistry not readable (e.g. address(0) post-cutover) - agent sales come from /market/agents */
     }
   }
 

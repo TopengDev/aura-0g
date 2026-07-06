@@ -3,9 +3,9 @@ import { notFound } from "next/navigation";
 import {
   fetchAgentById,
   fetchLineage,
-  fetchMarketplace,
+  fetchAgentSales,
   fetchOutputById,
-  findListing,
+  findAgentSale,
   type Output,
 } from "@/lib/api";
 import { AgentDetailView } from "@/components/product/AgentDetailView";
@@ -58,9 +58,9 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
   const { id } = await params;
   // Fetch the agent, the marketplace listings, and the focal Aura's first lineage level in parallel. The
   // lineage seeds the on-page FamilyTree server-side (revalidated 30s); deeper generations load client-side.
-  const [agent, listings, lineage] = await Promise.all([
+  const [agent, saleMarket, lineage] = await Promise.all([
     fetchAgentById(id),
-    fetchMarketplace(15),
+    fetchAgentSales(),
     fetchLineage(id, 30),
   ]);
   if (!agent) notFound();
@@ -71,12 +71,12 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
     await Promise.all((agent.outputs ?? []).map((tid) => fetchOutputById(tid, 300)))
   ).filter((o): o is Output => !!o);
 
-  const listing = findListing(listings, "agent", agent.agentId);
+  const sale = findAgentSale(saleMarket, agent.agentId);
 
   return (
     <>
     <main className="min-h-screen pt-14">
-      <AgentDetailView agent={agent} outputs={outputs} listing={listing} lineage={lineage} />
+      <AgentDetailView agent={agent} outputs={outputs} sale={sale} lineage={lineage} />
     </main>
       <Footer />
     </>

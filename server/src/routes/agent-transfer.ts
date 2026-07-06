@@ -11,28 +11,18 @@
 //            brain to the buyer AND fires the memory DUAL-WALL reseal (the buyer's relationship starts fresh;
 //            the seller's epoch key is dropped) - so the on-chain re-key and the off-chain memory wall move
 //            together. NEVER prints or returns a private key.
+//
+// The prepare/confirm BODIES live in aura/sale-service.ts (prepareSecureTransfer / confirmSecureTransfer) so
+// the priced open-market sale-settle path (routes/agent-sale.ts) reuses the EXACT same proven logic. This
+// route keeps the directed-transfer surface: owner auth, the per-owner rate limit, and the in-memory pending
+// map (a prepared-but-unsubmitted directed transfer is cheap to re-prepare, so losing it on restart is fine;
+// the SALE path persists its equivalent in the escrow row because it holds money).
 import type { FastifyInstance } from "fastify";
-import { ethers } from "ethers";
-import { CONTRACTS, GALILEO } from "../aura/config.js";
-import { auraInftConfigured, auraInftRead } from "../aura/contracts.js";
-import { reencryptForTransfer } from "../aura/oracle.js";
-import { sealedToHex } from "../aura/sealing.js";
-import { pubkeyOf } from "../aura/pubkey.js";
-import { brainByAgentId, recustodyBrainForTransfer } from "../aura/store.js";
-import { store } from "../aura/storage.js";
-import { cacheImageByRoot, resolveBytesByRoot } from "../aura/image-cache.js";
-import { sponsorSigner } from "../aura/wallet.js";
-import { resealRelationshipForNewOwner } from "../aura/chat-memory.js";
+import { auraInftConfigured } from "../aura/contracts.js";
 import { rateLimit } from "../aura/ratelimit.js";
+import { prepareSecureTransfer, confirmSecureTransfer, SaleError, type PendingRekey } from "../aura/sale-service.js";
 
-// pending re-key, prepare -> confirm. In-memory (per process): a prepared-but-unsubmitted transfer is cheap
-// to re-prepare, so losing it on restart is acceptable for the demo. Production: persist alongside agent_brains.
-interface PendingTransfer {
-  to: string; // lowercased buyer
-  newKeyHex: string; // the fresh AES data-key (server re-custody target)
-  newEncBrainRoot: string;
-  newDataHash: string;
-  sealedKeyHex: string;
+interface PendingTransfer extends PendingRekey {
   createdAt: number;
 }
 const pending = new Map<number, PendingTransfer>();
@@ -60,90 +50,15 @@ export async function agentTransferRoutes(app: FastifyInstance): Promise<void> {
       if (!rl.ok) return reply.code(429).send({ error: "rate limited", retryInMs: rl.resetInMs });
 
       const to = (req.body?.to ?? "").trim();
-      if (!ethers.isAddress(to)) return reply.code(400).send({ error: "`to` (recipient address) required" });
-      if (to.toLowerCase() === from.toLowerCase()) return reply.code(400).send({ error: "cannot transfer to yourself" });
-
-      const inft = auraInftRead();
-      let ownerOnChain: string;
       try {
-        ownerOnChain = (await inft.ownerOf(agentId)) as string;
-      } catch {
-        return reply.code(404).send({ error: `agent #${agentId} not found on AuraINFT` });
+        const { pending: rekey, args } = await prepareSecureTransfer(agentId, from, to, req.body?.toPubkey);
+        pending.set(agentId, { ...rekey, createdAt: Date.now() });
+        // the args the USER submits to AuraINFT.transfer(...) with their own wallet. NO private key is returned.
+        return args;
+      } catch (e) {
+        if (e instanceof SaleError) return reply.code(e.status).send({ error: e.message });
+        throw e;
       }
-      if (ownerOnChain.toLowerCase() !== from.toLowerCase()) {
-        return reply.code(403).send({ error: "only the current on-chain owner may initiate a secure transfer" });
-      }
-
-      // buyer pubkey: from the body, else recovered from the buyer's SIWE login (wallet_pubkeys). Required to
-      // ECIES-seal the re-encrypted key to them (ERC-7857 per-owner sealing).
-      let toPubkey = (req.body?.toPubkey ?? "").trim() || null;
-      if (toPubkey) {
-        try {
-          if (ethers.computeAddress(toPubkey).toLowerCase() !== to.toLowerCase()) {
-            return reply.code(400).send({ error: "toPubkey does not correspond to `to`" });
-          }
-        } catch {
-          return reply.code(400).send({ error: "invalid toPubkey" });
-        }
-      } else {
-        toPubkey = pubkeyOf(to);
-      }
-      if (!toPubkey) {
-        return reply.code(409).send({ error: "buyer pubkey unknown: the buyer must sign in (SIWE) once, or pass toPubkey" });
-      }
-
-      const brain = brainByAgentId(agentId);
-      if (!brain) return reply.code(409).send({ error: "no brain custody for this agent on this backend (mint it through this backend to enable secure transfer)" });
-
-      // current encrypted envelope: durable local cache first, then 0G Storage (shared cache-first resolver).
-      const currentEnvelope: Buffer | null =
-        (await resolveBytesByRoot(brain.encBrainRoot, { source: "brain", contentType: "application/octet-stream" }))?.bytes ?? null;
-      if (!currentEnvelope) {
-        return reply.code(409).send({ error: "current brain envelope is not retrievable (cache miss + 0G eviction)" });
-      }
-
-      const deadline = Math.floor(Date.now() / 1000) + 3600;
-      const re = await reencryptForTransfer({
-        inft: CONTRACTS.auraINFT,
-        chainId: GALILEO.chainId,
-        tokenId: BigInt(agentId),
-        from,
-        to,
-        toPubkey,
-        currentEnvelope,
-        currentKeyHex: brain.brainKeyHex,
-        deadlineSec: deadline,
-      });
-
-      // upload the re-encrypted envelope -> newEncBrainRoot (the pointer AuraINFT stores) + cache it durably.
-      const newStore = await store(sponsorSigner(), re.newEnvelope, `agent-brain-rekey-${agentId}`);
-      const newEncBrainRoot = newStore.rootHash;
-      cacheImageByRoot(newEncBrainRoot, re.newEnvelope, { contentType: "application/octet-stream", source: "brain" });
-
-      const sealedKeyHex = sealedToHex(re.sealedKey);
-      pending.set(agentId, {
-        to: to.toLowerCase(),
-        newKeyHex: re.newKeyHex,
-        newEncBrainRoot,
-        newDataHash: re.newDataHash,
-        sealedKeyHex,
-        createdAt: Date.now(),
-      });
-
-      // the args the USER submits to AuraINFT.transfer(...) with their own wallet. NO private key is returned.
-      return {
-        contract: CONTRACTS.auraINFT,
-        chainId: GALILEO.chainId,
-        method: "transfer",
-        from,
-        to,
-        tokenId: agentId,
-        newSealedKey: sealedKeyHex,
-        newEncBrainRoot,
-        newDataHash: re.newDataHash,
-        deadline,
-        proof: re.proof,
-      };
     },
   );
 
@@ -158,33 +73,14 @@ export async function agentTransferRoutes(app: FastifyInstance): Promise<void> {
       const p = pending.get(agentId);
       if (!p) return reply.code(404).send({ error: "no pending transfer for this agent (prepare first)" });
 
-      // verify the on-chain move actually happened (ownerOf == the prepared buyer) before mutating custody.
-      let ownerOnChain: string;
       try {
-        ownerOnChain = (await auraInftRead().ownerOf(agentId)) as string;
-      } catch {
-        return reply.code(502).send({ error: "chain read failed" });
+        const { epoch } = await confirmSecureTransfer(agentId, p);
+        pending.delete(agentId);
+        return { ok: true, agentId, newOwner: p.to, brainRecustodied: true, memoryReset: true, relationshipEpoch: epoch };
+      } catch (e) {
+        if (e instanceof SaleError) return reply.code(e.status).send({ error: e.message });
+        throw e;
       }
-      if (ownerOnChain.toLowerCase() !== p.to) {
-        return reply.code(409).send({ error: `transfer not confirmed on-chain (owner is still ${ownerOnChain}); submit AuraINFT.transfer() first` });
-      }
-
-      // re-custody the brain to the new owner (the oracle already rotated the key + envelope + seal).
-      recustodyBrainForTransfer({
-        agentId,
-        newOwner: p.to,
-        encBrainRoot: p.newEncBrainRoot,
-        brainKeyHex: p.newKeyHex,
-        sealedKey: p.sealedKeyHex,
-        dataHash: p.newDataHash,
-      });
-
-      // the memory DUAL-WALL reseal: the buyer's relationship epoch starts fresh; the seller's epoch key is
-      // dropped from custody (forward secrecy). The on-chain re-key and the off-chain memory wall move together.
-      const { epoch } = resealRelationshipForNewOwner(agentId, p.to);
-      pending.delete(agentId);
-
-      return { ok: true, agentId, newOwner: p.to, brainRecustodied: true, memoryReset: true, relationshipEpoch: epoch };
     },
   );
 }

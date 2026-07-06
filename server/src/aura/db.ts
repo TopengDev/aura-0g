@@ -176,6 +176,49 @@ function migrate(d: Database.Database): void {
       pubkey      TEXT NOT NULL,                  -- uncompressed secp256k1 pubkey (0x04..)
       updated_at  TEXT NOT NULL
     );
+
+    -- Paid open-market AGENT SALE (Flow B, server-custodian escrow). A LISTING is the seller's standing
+    -- priced offer for one agent (AuraINFT tokenId); at most one active listing per agent. Recorded by
+    -- POST /agents/:id/sale/list (owner-only); read by GET /market/agents. Off-chain (the priced open
+    -- market runs through the custodian, NOT the AuraMarketplace, whose safeTransferFrom reverts on AuraINFT).
+    CREATE TABLE IF NOT EXISTS agent_sale_listings (
+      agent_id    INTEGER PRIMARY KEY,            -- the AuraINFT tokenId (one active listing per agent)
+      seller      TEXT NOT NULL,                  -- lowercased on-chain owner at list time
+      price_wei   TEXT NOT NULL,                  -- decimal wei string (money => exact integer, NEVER a float)
+      active      INTEGER NOT NULL DEFAULT 1,     -- 1 = for sale; 0 = sold / cancelled / superseded
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL
+    );
+
+    -- One buyer's IN-FLIGHT purchase. It holds REAL FUNDS between commit and settle, so it is PERSISTENT
+    -- here (SQLite, survives restart) - NEVER the in-memory transfer pending map. Lifecycle:
+    --   committed -> (buyer pays custodian) -> settle verifies payment -> transfer -> split -> settled
+    --                                        \-> deadline passes, unsettled -> refund -> refunded/expired
+    -- rekey_json persists the prepared re-encryption (PendingRekey) so a crash mid-settle is resumable.
+    CREATE TABLE IF NOT EXISTS agent_sale_escrows (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      agent_id           INTEGER NOT NULL,
+      seller             TEXT NOT NULL,           -- lowercased seller (snapshot at commit)
+      buyer              TEXT NOT NULL,           -- lowercased buyer
+      price_wei          TEXT NOT NULL,           -- decimal wei snapshot at commit (the listing price then)
+      custodian          TEXT NOT NULL,           -- lowercased platform wallet the buyer pays
+      deadline           INTEGER NOT NULL,        -- unix seconds; refundable after this if unsettled
+      status             TEXT NOT NULL DEFAULT 'committed', -- committed|settled|refunded|expired|failed
+      payment_tx         TEXT,                    -- the buyer->custodian funding tx (verified before settle)
+      rekey_json         TEXT,                    -- the prepared PendingRekey (money-adjacent; persisted)
+      transfer_tx        TEXT,                    -- the platform-submitted AuraINFT.transfer tx
+      splits_json        TEXT,                    -- the settled split legs (royalty/platformFee/seller)
+      relationship_epoch INTEGER,                 -- the buyer's fresh memory epoch after confirm
+      error              TEXT,
+      created_at         TEXT NOT NULL,
+      updated_at         TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_sale_escrow_agent ON agent_sale_escrows(agent_id);
+    CREATE INDEX IF NOT EXISTS idx_sale_escrow_status ON agent_sale_escrows(status);
+    CREATE INDEX IF NOT EXISTS idx_sale_escrow_buyer ON agent_sale_escrows(buyer);
+    -- A single buyer->custodian funding tx may back AT MOST ONE escrow (double-spend guard). Partial unique
+    -- index so many NULL (pre-payment) rows coexist while a set payment_tx is globally unique.
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_sale_escrow_paytx ON agent_sale_escrows(payment_tx) WHERE payment_tx IS NOT NULL;
   `);
 
   // ERC-7857 de-mock: per-owner sealed key + the envelope data-hash on agent_brains. Added via guarded

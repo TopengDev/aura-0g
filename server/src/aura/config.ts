@@ -368,6 +368,26 @@ export const SUMMON_START_BLOCK = process.env.SUMMON_START_BLOCK ? Number(proces
 // the prompt the runner generates with for a summon (the buyer commissions the agent's signature style).
 export const SUMMON_PROMPT = process.env.SUMMON_PROMPT ?? "a signature original piece in your iconic style";
 
+// ── Paid open-market AGENT SALE (Flow B, server-custodian escrow) ────────────────────────────────────
+// The MVP priced agent sale runs OFF a new on-chain contract: the platform custodies the buyer's payment
+// between commit + settle, submits the proof-gated AuraINFT.transfer with its own wallet, then splits the
+// escrowed ETH (EIP-2981 creator royalty -> creator, platform fee -> platform, remainder -> seller). This
+// is a TRUSTED-custodian design (honest to disclose in the UI); the trustless on-chain AgentSaleEscrow is
+// the post-vote upgrade. Everything below DERIVES from the deployed set / platform config so a testnet<->
+// mainnet flip is a config change, never a code edit.
+//
+// The CUSTODIAN the buyer pays == the platform beneficiary (the deployer/oracle 0x8a3b on mainnet). It is
+// the SAME wallet that already signs the oracle proof + submits the transfer, so no external approval is
+// needed when the platform sells its own agent, and the split's platform-fee leg is retained (no self-tx).
+export const SALE_PLATFORM = process.env.AGENT_SALE_PLATFORM ?? DEPLOYED.platform;
+export const SALE_PLATFORM_BPS = Number(process.env.AGENT_SALE_PLATFORM_BPS ?? DEPLOYED.platformBps);
+// How long a committed escrow stays settleable before the buyer may refund (unix seconds). Mirrors the
+// on-chain SummonEscrow FULFILL_WINDOW (1h). Read LIVE (not frozen at boot) so a verification harness can
+// drive the refund path with a short window without a restart.
+export function agentSaleWindowSec(): number {
+  return Number(process.env.AGENT_SALE_WINDOW_SEC ?? 3600);
+}
+
 // ── Phase-3 indexer (Ponder) ──
 // The data-heavy read/discovery/feed APIs are served from the Ponder process (PGlite-backed, in-process
 // Drizzle access). The Fastify backend PROXIES them under /api/* so the webapp has ONE base URL. The
