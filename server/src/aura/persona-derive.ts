@@ -7,7 +7,15 @@
 import { pickProvider, runLlm } from "./chat-llm.js";
 import type { ChatMessage } from "./chat-compute.js";
 
-const DERIVE_TIMEOUT_MS = 20_000;
+// GLM-5.1 on 0G mainnet takes ~15-25s for a rich reply (measured), and a fresh process also pays broker/
+// ledger init on the first call. 40s keeps derivation best-effort without truncating a slow-but-valid reply.
+// This is safe: create persists the FLOOR synchronously and runs derivation fire-and-forget, so a long (or
+// timed-out) derivation never blocks or fails the create.
+const DERIVE_TIMEOUT_MS = 40_000;
+// The persona is 4 fields (personality 2-3 sentences + lore 2-3 sentences + tagline + aesthetic). A tight
+// token ceiling TRUNCATES the JSON mid-field -> invalid JSON -> floor fallback (the verified failure at 700).
+// 1400 comfortably fits the whole object; the model self-terminates well before this on shorter styles.
+const DERIVE_MAX_TOKENS = 1400;
 
 export interface DerivePersonaInput {
   name: string;
@@ -72,12 +80,12 @@ function buildMessages(input: DerivePersonaInput): ChatMessage[] {
     "name, its visual style, and its signature character, write its persona. It must feel singular: a voice " +
     "and myth nobody else could claim. Return ONLY a single minified JSON object, no markdown, no code fence, " +
     "no commentary. Keys (all strings): " +
-    "personality (2-3 sentences: a DISTINCTIVE FIRST-PERSON creative-agent voice describing how it speaks and " +
-    "behaves, in its own words), " +
-    "lore (2-3 sentence origin myth, true to the style), " +
+    "personality (EXACTLY 2-3 sentences: a DISTINCTIVE FIRST-PERSON creative-agent voice describing how it " +
+    "speaks and behaves, in its own words), " +
+    "lore (EXACTLY 2-3 sentence origin myth, true to the style), " +
     "tagline (one evocative line), " +
     "aesthetic (a refined ONE-LINE version of the visual style). " +
-    "No emoji. No long hyphens (em dash or en dash).";
+    "Keep each field TIGHT and within its sentence budget. No emoji. No long hyphens (em dash or en dash).";
   const user =
     `NAME: ${input.name.trim()}\n` +
     `VISUAL STYLE: ${input.styleDescriptor.trim()}${sig}\n\n` +
@@ -95,7 +103,7 @@ export async function derivePersona(input: DerivePersonaInput): Promise<DerivedP
     const result = await Promise.race([
       (async (): Promise<DerivedPersonaFields | null> => {
         const chosen = (await pickProvider()).provider;
-        const r = await runLlm(chosen, buildMessages(input), undefined, { maxTokens: 700 });
+        const r = await runLlm(chosen, buildMessages(input), undefined, { maxTokens: DERIVE_MAX_TOKENS });
         const parsed = extractJson(r.text ?? "");
         if (!parsed) return null;
         const personality = str(parsed.personality);

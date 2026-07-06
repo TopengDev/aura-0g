@@ -9,6 +9,16 @@
 // Optionally pass explicit names: node dist/scripts/backfill-persona.js AUREON NYXARA
 //
 // Idempotent: re-running re-derives + overwrites the same 'agent:<id>' persona rows.
+import { config as dotenvConfig } from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+// Load the repo-root .env (the funded sponsor key the 0G chat seam needs for derivation) BEFORE anything
+// reads it. A standalone script does NOT go through index.ts, which is where the server normally loads it.
+// The secrets are read lazily (at the runLlm call), so a top-level load here is in time. dist/scripts is
+// three levels under REPO_ROOT (REPO_ROOT/server/dist/scripts), same as the sibling verify-*.ts scripts.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenvConfig({ path: path.resolve(__dirname, "..", "..", "..", ".env") });
+
 import { db } from "../aura/db.js";
 import { decryptBrain } from "../aura/brain.js";
 import { resolveBytesByRoot } from "../aura/image-cache.js";
