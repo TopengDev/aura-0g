@@ -249,11 +249,18 @@ function buildFusedMessages(input: DeriveFusedPersonaInput): ChatMessage[] {
 // slightly longer timeout budget for two sequential reasoning calls. The single-agent derivePersona keeps its
 // tighter budget (it works there). Reasoning is stripped + a truncated reply is salvaged field-by-field.
 const FUSED_DERIVE_MAX_TOKENS = 3000;
-const FUSED_DERIVE_TIMEOUT_MS = 100_000;
+// Hard cap for the fused derivation. It usually resolves in ONE ~30s call (GLM returns the full object) and
+// breaks early; 3 attempts only trigger on GLM's length variance. 120s keeps the whole sponsor-paid pipeline
+// (gen + stores + name + persona) comfortably under the nginx 300s proxy_read_timeout on the live route.
+const FUSED_DERIVE_TIMEOUT_MS = 120_000;
+const FUSED_DERIVE_ATTEMPTS = 3;
 const FUSED_KEYS = ["personality", "lore", "tagline", "signatureCharacter", "aesthetic"];
 
 /** Derive a rich BLENDED persona for a fused child; ALWAYS resolves (never throws). On any failure returns
- *  the floor. Same 0G TEE seam + cold-broker retry as derivePersona, with a reasoning-model-aware budget. */
+ *  the floor. Same 0G TEE seam as derivePersona, with a reasoning-model-aware budget. GLM-5.1's reply length
+ *  VARIES (one call may land personality but truncate lore; the next lands lore), so this ACCUMULATES the best
+ *  non-empty value for each field ACROSS attempts and stops as soon as it holds BOTH personality AND lore (the
+ *  two rich fields the feature needs), rather than returning the first partial reply. */
 export async function deriveFusedPersona(input: DeriveFusedPersonaInput): Promise<DerivedFusedPersonaFields> {
   const floor = floorFusedPersona(input);
   try {
@@ -261,19 +268,28 @@ export async function deriveFusedPersona(input: DeriveFusedPersonaInput): Promis
       (async (): Promise<DerivedFusedPersonaFields | null> => {
         const chosen = (await pickProvider()).provider;
         const messages = buildFusedMessages(input);
-        for (let attempt = 0; attempt < DERIVE_ATTEMPTS; attempt++) {
+        const acc: { personality: string | null; lore: string | null; tagline: string | null; aesthetic: string | null; signatureCharacter: string | null } = {
+          personality: null, lore: null, tagline: null, aesthetic: null, signatureCharacter: null,
+        };
+        for (let attempt = 0; attempt < FUSED_DERIVE_ATTEMPTS; attempt++) {
           const r = await runLlm(chosen, messages, undefined, { maxTokens: FUSED_DERIVE_MAX_TOKENS });
           // parse the JSON, falling back to a field-by-field salvage of a truncated/reasoning-wrapped reply.
           const parsed = extractJson(r.text ?? "") ?? salvageJsonFields(r.text ?? "", FUSED_KEYS);
-          const personality = str(parsed.personality);
-          const lore = str(parsed.lore);
-          if (!personality && !lore) continue; // require a real enrichment, else retry / floor
-          const tagline = str(parsed.tagline) ?? floor.tagline;
-          const aesthetic = str(parsed.aesthetic) ?? floor.aesthetic;
-          const signatureCharacter = str(parsed.signatureCharacter);
-          return { aesthetic, personality, lore, tagline, signatureCharacter };
+          acc.personality ??= str(parsed.personality);
+          acc.lore ??= str(parsed.lore);
+          acc.tagline ??= str(parsed.tagline);
+          acc.aesthetic ??= str(parsed.aesthetic);
+          acc.signatureCharacter ??= str(parsed.signatureCharacter);
+          if (acc.personality && acc.lore) break; // have the two rich fields -> done early
         }
-        return null;
+        if (!acc.personality && !acc.lore) return null; // nothing usable across all attempts -> floor
+        return {
+          aesthetic: acc.aesthetic ?? floor.aesthetic,
+          personality: acc.personality,
+          lore: acc.lore,
+          tagline: acc.tagline ?? floor.tagline,
+          signatureCharacter: acc.signatureCharacter,
+        };
       })(),
       new Promise<null>((resolve) => setTimeout(() => resolve(null), FUSED_DERIVE_TIMEOUT_MS)),
     ]);
