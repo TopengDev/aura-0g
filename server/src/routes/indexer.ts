@@ -13,6 +13,8 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { INDEXER_URL, INDEXER_TIMEOUT_MS } from "../aura/config.js";
 import { listAgents } from "../aura/agents.js";
+import { metaForName } from "../aura/catalog.js";
+import { personaMetaFor } from "../aura/persona-store.js";
 import { getProvenance } from "../aura/provenance.js";
 import { getMarketplace } from "../aura/marketplace.js";
 import { hasHiddenOutputs, isHiddenOutput } from "../aura/curation.js";
@@ -61,6 +63,54 @@ function curateOutputs(data: unknown): unknown {
     d.items = (d.items as unknown[]).filter((o) => !hidden((o as { tokenId?: unknown } | null)?.tokenId));
   }
   return d;
+}
+
+// ── persona SOUL enrichment of proxied agent reads ───────────────────────────────────────────────────
+// ROOT CAUSE of the "user auras chat/display generic" live bug: the indexer (Ponder/PGlite) OWNS the
+// derived agent read model that the webapp actually fetches (/api/agents/:id, /api/agents, /api/creators),
+// but the chat PERSONA store (agent_personas) lives in the SERVER's SQLite, which the indexer cannot see.
+// So a user-created aura came back with the indexer's flat generic meta on every /api/* read, even though
+// the server's own root /agents/:id (getAgentById -> resolveMeta -> personaMetaFor) resolved the full
+// persona correctly. This proxy layer is exactly where the server can re-attach the soul the indexer lacks.
+//
+// SURGICAL + NO-REGRESSION: a CATALOG aura is left byte-identical (metaForName != null -> we do NOT touch
+// it, so its hand-written meta the indexer already serves is preserved). Only a USER aura WITH a stored
+// persona gets its meta overlaid (persona fields win; any indexer-only meta keys are kept via the spread).
+// A personaless user aura is also left untouched (keeps the indexer's generic meta). Idempotent + pure.
+function isAgentObj(o: unknown): o is { agentId: number; name: string; meta: Record<string, unknown> } {
+  return (
+    !!o &&
+    typeof o === "object" &&
+    typeof (o as any).agentId === "number" &&
+    typeof (o as any).name === "string" &&
+    !!(o as any).meta &&
+    typeof (o as any).meta === "object"
+  );
+}
+
+function enrichAgentSoul(o: { agentId: number; name: string; meta: Record<string, unknown> }): void {
+  // Catalog auras keep their curated meta (the indexer already serves it): do not touch -> no regression.
+  if (metaForName(o.name)) return;
+  // User aura: overlay the stored persona (chat-readable soul) if one exists. enc_brain_root is not carried
+  // on the indexer object, but the persona rows are keyed by the concrete agentId, so agentId alone resolves.
+  const soul = personaMetaFor(o.agentId);
+  if (soul) o.meta = { ...o.meta, ...(soul as unknown as Record<string, unknown>) };
+}
+
+/** Overlay the persona soul onto any agent object(s) in a proxied indexer response. Handles the three
+ *  shapes the webapp reads: a single agent (detail), { agents:[...] } (grid), and { agentsOwned:[...] }
+ *  (creator portfolio), plus a bare array and an { items:[...] } list. Mutates + returns the fresh parse. */
+function enrichAgentsInResponse(data: unknown): unknown {
+  if (!data || typeof data !== "object") return data;
+  if (Array.isArray(data)) {
+    for (const el of data) if (isAgentObj(el)) enrichAgentSoul(el);
+    return data;
+  }
+  if (isAgentObj(data)) enrichAgentSoul(data);
+  for (const v of Object.values(data as Record<string, unknown>)) {
+    if (Array.isArray(v)) for (const el of v) if (isAgentObj(el)) enrichAgentSoul(el);
+  }
+  return data;
 }
 
 // ── indexer-DOWN fallback caching (perf) ─────────────────────────────────────────────────────────────
@@ -115,7 +165,9 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
     const qs = req.raw.url?.includes("?") ? req.raw.url.slice(req.raw.url.indexOf("?")) : "";
     try {
       const data = await indexerGet(`/${wildcard}${qs}`);
-      return reply.send(curateOutputs(data));
+      // Re-attach the persona SOUL the indexer's read model cannot see (see enrichAgentsInResponse), then
+      // apply the output curation mask. Both are no-ops on responses that carry no agent/output arrays.
+      return reply.send(curateOutputs(enrichAgentsInResponse(data)));
     } catch (err) {
       app.log.warn({ err: String(err), path: wildcard }, "indexer proxy failed");
       return reply.code(502).send({
@@ -131,7 +183,9 @@ export async function indexerRoutes(app: FastifyInstance): Promise<void> {
   // GET /agents - prefer the indexer; fall back to the (cached, single-flighted) chain scan.
   app.get("/agents", async () => {
     try {
-      return await indexerGet("/agents");
+      // indexer-first: overlay each user aura's stored persona soul (the chain-scan fallback below uses
+      // listAgents() -> resolveMeta, which is already persona-aware, so it needs no extra enrichment).
+      return enrichAgentsInResponse(await indexerGet("/agents"));
     } catch {
       return await cachedFallback("agents", async () => ({
         agents: await listAgents(),
