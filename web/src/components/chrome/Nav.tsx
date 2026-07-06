@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import { EASE } from "@/lib/motion";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { CustomConnectButton } from "@/components/web3/CustomConnectButton";
+import { AuraMark } from "@/components/brand/AuraMark";
 
 type NavLink = { href: string; label: string; connectedOnly?: boolean };
 
@@ -84,7 +85,8 @@ export function Nav() {
       style={{ background: scrolled || open ? "rgb(var(--rgb-cream) / 0.8)" : "transparent" }}
     >
       <div className="mx-auto flex h-14 w-full max-w-[var(--container-wrap)] items-center justify-between px-5 sm:px-8">
-        <Link href="/" className="flex items-center transition-opacity duration-200 hover:opacity-60" style={{ color: "var(--color-ink)" }} aria-label="AURA home">
+        <Link href="/" className="flex items-center gap-2.5 transition-opacity duration-200 hover:opacity-60" style={{ color: "var(--color-ink)" }} aria-label="AURA home">
+          <AuraMark size={26} />
           <span className="font-display" style={{ fontSize: 22, letterSpacing: "0.18em", lineHeight: 1 }}>
             AURA
           </span>

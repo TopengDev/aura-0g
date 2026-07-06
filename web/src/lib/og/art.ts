@@ -116,3 +116,15 @@ export async function agentArtDataUri(a: Pick<Agent, "name" | "agentId">): Promi
 export async function brandArtDataUri(): Promise<string | null> {
   return toDataUri(await readPublic("outputs/gen_46ea37da.png"));
 }
+
+// The AURA halo/apex logo mark for the brand card lockup. Read + base64'd RAW (no sharp re-encode) so the
+// transparent alpha survives; Satori renders a PNG data URI with alpha reliably. Memoized once.
+let brandMarkPromise: Promise<string | null> | null = null;
+export async function brandMarkDataUri(): Promise<string | null> {
+  if (!brandMarkPromise) {
+    brandMarkPromise = readPublic("brand/aura-mark.png").then((b) =>
+      b ? `data:image/png;base64,${b.toString("base64")}` : null,
+    );
+  }
+  return brandMarkPromise;
+}

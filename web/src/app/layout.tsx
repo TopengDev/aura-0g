@@ -21,6 +21,12 @@ const SITE_DESCRIPTION =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  applicationName: "AURA",
+  // Icons (favicon.ico, icon.svg, apple-icon.png) + the web manifest are wired via the file-based Metadata
+  // conventions in src/app (icon.svg / apple-icon.png / favicon.ico / manifest.ts). Setting metadata.icons
+  // here would suppress that static-file detection, so it is deliberately omitted. Per-page titles already
+  // carry the " | AURA" suffix, so no title.template is set (it would double the suffix).
+  appleWebApp: { capable: true, title: "AURA", statusBarStyle: "black-translucent" },
   title: "AURA. Art you can prove.",
   description: SITE_DESCRIPTION,
   openGraph: {

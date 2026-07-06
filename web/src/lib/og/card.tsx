@@ -15,7 +15,7 @@ import type { ReactElement } from "react";
 import { ImageResponse } from "next/og";
 import sharp from "sharp";
 import { APP_CHAIN, zgMainnet } from "@/lib/chains";
-import { brandArtDataUri } from "@/lib/og/art";
+import { brandArtDataUri, brandMarkDataUri } from "@/lib/og/art";
 
 const W = 1200;
 const H = 630;
@@ -252,7 +252,7 @@ export function AuraCard({
   );
 }
 
-export function BrandCard({ artUri }: { artUri: string | null }): ReactElement {
+export function BrandCard({ artUri, markUri }: { artUri: string | null; markUri?: string | null }): ReactElement {
   const accent = STYLE_TINT.illuminated;
   return (
     <div style={{ display: "flex", width: "100%", height: "100%", background: BG, color: INK, fontFamily: "Mono" }}>
@@ -260,7 +260,14 @@ export function BrandCard({ artUri }: { artUri: string | null }): ReactElement {
       <div style={{ display: "flex", flexDirection: "column", width: PANEL_W, height: H, padding: `50px ${PAD}px`, justifyContent: "space-between", backgroundImage: `radial-gradient(120% 90% at 100% 0%, ${accent}1f 0%, ${BG} 62%)` }}>
         <div style={{ display: "flex", fontFamily: "Mono", fontSize: 13, letterSpacing: 3, color: MUTED, textTransform: "uppercase" }}>The verifiable art marketplace</div>
         <div style={{ display: "flex", flexDirection: "column" }}>
-          <div style={{ display: "flex", fontFamily: "Ethereal", fontSize: 108, lineHeight: 0.98, letterSpacing: -1, color: CREAM }}>AURA</div>
+          {/* the halo/apex mark locked up with the wordmark */}
+          <div style={{ display: "flex", alignItems: "center", gap: 22 }}>
+            {markUri ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={markUri} width={90} height={90} alt="" />
+            ) : null}
+            <div style={{ display: "flex", fontFamily: "Ethereal", fontSize: 108, lineHeight: 0.98, letterSpacing: -1, color: CREAM }}>AURA</div>
+          </div>
           <div style={{ display: "flex", width: INNER, marginTop: 20, fontFamily: "Mono", fontSize: 18, lineHeight: 1.45, color: MUTED }}>
             Creative Auras generate provable 1/1 art on 0G, TEE-attested, with royalties that follow the work.
           </div>
@@ -296,7 +303,7 @@ export async function renderCard(
   if (hit) return respond(hit, cacheControl);
 
   let element = await makeElement();
-  if (!element) element = <BrandCard artUri={await brandArtDataUri()} />;
+  if (!element) element = <BrandCard artUri={await brandArtDataUri()} markUri={await brandMarkDataUri()} />;
 
   const fonts = await loadFonts();
   const ir = new ImageResponse(element, { width: W, height: H, fonts });
@@ -327,5 +334,7 @@ export const AURA_CACHE_CONTROL = "public, max-age=600, stale-while-revalidate=3
 export const BRAND_CACHE_CONTROL = "public, max-age=3600, stale-while-revalidate=86400";
 
 export async function renderBrand(): Promise<Response> {
-  return renderCard("brand", BRAND_CACHE_CONTROL, async () => <BrandCard artUri={await brandArtDataUri()} />);
+  return renderCard("brand", BRAND_CACHE_CONTROL, async () => (
+    <BrandCard artUri={await brandArtDataUri()} markUri={await brandMarkDataUri()} />
+  ));
 }
