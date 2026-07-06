@@ -37,8 +37,12 @@ export function kindLabel(kind: string): string {
 }
 
 // A short human description of an event. When `addr` is provided (the dashboard's wallet view) it is
-// address-aware: a sale reads as Bought / Sold / "Royalty from a sale" from that wallet's point of view.
-// Without `addr` (a public feed) a sale reads generically as "Sold".
+// PERSPECTIVE-AWARE: a sale reads as Bought / Sold / "Royalty from a sale" from that wallet's point of view.
+// Without `addr` (a public feed / global ticker, where there is no viewer) a sale reads neutrally as "Sold".
+//
+// FIELD MAPPING (source of truth: indexer/src/index.ts AuraMarketplace:Sold -> actor=BUYER, counterparty=
+// SELLER). So the viewer is the BUYER when addr === e.actor, and the SELLER when addr === e.counterparty.
+// (A previous version tested counterparty for "Bought", which inverted it: the buyer saw "Sold".)
 export function describeActivity(e: Activity, addr?: string): string {
   const name = e.agentName ? e.agentName : e.collectionKind === "agent" ? "an Aura" : "a Relic";
   const tok = e.tokenId !== null ? ` #${e.tokenId}` : "";
@@ -49,10 +53,13 @@ export function describeActivity(e: Activity, addr?: string): string {
     case "agent_mint":
       return `Created ${name}${tok}`;
     case "sale":
+      // Royalty payout: the viewer is the royalty receiver but was neither the buyer (actor) nor the seller
+      // (counterparty) -- a creator/owner earning the resale royalty on someone else's trade.
       if (a && e.royaltyReceiver?.toLowerCase() === a && e.actor?.toLowerCase() !== a && e.counterparty?.toLowerCase() !== a) {
         return `Royalty from a sale of ${name}${tok}`;
       }
-      if (a) return e.counterparty?.toLowerCase() === a ? `Bought ${name}${tok}` : `Sold ${name}${tok}`;
+      // Viewer === buyer (actor) -> Bought; viewer === seller (counterparty) -> Sold. Neutral "Sold" when no viewer.
+      if (a) return e.actor?.toLowerCase() === a ? `Bought ${name}${tok}` : `Sold ${name}${tok}`;
       return `Sold ${name}${tok}`;
     case "listing":
       return `Listed ${name}${tok}`;

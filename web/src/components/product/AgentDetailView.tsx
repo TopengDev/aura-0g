@@ -11,7 +11,8 @@ import { RatingBadge } from "@/components/game/RatingBadge";
 import { absoluteUrl, auraShareText } from "@/lib/share";
 import { EXPLORER } from "@/lib/chains";
 import { CONTRACTS } from "@/lib/contracts";
-import { agentPortraitUrl, shortHex, type AgentDetail, type MarketListing, type Output } from "@/lib/api";
+import { FamilyTree } from "@/components/game/FamilyTree";
+import { agentPortraitUrl, shortHex, type AgentDetail, type Lineage, type MarketListing, type Output } from "@/lib/api";
 
 // One agent. Identity header (name, style-DNA fingerprint, model attestation, current owner, royalty
 // rates, styleVersion), the agent's output collection, stats, the trade panel (kind=agent, with the
@@ -20,10 +21,12 @@ export function AgentDetailView({
   agent: a,
   outputs,
   listing,
+  lineage = null,
 }: {
   agent: AgentDetail;
   outputs: Output[];
   listing: MarketListing | null;
+  lineage?: Lineage | null;
 }) {
   const accent = a.meta.accent;
   const portrait = agentPortraitUrl(a);
@@ -228,6 +231,28 @@ export function AgentDetailView({
               <StatFigure value={<>{a.royaltiesEarned} <span className="font-mono-x text-[16px]" style={{ color: "var(--color-ink-3)" }}>0G</span></>} label="Royalties earned" />
               <StatFigure value={`${a.royaltyPct}%`} label="Relic royalty" />
             </div>
+          </div>
+        </Reveal>
+
+        {/* Lineage / Dynasty - the full family tree: ancestry, siblings, descendants. Shown for EVERY Aura
+            (genesis Auras show their descendants; fused children show their full ancestry + siblings). The
+            first level is fetched server-side (the `lineage` prop); FamilyTree walks deeper client-side. */}
+        <Reveal>
+          <div className="mt-16">
+            <div className="mb-6">
+              <span className="label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>The dynasty</span>
+              <h2 className="font-display mt-3" style={{ fontSize: "clamp(28px,4.5vw,48px)", lineHeight: 1, letterSpacing: "-0.015em" }}>
+                Lineage of {a.name}.
+              </h2>
+              <p className="mt-3 max-w-[64ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+                Every fusion is recorded on-chain. This is {a.name}&rsquo;s place in the dynasty: its ancestry, the siblings it shares a parent with, and every descendant fused from it.
+              </p>
+            </div>
+            <FamilyTree
+              focal={{ agentId: a.agentId, name: a.name, style: a.style }}
+              initialLineage={lineage}
+              title="Family tree"
+            />
           </div>
         </Reveal>
 

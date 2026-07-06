@@ -151,6 +151,40 @@ export interface AgentDetail extends Agent {
   model?: string;
 }
 
+// ── Fusion lineage (the dynasty tree) ─────────────────────────────────────
+// One row of the indexer's lineage table. It carries an Aura's own provenance: the two Auras it was fused
+// FROM (parentA/parentB; both 0 for a genesis Aura), its generation, and the names of those parents where
+// the indexer could resolve them. parentAName/parentBName are null for a genesis, and can also be null on a
+// CHILD row returned by another agent's lineage query when the other parent fell outside that query's name
+// map (re-fetch that child's own lineage to get the complete pair). Shape verified live against
+// GET /api/fusion/lineage/:id (indexer shapeLineage).
+export interface LineageNode {
+  agentId: number;
+  name: string | null;
+  generation: number;
+  isGenesis: boolean;
+  parentA: number; // 0 when this Aura is a genesis (no fused parent)
+  parentB: number; // 0 when this Aura is a genesis (no fused parent)
+  parentAName: string | null;
+  parentBName: string | null;
+  styleFingerprint: string | null;
+  fuseSeed: string | null;
+  requestId: number | null;
+  fuser: string | null;
+  createdAt: number;
+}
+
+// GET /api/fusion/lineage/:id response: the focal Aura's own lineage row (its parents live on `lineage`)
+// PLUS the rows of every Aura fused FROM it (`children` = rows whose parentA or parentB == :id). `lineage`
+// is null for an Aura the indexer has no fusion row for (never registered a genesis genome, never fused) --
+// render an honest empty state. `children` can still be non-empty even when `lineage` is null.
+export interface Lineage {
+  agentId: number;
+  lineage: LineageNode | null;
+  children: LineageNode[];
+  childCount: number;
+}
+
 // The ROOT GET /agents/:id shape (carries the on-chain DNA the indexer-proxied one omits).
 export interface AgentChainRead {
   agentId: number;
@@ -448,6 +482,14 @@ export async function fetchAgentById(
 
 export async function fetchProvenance(id: number | string, revalidate?: number): Promise<Provenance | null> {
   return getJson<Provenance>(`/provenance/${id}`, revalidate != null ? { revalidate } : undefined);
+}
+
+// One agent's fusion lineage: its own row (parents) + its direct children. Proxied to the indexer via the
+// Fastify /api/* passthrough (server route indexer.ts). Fails soft to null (the FamilyTree degrades to an
+// honest empty/loading state, never crashes). Used server-side (agent detail page, revalidated) for the
+// focal Aura's first level, then client-side by FamilyTree to walk deeper generations.
+export async function fetchLineage(id: number | string, revalidate?: number): Promise<Lineage | null> {
+  return getJson<Lineage>(`/api/fusion/lineage/${id}`, revalidate != null ? { revalidate } : undefined);
 }
 
 export async function fetchRoyalty(id: number | string, revalidate?: number): Promise<Royalty | null> {

@@ -20,7 +20,8 @@ import { useAuth } from "@/components/web3/AuthProvider";
 import { useFusion } from "@/lib/useFusion";
 import { fuseVerifyCurl, type FuseExecuteResult } from "@/lib/game";
 import { FUSION_ENABLED } from "@/lib/game-contracts";
-import { agentPortraitUrl, fetchCreatorDashboard, imageUrl, shortAddr, type Agent } from "@/lib/api";
+import { agentPortraitUrl, fetchCreatorDashboard, imageUrl, shortAddr, type Agent, type Lineage } from "@/lib/api";
+import { FamilyTree } from "@/components/game/FamilyTree";
 
 type FlowStep = "pick" | "review" | "commit" | "reveal" | "child";
 
@@ -559,6 +560,35 @@ function ChildReveal({ child, childId, parentA, parentB }: { child: FuseExecuteR
   const parents = ((child.publicStyle?.fusion as { parents?: number[] } | undefined)?.parents ?? []) as number[];
   const pa = parents[0] ?? parentA?.agentId ?? "?";
   const pb = parents[1] ?? parentB?.agentId ?? "?";
+  // Seed the FamilyTree with the child we just fused, using the parents we already hold in-hand. This makes
+  // the child->parents structure render IMMEDIATELY (no dependence on the indexer having caught up with the
+  // brand-new child row); FamilyTree then fetches the parents' lineage client-side to fill in grandparents +
+  // siblings. Stable identity via useMemo so the tree's fetch effect does not re-run on unrelated re-renders.
+  const seedLineage = useMemo<Lineage | null>(() => {
+    if (childId === null) return null;
+    const paId = Number(parents[0] ?? parentA?.agentId ?? 0) || 0;
+    const pbId = Number(parents[1] ?? parentB?.agentId ?? 0) || 0;
+    return {
+      agentId: childId,
+      lineage: {
+        agentId: childId,
+        name: child.childName,
+        generation: child.generation,
+        isGenesis: false,
+        parentA: paId,
+        parentB: pbId,
+        parentAName: parentA?.name ?? null,
+        parentBName: parentB?.name ?? null,
+        styleFingerprint: null,
+        fuseSeed: child.fuseSeed ?? null,
+        requestId: child.requestId ?? null,
+        fuser: null,
+        createdAt: 0,
+      },
+      children: [],
+      childCount: 0,
+    };
+  }, [child, childId, parentA, parentB, parents]);
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
       <Panel className="overflow-hidden">
@@ -589,11 +619,23 @@ function ChildReveal({ child, childId, parentA, parentB }: { child: FuseExecuteR
           </dl>
         </Panel>
 
-        <Panel className="p-5 sm:p-6">
-          <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-accent)" }}>{t("child.dynastyTitle")}</div>
-          <p className="mt-1 text-[14px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>{t("child.dynastyNote")}</p>
-          <div className="mt-4"><DynastyTree child={child} childId={childId} parentA={parentA} parentB={parentB} /></div>
-        </Panel>
+        {childId !== null && seedLineage ? (
+          // The FULL dynasty for the just-fused child: ancestry (parents -> grandparents), siblings that
+          // share a parent, and any descendants. Seeded so it renders instantly, then enriched client-side.
+          <FamilyTree
+            focal={{ agentId: childId, name: child.childName, style: "custom" }}
+            initialLineage={seedLineage}
+            title={t("child.dynastyTitle")}
+            subtitle={t("child.dynastyNote")}
+          />
+        ) : (
+          // Fallback (no minted childId yet): the immediate child -> parents triad from in-hand data.
+          <Panel className="p-5 sm:p-6">
+            <div className="label-caps text-[13px] uppercase tracking-[0.12em]" style={{ color: "var(--color-accent)" }}>{t("child.dynastyTitle")}</div>
+            <p className="mt-1 text-[14px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>{t("child.dynastyNote")}</p>
+            <div className="mt-4"><DynastyTree child={child} childId={childId} parentA={parentA} parentB={parentB} /></div>
+          </Panel>
+        )}
 
         {child.memory ? (
           <Panel className="p-5 sm:p-6">

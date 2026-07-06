@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import {
   fetchAgentById,
+  fetchLineage,
   fetchMarketplace,
   fetchOutputById,
   findListing,
@@ -55,7 +56,13 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
 export default async function AgentDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const [agent, listings] = await Promise.all([fetchAgentById(id), fetchMarketplace(15)]);
+  // Fetch the agent, the marketplace listings, and the focal Aura's first lineage level in parallel. The
+  // lineage seeds the on-page FamilyTree server-side (revalidated 30s); deeper generations load client-side.
+  const [agent, listings, lineage] = await Promise.all([
+    fetchAgentById(id),
+    fetchMarketplace(15),
+    fetchLineage(id, 30),
+  ]);
   if (!agent) notFound();
 
   // Fetch the agent's Relic collection (its provenance summaries) in parallel. Mint data is immutable so
@@ -69,7 +76,7 @@ export default async function AgentDetailPage({ params }: { params: Promise<{ id
   return (
     <>
     <main className="min-h-screen pt-14">
-      <AgentDetailView agent={agent} outputs={outputs} listing={listing} />
+      <AgentDetailView agent={agent} outputs={outputs} listing={listing} lineage={lineage} />
     </main>
       <Footer />
     </>
