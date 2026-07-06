@@ -22,7 +22,7 @@
 import { db } from "ponder:api";
 import schema from "ponder:schema";
 import { Hono } from "hono";
-import { and, asc, client, count, desc, eq, graphql, gte, lt, sql } from "ponder";
+import { and, asc, client, count, desc, eq, graphql, gte, lt, or, sql } from "ponder";
 import { formatEther, getAddress } from "viem";
 import { CATALOG, styleForName, isHiddenAgent, isHiddenOutput } from "../catalog";
 import { deriveRarity } from "../gacha";
@@ -39,7 +39,16 @@ const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
 // 0G Storage explorer link for a content root (matches server/src/aura/contracts.ts storageScanUrl).
-const STORAGE_SCAN = "https://storagescan-galileo.0g.ai";
+// Network-aware from deployed-v2.json.chainId: 0G Aristotle MAINNET (16661) -> storagescan.0g.ai; else 0G
+// Galileo TESTNET -> storagescan-galileo.0g.ai. So the mainnet cutover no longer links relics to a testnet
+// storage explorer. Resolved once at module load from the SAME JSON the config/handlers read.
+import { readFileSync as _readFileSync } from "node:fs";
+import path0 from "node:path";
+import { fileURLToPath as _fileURLToPath } from "node:url";
+const _dir = path0.dirname(_fileURLToPath(import.meta.url));
+const _DEPLOYED = JSON.parse(_readFileSync(path0.join(_dir, "..", "..", "..", "contracts", "deployed-v2.json"), "utf8"));
+const _CHAIN_ID = Number(_DEPLOYED.chainId);
+const STORAGE_SCAN = process.env.AURA_STORAGE_SCAN ?? (_CHAIN_ID === 16661 ? "https://storagescan.0g.ai" : "https://storagescan-galileo.0g.ai");
 function storageScanUrl(root: string): string {
   return `${STORAGE_SCAN}/tx/${root}`;
 }
@@ -565,6 +574,224 @@ app.get("/marketplace", async (c) => {
   // display curation: hide output listings created by a hidden (test/junk) agent.
   }).filter((l) => !isHiddenAgent(l.agentName));
   return c.json({ activeListings, count: activeListings.length, source: "indexer" });
+});
+
+// ═════════════════════════════ GAME LAYER (v2 mainnet cutover) ═════════════════════════════
+// The Fastify backend proxies /api/* -> indexer/* (server/src/routes/indexer.ts), so these serve
+// /api/arena/battles, /api/arena/ladder, /api/fusion/lineage/:id (previously a 502: the indexer had no game
+// schema). They return REAL indexed data (empty arrays when nothing is created yet), NOT fake rows. The
+// keyless recompute surfaces (/api/arena/tally, /api/arena/ladder/verify) stay OWNED by the Fastify backend
+// (chain re-derivation), and Fastify's exact routes take precedence over its /api/* wildcard, so no collision.
+
+function winnerLabel(w: number): "A" | "B" | "tie" {
+  return w === 1 ? "A" : w === 2 ? "B" : "tie";
+}
+
+// Derive the battle phase from the on-chain windows + finalized flag (mirrors the server BattleView phase).
+function battlePhase(b: typeof schema.battles.$inferSelect): string {
+  if (b.finalized) return "finalized";
+  const now = Math.floor(Date.now() / 1000);
+  if (now < Number(b.commitEnd)) return "commit";
+  if (now < Number(b.revealEnd)) return "reveal";
+  return "awaiting-finalize";
+}
+
+function shapeBattle(b: typeof schema.battles.$inferSelect, nameBy: Map<bigint, string>) {
+  return {
+    battleId: Number(b.battleId),
+    agentA: Number(b.agentA),
+    agentB: Number(b.agentB),
+    agentAName: nameBy.get(b.agentA) ?? null,
+    agentBName: nameBy.get(b.agentB) ?? null,
+    commitEnd: Number(b.commitEnd),
+    revealEnd: Number(b.revealEnd),
+    finalized: b.finalized,
+    rated: b.rated,
+    winner: b.winner,
+    winnerLabel: winnerLabel(b.winner),
+    weightA: ether(b.weightA),
+    weightAWei: b.weightA.toString(),
+    weightB: ether(b.weightB),
+    weightBWei: b.weightB.toString(),
+    pool: ether(b.pool),
+    poolWei: b.pool.toString(),
+    commitCount: b.commitCount,
+    revealCount: b.revealCount,
+    phase: battlePhase(b),
+    createdAt: Number(b.createdAt),
+  };
+}
+
+function shapeLineage(l: typeof schema.lineage.$inferSelect, nameBy: Map<bigint, string>) {
+  return {
+    agentId: Number(l.agentId),
+    name: nameBy.get(l.agentId) ?? null,
+    generation: l.generation,
+    isGenesis: l.isGenesis,
+    parentA: Number(l.parentA),
+    parentB: Number(l.parentB),
+    parentAName: l.parentA > 0n ? nameBy.get(l.parentA) ?? null : null,
+    parentBName: l.parentB > 0n ? nameBy.get(l.parentB) ?? null : null,
+    styleFingerprint: l.styleFingerprint,
+    fuseSeed: l.fuseSeed,
+    requestId: l.requestId !== null ? Number(l.requestId) : null,
+    fuser: l.fuser,
+    createdAt: Number(l.createdAt),
+  };
+}
+
+// GET /arena/battles - the Arena feed: battles newest-first (keyset by orderKey). Empty [] until any created.
+app.get("/arena/battles", async (c) => {
+  const limit = clampLimit(c.req.query("limit"));
+  const cursor = parseCursor(c.req.query("cursor"));
+  const where = cursor !== null ? lt(schema.battles.orderKey, cursor) : undefined;
+  const rows = await db
+    .select()
+    .from(schema.battles)
+    .where(where)
+    .orderBy(desc(schema.battles.orderKey))
+    .limit(limit + 1);
+  const page = rows.slice(0, limit);
+  const nameBy = await agentNameMap([...page.map((b) => b.agentA), ...page.map((b) => b.agentB)]);
+  return c.json({
+    battles: page.map((b) => shapeBattle(b, nameBy)),
+    nextCursor: rows.length > limit ? page[page.length - 1]!.orderKey.toString() : null,
+    source: "indexer",
+  });
+});
+
+// GET /arena/battles/:id - one battle + its revealed ballots (the on-chain tally is re-derivable via
+// /api/arena/tally; this is the indexed convenience read).
+app.get("/arena/battles/:id", async (c) => {
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.json({ error: "invalid battle id" }, 400);
+  const [b] = await db.select().from(schema.battles).where(eq(schema.battles.battleId, id)).limit(1);
+  if (!b) return c.json({ error: "battle not found" }, 404);
+  const voteRows = await db
+    .select()
+    .from(schema.votes)
+    .where(eq(schema.votes.battleId, id))
+    .orderBy(desc(schema.votes.orderKey));
+  const nameBy = await agentNameMap([b.agentA, b.agentB]);
+  return c.json({
+    ...shapeBattle(b, nameBy),
+    votes: voteRows.map((v) => ({
+      voter: v.voter,
+      choice: v.choice,
+      stake: ether(v.stake),
+      stakeWei: v.stake.toString(),
+      weight: ether(v.weight),
+      weightWei: v.weight.toString(),
+      revealedAt: Number(v.revealedAt),
+    })),
+    source: "indexer",
+  });
+});
+
+// GET /arena/ladder - the reputation-ladder STANDINGS derived from FINALIZED, RATED battles (win/loss/tie
+// record per agent). The authoritative fixed-point Glicko rating + its Merkle root are keyless-recomputable
+// via the server's /api/arena/ladder/verify (that is the trust root); this endpoint exposes the raw record +
+// the latest anchored season. Empty [] until any rated battle finalizes.
+app.get("/arena/ladder", async (c) => {
+  const finals = await db.select().from(schema.battles).where(eq(schema.battles.finalized, true));
+  interface Rec { agentId: bigint; wins: number; losses: number; ties: number; battles: number }
+  const rec = new Map<bigint, Rec>();
+  const bump = (id: bigint): Rec => {
+    let r = rec.get(id);
+    if (!r) { r = { agentId: id, wins: 0, losses: 0, ties: 0, battles: 0 }; rec.set(id, r); }
+    return r;
+  };
+  for (const b of finals) {
+    if (!b.rated) continue; // only rated (quorum-cleared) battles feed the ladder
+    const a = bump(b.agentA);
+    const d = bump(b.agentB);
+    a.battles++; d.battles++;
+    if (b.winner === 1) { a.wins++; d.losses++; }
+    else if (b.winner === 2) { d.wins++; a.losses++; }
+    else { a.ties++; d.ties++; }
+  }
+  const ranked = [...rec.values()].sort((x, y) => (y.wins - x.wins) || (y.battles - x.battles) || Number(x.agentId - y.agentId));
+  const nameBy = await agentNameMap(ranked.map((r) => r.agentId));
+  const [season] = await db.select().from(schema.seasons).orderBy(desc(schema.seasons.seasonEpoch)).limit(1);
+  return c.json({
+    standings: ranked.map((r, i) => ({
+      rank: i + 1,
+      agentId: Number(r.agentId),
+      name: nameBy.get(r.agentId) ?? null,
+      wins: r.wins,
+      losses: r.losses,
+      ties: r.ties,
+      battles: r.battles,
+    })),
+    season: season
+      ? { seasonEpoch: Number(season.seasonEpoch), ladderRoot: season.ladderRoot, anchoredAt: Number(season.anchoredAt) }
+      : null,
+    ratedBattles: finals.filter((b) => b.rated).length,
+    note: "Standings are the raw win/loss record from finalized, rated battles. The authoritative fixed-point Glicko rating and its anchored Merkle root are keyless-recomputable via /api/arena/ladder/verify.",
+    source: "indexer",
+  });
+});
+
+// GET /fusion/lineage/:id - an agent's lineage (genesis or fused-child provenance) + its descendants (rows
+// whose parentA/parentB == :id). Empty/null until any genesis is registered or a fusion executes.
+app.get("/fusion/lineage/:id", async (c) => {
+  const id = parseId(c.req.param("id"));
+  if (id === null) return c.json({ error: "invalid agent id" }, 400);
+  const [lin] = await db.select().from(schema.lineage).where(eq(schema.lineage.agentId, id)).limit(1);
+  const children = await db
+    .select()
+    .from(schema.lineage)
+    .where(or(eq(schema.lineage.parentA, id), eq(schema.lineage.parentB, id)))
+    .orderBy(desc(schema.lineage.orderKey));
+  // names for the agent, its parents, and its children
+  const ids: bigint[] = [id];
+  if (lin) { if (lin.parentA > 0n) ids.push(lin.parentA); if (lin.parentB > 0n) ids.push(lin.parentB); }
+  for (const ch of children) ids.push(ch.agentId);
+  const nameBy = await agentNameMap(ids);
+  return c.json({
+    agentId: Number(id),
+    lineage: lin ? shapeLineage(lin, nameBy) : null,
+    children: children.map((ch) => shapeLineage(ch, nameBy)),
+    childCount: children.length,
+    source: "indexer",
+  });
+});
+
+// GET /fusion/feed - recent executed fusions (newest-first, keyset). A fusion activity feed for the Fuse page.
+app.get("/fusion/feed", async (c) => {
+  const limit = clampLimit(c.req.query("limit"));
+  const cursor = parseCursor(c.req.query("cursor"));
+  const where = cursor !== null ? lt(schema.fusions.orderKey, cursor) : undefined;
+  const rows = await db
+    .select()
+    .from(schema.fusions)
+    .where(where)
+    .orderBy(desc(schema.fusions.orderKey))
+    .limit(limit + 1);
+  const page = rows.slice(0, limit);
+  const nameBy = await agentNameMap([
+    ...page.map((f) => f.childId),
+    ...page.map((f) => f.parentA),
+    ...page.map((f) => f.parentB),
+  ]);
+  return c.json({
+    fusions: page.map((f) => ({
+      requestId: Number(f.requestId),
+      childId: Number(f.childId),
+      childName: nameBy.get(f.childId) ?? null,
+      parentA: Number(f.parentA),
+      parentAName: nameBy.get(f.parentA) ?? null,
+      parentB: Number(f.parentB),
+      parentBName: nameBy.get(f.parentB) ?? null,
+      generation: f.generation,
+      fuseSeed: f.fuseSeed,
+      fuser: f.fuser,
+      executedAt: Number(f.executedAt),
+      txHash: f.txHash,
+    })),
+    nextCursor: rows.length > limit ? page[page.length - 1]!.orderKey.toString() : null,
+    source: "indexer",
+  });
 });
 
 // ───────────── SQL-over-HTTP + GraphQL (free extras for @ponder/client / power users) ─────────────

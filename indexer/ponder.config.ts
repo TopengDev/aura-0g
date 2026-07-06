@@ -20,6 +20,9 @@ import { AuraINFTAbi } from "./abis/AuraINFT";
 import { OutputNFTAbi } from "./abis/OutputNFT";
 import { AuraMarketplaceAbi } from "./abis/AuraMarketplace";
 import { SummonEscrowAbi } from "./abis/SummonEscrow";
+import { ArenaVoteAbi } from "./abis/ArenaVote";
+import { AuraFusionAbi } from "./abis/AuraFusion";
+import { ArenaReputationAbi } from "./abis/ArenaReputation";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -39,10 +42,24 @@ interface DeployedV2 {
   outputNFT: string;
   marketplace: string;
   summonEscrow: string;
+  // ── game layer (ArenaVote / AuraFusion / ArenaReputation), deployed at gameDeployBlock on the mainnet
+  // cutover. Inert placeholder (see below) when unset so a testnet rollback (no game addrs) stays STABLE. ──
+  arenaVote: string;
+  auraFusion: string;
+  arenaReputation: string;
+  gameDeployBlock: number;
   deployBlock: number;
   summonStartBlock: number;
   chainId: number;
   rpcUrl: string;
+}
+
+// Game-contract cutover slots: real address + game deploy block when set, else the inert placeholder (a burn
+// address at a far-future block -> never scanned, never indexed) so the config + Ponder-generated types stay
+// STABLE (the arena/fusion/reputation handlers always typecheck) yet NOTHING is indexed on a testnet rollback.
+function gameAddr(raw: unknown): string {
+  const s = typeof raw === "string" ? raw : "";
+  return ADDR_RE.test(s) ? s : AURAINFT_DISABLED_ADDR;
 }
 
 function loadDeployed(): DeployedV2 {
@@ -59,6 +76,12 @@ function loadDeployed(): DeployedV2 {
     outputNFT: j.outputNFT,
     marketplace: j.marketplace,
     summonEscrow: j.summonEscrow ?? "",
+    arenaVote: gameAddr(j.arenaVote),
+    auraFusion: gameAddr(j.auraFusion),
+    arenaReputation: gameAddr(j.arenaReputation),
+    // gameDeployBlock: the block the 4 game contracts were deployed at (mainnet cutover). Falls back to
+    // deployBlock. When any game addr is the inert placeholder, its startBlock is forced far-future below.
+    gameDeployBlock: Number(j.gameDeployBlock ?? j.deployBlock),
     deployBlock: Number(j.deployBlock),
     // The SummonEscrow was deployed AFTER the registry (its own start block); scan from there, not the
     // registry deploy block, to avoid a long empty pre-escrow range. Falls back to deployBlock if unset.
@@ -70,8 +93,11 @@ function loadDeployed(): DeployedV2 {
 
 const D = loadDeployed();
 
-// RPC override: PONDER_RPC_URL_16602 (Ponder's convention) > deployed-v2.json rpcUrl.
-const RPC = process.env.PONDER_RPC_URL_16602 ?? D.rpcUrl;
+// RPC override: Ponder keys its RPC env by chainId, which is now 16661 (mainnet cutover, read from
+// deployed-v2.json). Prefer PONDER_RPC_URL_16661; accept the legacy PONDER_RPC_URL_16602 for backward compat
+// with an un-migrated deploy env; else deployed-v2.json rpcUrl (mainnet). Any of these that is set wins over
+// the JSON default.
+const RPC = process.env.PONDER_RPC_URL_16661 ?? process.env.PONDER_RPC_URL_16602 ?? D.rpcUrl;
 
 // Optional explicit getLogs chunk. Ponder auto-detects the cap from the RPC; only set this if the
 // auto-detect misfires on 0G's -32000 format (the validated fallback in the research is 5000).
@@ -82,7 +108,7 @@ const LOGS_RANGE = process.env.PONDER_ETH_GETLOGS_BLOCK_RANGE
 export default createConfig({
   chains: {
     galileo: {
-      id: D.chainId, // 16602
+      id: D.chainId, // 16661 on mainnet (read from deployed-v2.json; was 16602 on Galileo testnet)
       rpc: RPC,
       pollingInterval: 2_000, // HTTP polling cadence (no ws on this public RPC)
       ...(LOGS_RANGE ? { ethGetLogsBlockRange: LOGS_RANGE } : {}),
@@ -124,6 +150,28 @@ export default createConfig({
       chain: "galileo",
       address: D.summonEscrow as `0x${string}`,
       startBlock: D.summonStartBlock,
+    },
+    // ── GAME LAYER (v2 mainnet cutover). Deployed at gameDeployBlock; their events feed the arena/fusion/
+    // reputation read model (battles/votes/lineage/fusions/seasons) that /api/arena/* + /api/fusion/* serve.
+    // startBlock is forced far-future when the address is the inert placeholder (testnet rollback), so nothing
+    // is scanned/indexed off a burn address. ──
+    ArenaVote: {
+      abi: ArenaVoteAbi,
+      chain: "galileo",
+      address: D.arenaVote as `0x${string}`,
+      startBlock: D.arenaVote === AURAINFT_DISABLED_ADDR ? AURAINFT_DISABLED_BLOCK : D.gameDeployBlock,
+    },
+    AuraFusion: {
+      abi: AuraFusionAbi,
+      chain: "galileo",
+      address: D.auraFusion as `0x${string}`,
+      startBlock: D.auraFusion === AURAINFT_DISABLED_ADDR ? AURAINFT_DISABLED_BLOCK : D.gameDeployBlock,
+    },
+    ArenaReputation: {
+      abi: ArenaReputationAbi,
+      chain: "galileo",
+      address: D.arenaReputation as `0x${string}`,
+      startBlock: D.arenaReputation === AURAINFT_DISABLED_ADDR ? AURAINFT_DISABLED_BLOCK : D.gameDeployBlock,
     },
   },
 });

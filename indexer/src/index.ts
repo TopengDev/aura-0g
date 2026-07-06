@@ -22,6 +22,12 @@ import {
   walletEarnings,
   agentStats,
   events,
+  battles,
+  votes,
+  lineage,
+  fusionRequests,
+  fusions,
+  seasons,
 } from "ponder:schema";
 
 import { createPublicClient, http } from "viem";
@@ -52,7 +58,7 @@ const ADDR_AURAINFT = /^0x[0-9a-fA-F]{40}$/.test(String(DEPLOYED.auraINFT ?? "")
 // Galileo's public RPC PRUNES historical STATE -> a past-block eth_call returns InvalidInputRpcError.
 // creatorResaleBps is set once at mint and never changes (no setter in AgentRegistry), so "latest" is
 // both correct and prune-safe. A tiny in-memory cache avoids re-reading the same agent on re-index.
-const RPC = process.env.PONDER_RPC_URL_16602 ?? String(DEPLOYED.rpcUrl);
+const RPC = process.env.PONDER_RPC_URL_16661 ?? process.env.PONDER_RPC_URL_16602 ?? String(DEPLOYED.rpcUrl);
 const stateClient = createPublicClient({ transport: http(RPC) });
 const creatorResaleCache = new Map<string, number>();
 
@@ -730,4 +736,221 @@ ponder.on("SummonEscrow:Fulfilled", async ({ event, context }) => {
     royaltyPaid: ownerCut, // the owner's take (dedicated accounting lives in *_earnings.summonEarned)
     platformFee,
   });
+});
+
+// ═════════════════════════════ GAME LAYER (v2 mainnet cutover) ═════════════════════════════
+// ArenaVote / AuraFusion / ArenaReputation event handlers. Deployed at gameDeployBlock on 0G mainnet 16661;
+// their logs build the battles/votes/lineage/fusions/seasons read model that /api/arena/* + /api/fusion/*
+// serve (indexer api/index.ts). All idempotent (insert...onConflict / existence-guarded increments) so a
+// re-index or reorg never double-counts. Inert until deployed-v2.json wires the game addresses (config
+// registers a burn address at a far-future block otherwise), so a testnet rollback indexes nothing here.
+
+// ─────────────────────────── ArenaVote ───────────────────────────
+
+ponder.on("ArenaVote:BattleCreated", async ({ event, context }) => {
+  const { battleId, agentA, agentB, commitEnd, revealEnd } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  await context.db
+    .insert(battles)
+    .values({
+      battleId,
+      agentA,
+      agentB,
+      commitEnd: BigInt(commitEnd),
+      revealEnd: BigInt(revealEnd),
+      finalized: false,
+      rated: false,
+      winner: 0,
+      weightA: 0n,
+      weightB: 0n,
+      pool: 0n,
+      commitCount: 0,
+      revealCount: 0,
+      createdAt: ts,
+      createdBlock: event.block.number,
+      finalizedAt: null,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate({ agentA, agentB, commitEnd: BigInt(commitEnd), revealEnd: BigInt(revealEnd) });
+});
+
+ponder.on("ArenaVote:Committed", async ({ event, context }) => {
+  const { battleId } = event.args;
+  // count blind commits (they carry no side yet). Defensive: the battle row exists from BattleCreated.
+  await context.db
+    .update(battles, { battleId })
+    .set((row) => ({ commitCount: row.commitCount + 1 }))
+    .catch((e) => onUpdateError("ArenaVote:Committed battles", e));
+});
+
+ponder.on("ArenaVote:Revealed", async ({ event, context }) => {
+  const { battleId, voter, choice, stake, weight } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  const id = `${battleId.toString()}-${voter.toLowerCase()}`;
+  // idempotency: one reveal per voter per battle. If already indexed, do NOT re-increment revealCount.
+  const already = await context.db.find(votes, { id });
+  if (already) return;
+  await context.db.insert(votes).values({
+    id,
+    battleId,
+    voter: voter.toLowerCase() as `0x${string}`,
+    choice: Number(choice),
+    stake: BigInt(stake),
+    weight: BigInt(weight),
+    revealedAt: ts,
+    orderKey: ok,
+  });
+  await context.db
+    .update(battles, { battleId })
+    .set((row) => ({ revealCount: row.revealCount + 1 }))
+    .catch((e) => onUpdateError("ArenaVote:Revealed battles", e));
+});
+
+ponder.on("ArenaVote:Finalized", async ({ event, context }) => {
+  const { battleId, winner, weightA, weightB, rated, pool } = event.args;
+  const ts = event.block.timestamp;
+  // record the contract's ENFORCED tally. The keyless /api/arena/tally endpoint independently recomputes
+  // this from the Revealed log (that recompute is the trust root; this row is a convenience read).
+  await context.db
+    .update(battles, { battleId })
+    .set({
+      finalized: true,
+      rated: Boolean(rated),
+      winner: Number(winner),
+      weightA: BigInt(weightA),
+      weightB: BigInt(weightB),
+      pool: BigInt(pool),
+      finalizedAt: ts,
+    })
+    .catch((e) => onUpdateError("ArenaVote:Finalized battles", e));
+});
+
+// ─────────────────────────── AuraFusion ───────────────────────────
+
+ponder.on("AuraFusion:GenesisRegistered", async ({ event, context }) => {
+  const { agentId, generation, styleFingerprint } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  await context.db
+    .insert(lineage)
+    .values({
+      agentId,
+      generation: Number(generation),
+      parentA: 0n,
+      parentB: 0n,
+      isGenesis: true,
+      styleFingerprint,
+      fuseSeed: null,
+      requestId: null,
+      fuser: null,
+      createdAt: ts,
+      orderKey: ok,
+    })
+    // a child row (from FusionExecuted) must never be clobbered back to genesis; only fill genesis fields.
+    .onConflictDoUpdate((row) =>
+      row.isGenesis ? { generation: Number(generation), styleFingerprint } : {},
+    );
+});
+
+ponder.on("AuraFusion:FusionRequested", async ({ event, context }) => {
+  const { requestId, fuser, parentA, parentB, targetBlock, fee } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  await context.db
+    .insert(fusionRequests)
+    .values({
+      requestId,
+      fuser: fuser.toLowerCase() as `0x${string}`,
+      parentA,
+      parentB,
+      targetBlock: BigInt(targetBlock),
+      fee: BigInt(fee),
+      executed: false,
+      refunded: false,
+      childId: null,
+      requestedAt: ts,
+      orderKey: ok,
+    })
+    .onConflictDoNothing();
+});
+
+ponder.on("AuraFusion:FusionExecuted", async ({ event, context }) => {
+  const { requestId, childId, parentA, parentB, fuseSeed, generation } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  // resolve the fuser from the matching request (FusionExecuted omits it). Null if the request row was missed.
+  const req = await context.db.find(fusionRequests, { requestId });
+  const fuser = req?.fuser ?? null;
+
+  await context.db
+    .insert(fusions)
+    .values({
+      requestId,
+      childId,
+      parentA,
+      parentB,
+      fuseSeed,
+      generation: Number(generation),
+      fuser,
+      executedAt: ts,
+      executedBlock: event.block.number,
+      txHash: event.transaction.hash,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate({ childId, fuseSeed, generation: Number(generation), fuser });
+
+  // record the child's lineage (parents + generation + seed). Authoritative over any prior genesis stub.
+  await context.db
+    .insert(lineage)
+    .values({
+      agentId: childId,
+      generation: Number(generation),
+      parentA,
+      parentB,
+      isGenesis: false,
+      styleFingerprint: null,
+      fuseSeed,
+      requestId,
+      fuser,
+      createdAt: ts,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate({ generation: Number(generation), parentA, parentB, isGenesis: false, fuseSeed, requestId, fuser });
+
+  // mark the request executed (+ link the child). Defensive: the request row exists from FusionRequested.
+  await context.db
+    .update(fusionRequests, { requestId })
+    .set({ executed: true, childId })
+    .catch((e) => onUpdateError("AuraFusion:FusionExecuted fusionRequests", e));
+});
+
+ponder.on("AuraFusion:FusionRefunded", async ({ event, context }) => {
+  const { requestId } = event.args;
+  await context.db
+    .update(fusionRequests, { requestId })
+    .set({ refunded: true })
+    .catch((e) => onUpdateError("AuraFusion:FusionRefunded fusionRequests", e));
+});
+
+// ─────────────────────────── ArenaReputation ───────────────────────────
+
+ponder.on("ArenaReputation:SeasonAnchored", async ({ event, context }) => {
+  const { seasonEpoch, ladderRoot } = event.args;
+  const ts = event.block.timestamp;
+  const ok = orderKey(event.block.number, event.log.logIndex);
+  // the per-agent ratings live in the off-chain Merkle tree (keyless-recomputable via /api/arena/ladder/
+  // verify); the chain stores only the root commitment, which is all this contract emits.
+  await context.db
+    .insert(seasons)
+    .values({
+      seasonEpoch,
+      ladderRoot,
+      anchoredAt: ts,
+      anchoredBlock: event.block.number,
+      txHash: event.transaction.hash,
+      orderKey: ok,
+    })
+    .onConflictDoUpdate({ ladderRoot, anchoredAt: ts, anchoredBlock: event.block.number, txHash: event.transaction.hash });
 });
