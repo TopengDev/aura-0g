@@ -51,10 +51,22 @@ export function floorPersona(input: DerivePersonaInput): DerivedPersonaFields {
   };
 }
 
-/** Pull the first balanced JSON object out of a possibly-fenced LLM reply. */
+/** Strip a reasoning model's chain-of-thought so it never crowds out / corrupts the JSON we parse. GLM-5.1
+ *  (the 0G mainnet chat model) is a REASONING model that emits <think>...</think> before its answer; a closed
+ *  block is removed, and a DANGLING <think> (reasoning that ran until the token budget cut it off, with no
+ *  answer) collapses to empty so we fall through to the floor rather than mis-parse the reasoning. */
+function stripReasoning(text: string): string {
+  return text
+    .replace(/<think>[\s\S]*?<\/think>/gi, " ")
+    .replace(/<think>[\s\S]*$/i, " ")
+    .replace(/<\/?think>/gi, " ")
+    .trim();
+}
+
+/** Pull the first balanced JSON object out of a possibly-fenced / reasoning-prefixed LLM reply. */
 function extractJson(text: string): any | null {
   if (!text) return null;
-  let t = text.trim();
+  let t = stripReasoning(text.trim());
   const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fence && fence[1]) t = fence[1].trim();
   const start = t.indexOf("{");
@@ -65,6 +77,27 @@ function extractJson(text: string): any | null {
   } catch {
     return null;
   }
+}
+
+/** SALVAGE fallback for a TRUNCATED / malformed JSON reply (the token budget cut the object off mid-field, so
+ *  JSON.parse fails): pull each requested key's string value directly with a tolerant regex. Reasoning is
+ *  stripped first so a "personality" mentioned inside <think> is never harvested. Returns a partial object of
+ *  whatever keys were recoverable (possibly empty). This is why a long GLM reply still yields a rich persona. */
+function salvageJsonFields(text: string, keys: string[]): Record<string, string> {
+  const t = stripReasoning(text || "");
+  const out: Record<string, string> = {};
+  for (const k of keys) {
+    // "key" : "value with \" escapes" - non-greedy, honoring backslash escapes, tolerant of a missing close.
+    const m = t.match(new RegExp(`"${k}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, "i"));
+    if (m && m[1]) {
+      try {
+        out[k] = JSON.parse(`"${m[1]}"`); // unescape \n, \" etc.
+      } catch {
+        out[k] = m[1];
+      }
+    }
+  }
+  return out;
 }
 
 function str(v: unknown): string | null {
@@ -196,7 +229,8 @@ function buildFusedMessages(input: DeriveFusedPersonaInput): ChatMessage[] {
     "tagline (one evocative line), " +
     "signatureCharacter (one recurring subject it paints, fusing both parents' motifs into something new), " +
     "aesthetic (a refined ONE-LINE version of the child's blended visual style). " +
-    "Keep each field TIGHT and within its sentence budget. No emoji. No long hyphens (em dash or en dash).";
+    "Keep each field TIGHT and within its sentence budget. No emoji. No long hyphens (em dash or en dash). " +
+    "Output the JSON object IMMEDIATELY with no preamble, no explanation, and no reasoning before it.";
   const user =
     `PARENT ONE: ${describe(input.parentA)}\n` +
     `PARENT TWO: ${describe(input.parentB)}\n` +
@@ -209,8 +243,17 @@ function buildFusedMessages(input: DeriveFusedPersonaInput): ChatMessage[] {
   ];
 }
 
+// The fused persona blends TWO rich parents into FIVE fields, and the 0G mainnet model (GLM-5.1) is a REASONING
+// model that spends tokens on <think> before the JSON. So the fused derivation gets a HIGHER token ceiling (the
+// reasoning + the whole object must both fit, or the JSON truncates -> floor, the verified failure) and a
+// slightly longer timeout budget for two sequential reasoning calls. The single-agent derivePersona keeps its
+// tighter budget (it works there). Reasoning is stripped + a truncated reply is salvaged field-by-field.
+const FUSED_DERIVE_MAX_TOKENS = 3000;
+const FUSED_DERIVE_TIMEOUT_MS = 100_000;
+const FUSED_KEYS = ["personality", "lore", "tagline", "signatureCharacter", "aesthetic"];
+
 /** Derive a rich BLENDED persona for a fused child; ALWAYS resolves (never throws). On any failure returns
- *  the floor. Same 0G TEE seam + cold-broker retry + timeout budget as derivePersona. */
+ *  the floor. Same 0G TEE seam + cold-broker retry as derivePersona, with a reasoning-model-aware budget. */
 export async function deriveFusedPersona(input: DeriveFusedPersonaInput): Promise<DerivedFusedPersonaFields> {
   const floor = floorFusedPersona(input);
   try {
@@ -219,9 +262,9 @@ export async function deriveFusedPersona(input: DeriveFusedPersonaInput): Promis
         const chosen = (await pickProvider()).provider;
         const messages = buildFusedMessages(input);
         for (let attempt = 0; attempt < DERIVE_ATTEMPTS; attempt++) {
-          const r = await runLlm(chosen, messages, undefined, { maxTokens: DERIVE_MAX_TOKENS });
-          const parsed = extractJson(r.text ?? "");
-          if (!parsed) continue;
+          const r = await runLlm(chosen, messages, undefined, { maxTokens: FUSED_DERIVE_MAX_TOKENS });
+          // parse the JSON, falling back to a field-by-field salvage of a truncated/reasoning-wrapped reply.
+          const parsed = extractJson(r.text ?? "") ?? salvageJsonFields(r.text ?? "", FUSED_KEYS);
           const personality = str(parsed.personality);
           const lore = str(parsed.lore);
           if (!personality && !lore) continue; // require a real enrichment, else retry / floor
@@ -232,10 +275,38 @@ export async function deriveFusedPersona(input: DeriveFusedPersonaInput): Promis
         }
         return null;
       })(),
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), DERIVE_TIMEOUT_MS)),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), FUSED_DERIVE_TIMEOUT_MS)),
     ]);
     return result ?? floor;
   } catch {
     return floor;
   }
+}
+
+/** DIAGNOSTIC (used by verify-fusion-identity): run ONE raw fused-persona call and return the raw reply, its
+ *  finish reason, the post-strip text, and what parsed/salvaged - so a floor fallback can be diagnosed live. */
+export async function deriveFusedPersonaDebug(input: DeriveFusedPersonaInput): Promise<{
+  provider: string;
+  finishReason: string;
+  rawLen: number;
+  rawHead: string;
+  rawTail: string;
+  parsedKeys: string[];
+  salvagedKeys: string[];
+}> {
+  const chosen = (await pickProvider()).provider;
+  const messages = buildFusedMessages(input);
+  const r = await runLlm(chosen, messages, undefined, { maxTokens: FUSED_DERIVE_MAX_TOKENS });
+  const raw = r.text ?? "";
+  const parsed = extractJson(raw);
+  const salvaged = salvageJsonFields(raw, FUSED_KEYS);
+  return {
+    provider: r.provider,
+    finishReason: r.finishReason,
+    rawLen: raw.length,
+    rawHead: raw.slice(0, 300),
+    rawTail: raw.slice(-300),
+    parsedKeys: parsed ? Object.keys(parsed) : [],
+    salvagedKeys: Object.keys(salvaged),
+  };
 }

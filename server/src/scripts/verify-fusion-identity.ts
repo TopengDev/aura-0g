@@ -14,7 +14,7 @@ dotenvConfig({ path: path.resolve(__dirname, "..", "..", "..", ".env") });
 
 import { getAgentIdentity, isNameTaken, collectTakenNames } from "../aura/agents.js";
 import { deriveUniqueChildName } from "../aura/game/fuse.js";
-import { deriveFusedPersona, type FuseParentPersona } from "../aura/persona-derive.js";
+import { deriveFusedPersona, deriveFusedPersonaDebug, type FuseParentPersona } from "../aura/persona-derive.js";
 import { deriveChildGenome, fuseSeed } from "../aura/game/fuse-genome.js";
 import { blendedStyleDescriptor } from "../aura/game/genome-style.js";
 import { auraFusionRead } from "../aura/game/contracts.js";
@@ -80,6 +80,17 @@ async function main(): Promise<void> {
   console.log(`[name] isNameTaken(${JSON.stringify(childName)}) = ${await isNameTaken(childName)}  (expect false -> globally unique)\n`);
 
   // 5. THE HEADLINE: a RICH persona BLENDED from both parents + the genome (the real seam the pipeline runs).
+  if (process.env.FUSE_DEBUG === "1") {
+    console.log(`[persona:debug] one raw call to inspect what the model returns...`);
+    try {
+      const dbg = await deriveFusedPersonaDebug({ childName, parentA: pa, parentB: pb, blendedStyleDescriptor: blended });
+      console.log(`[persona:debug] provider=${dbg.provider} finish=${dbg.finishReason} rawLen=${dbg.rawLen} parsedKeys=[${dbg.parsedKeys}] salvagedKeys=[${dbg.salvagedKeys}]`);
+      console.log(`[persona:debug] rawHead: ${JSON.stringify(dbg.rawHead)}`);
+      console.log(`[persona:debug] rawTail: ${JSON.stringify(dbg.rawTail)}`);
+    } catch (e) {
+      console.log(`[persona:debug] error: ${String((e as any)?.message).slice(0, 160)}`);
+    }
+  }
   console.log(`[persona] deriving blended persona via 0G TEE compute...`);
   const t1 = Date.now();
   const persona = await deriveFusedPersona({ childName, parentA: pa, parentB: pb, blendedStyleDescriptor: blended });
