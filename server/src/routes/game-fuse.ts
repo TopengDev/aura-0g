@@ -10,6 +10,7 @@ import { ethers } from "ethers";
 import { agentsRead } from "../aura/contracts.js";
 import { auraFusionRead, auraFusionConfigured } from "../aura/game/contracts.js";
 import { genesisArgs, requestFusionArgs, executeFusionPipeline, verifyChildGenome, FuseError } from "../aura/game/fuse.js";
+import { genGuardAcquire, genGuardRelease, genGuardRefund, rateLimit } from "../aura/ratelimit.js";
 
 function parseId(v: unknown): number | null {
   if (typeof v === "number" && Number.isInteger(v) && v >= 1) return v;
@@ -92,6 +93,15 @@ export async function gameFuseRoutes(app: FastifyInstance): Promise<void> {
       } catch {
         return reply.code(502).send({ error: "could not read the fusion request" });
       }
+
+      // H1: executeFusionPipeline runs a SPONSOR-PAID TEE generation + a 0G store. Gate it behind the SAME
+      // per-user rate limit + global gen cost guard every other sponsor-paid path uses (mirrors /generate), so
+      // an owner cannot spam sponsor-funded fusions to drain the mainnet sponsor wallet / force 0G Compute spend.
+      const rl = rateLimit(`fuse:${owner}`, 5, 60_000);
+      if (!rl.ok) return reply.code(429).send({ error: "rate limited", retryInMs: rl.resetInMs });
+      const guard = genGuardAcquire(owner);
+      if (!guard.ok) return reply.code(503).send({ error: guard.reason ?? "generation temporarily unavailable" });
+
       try {
         const result = await executeFusionPipeline(requestId, {
           royaltyBps: req.body?.royaltyBps,
@@ -99,8 +109,12 @@ export async function gameFuseRoutes(app: FastifyInstance): Promise<void> {
         });
         return result;
       } catch (e) {
+        // a non-completing sponsor-paid gen must NOT permanently burn the lifetime budget -> refund the slot.
+        genGuardRefund(owner);
         if (e instanceof FuseError) return reply.code(e.status).send({ error: e.message });
         return reply.code(500).send({ error: `fusion pipeline failed: ${String((e as any)?.message).slice(0, 200)}` });
+      } finally {
+        genGuardRelease(); // always return the concurrency slot (successful gens keep the lifetime slot)
       }
     },
   );

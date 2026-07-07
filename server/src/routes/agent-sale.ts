@@ -34,6 +34,7 @@ import {
   setEscrowStatus,
   flipStatus,
   setEscrowSplitsJson,
+  getPayoutLeg,
   type SaleEscrow,
 } from "../aura/sale-store.js";
 import { settleAgentSale, refundAgentSale, computeSplit, SaleError, type SplitLeg } from "../aura/sale-service.js";
@@ -356,13 +357,24 @@ export async function agentSaleRoutes(app: FastifyInstance): Promise<void> {
         };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        // release the settle claim back to committed (funds stay with the custodian; the buyer can retry or,
-        // after the deadline, refund) - the transfer is the FIRST, gated step, so a failure here is pre-move
-        // in the common case; a resume-safe settle handles the rare post-move failure.
-        resetEscrowToCommitted(escrowId, msg.slice(0, 300));
-        req.log.error({ err: msg, escrowId }, "agent sale settle failed");
+        // MONEY-SAFETY (H2): NEVER reset a post-send failure straight back to committed without a chain check.
+        // Only reset to 'committed' when the transfer PROVABLY did NOT land (owner is still the seller); the
+        // funds stay with the custodian and the buyer can retry or, after the deadline, refund. If the transfer
+        // already landed (or the chain is unreadable), leave the escrow 'settling' so the idempotent boot reaper
+        // completes it - a reset on a half-done (post-move) settle would re-open refund/re-settle races.
+        let transferLanded = true; // fail-closed default: an unreadable chain must NOT trigger a reset
+        try {
+          transferLanded = ((await auraInftRead().ownerOf(agentId)) as string).toLowerCase() === buyer.toLowerCase();
+        } catch {
+          transferLanded = true;
+        }
+        if (!transferLanded) resetEscrowToCommitted(escrowId, msg.slice(0, 300));
+        req.log.error(
+          { err: msg, escrowId, transferLanded },
+          transferLanded ? "agent sale settle failed post-transfer - left 'settling' for idempotent boot-reconcile" : "agent sale settle failed pre-transfer - reset to committed (retryable)",
+        );
         const status = e instanceof SaleError ? e.status : 502;
-        return reply.code(status).send({ error: `settle failed: ${msg.slice(0, 200)}` });
+        return reply.code(status).send({ error: `settle failed: ${msg.slice(0, 200)}`, ...(transferLanded ? { willReconcile: true } : {}) });
       }
     },
   );
@@ -447,8 +459,12 @@ export async function agentSaleRoutes(app: FastifyInstance): Promise<void> {
         return { ok: true, refunded: true, escrowId, refundTx, amountWei: escrow.priceWei, amountEther: ethers.formatEther(BigInt(escrow.priceWei)) };
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
-        flipStatus(escrowId, "refunded", "committed"); // reset so a retry is possible
-        req.log.error({ err: msg, escrowId }, "agent sale refund failed");
+        // MONEY-SAFETY (H2): only reopen to 'committed' if NOTHING was broadcast (no refund sentinel). If a
+        // refund tx may already be out, keep the escrow 'refunded' so a settle can never pay out an
+        // already-refunded escrow; a retried refund reconciles the recorded tx by chain read (never double-refunds).
+        const refundLeg = getPayoutLeg(escrowId, "refund");
+        if (!refundLeg) flipStatus(escrowId, "refunded", "committed"); // nothing sent -> safe to retry
+        req.log.error({ err: msg, escrowId, mayHaveSent: !!refundLeg }, "agent sale refund failed");
         const status = e instanceof SaleError ? e.status : 502;
         return reply.code(status).send({ error: `refund failed: ${msg.slice(0, 200)}` });
       }

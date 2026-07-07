@@ -9,6 +9,8 @@ import rateLimitPlugin from "@fastify/rate-limit";
 import multipart from "@fastify/multipart";
 import { CORS_ORIGINS, JWT_SECRET } from "./aura/config.js";
 import { reapOrphanJobs } from "./aura/db.js";
+import { reapStuckSettlingEscrows } from "./aura/sale-service.js";
+import { pruneSiweNonces } from "./aura/siwe.js";
 import { authenticate } from "./lib/auth.js";
 import { authRoutes } from "./routes/auth.js";
 import { healthRoutes } from "./routes/health.js";
@@ -36,7 +38,14 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
     // + images fall to placeholders under modest demo load). trustProxy makes Fastify resolve the real
     // client IP from X-Forwarded-For, so the limiter buckets per client. The tight per-address AUTHED
     // limits (chat/generate, keyed on the JWT address) are unaffected.
-    trustProxy: true,
+    //
+    // M3: trust EXACTLY ONE hop (the single nginx directly in front of this app - host nginx in prod, the
+    // compose nginx locally). `true` trusts the WHOLE X-Forwarded-For chain, so a client can SPOOF its own
+    // request.ip by sending a forged XFF header and defeat the global 120/min limiter (the last ceiling on
+    // H1, which keys on request.ip). `1` makes proxy-addr take the address our nginx appended (the real peer)
+    // and IGNORE any client-prepended XFF entries. nginx sets XFF via $proxy_add_x_forwarded_for (verified in
+    // deploy/nginx.conf + the host vhost), so the appended entry is authoritative.
+    trustProxy: 1,
   });
 
   // CORS - explicit origin allowlist (never "*" because we send a Bearer token). Credentials OFF
@@ -94,6 +103,31 @@ export async function buildApp(opts: { logger?: boolean } = {}): Promise<Fastify
   // boot housekeeping: any job left mid-flight by a previous process can never finish -> mark failed.
   const reaped = reapOrphanJobs();
   if (reaped > 0) app.log.warn(`reaped ${reaped} orphaned in-flight job(s) on boot`);
+
+  // M5: reconcile any sale escrow stuck 'settling' from a crash mid-settle (reapOrphanJobs only touches jobs).
+  // Chain-reconciled by ownerOf: transfer landed -> complete idempotently (no re-transfer, chain-reconciled
+  // split); else reset to committed. Fire-and-forget so a slow 0G RPC read never blocks app assembly.
+  reapStuckSettlingEscrows()
+    .then((n) => {
+      if (n > 0) app.log.warn(`reconciled ${n} stuck settling escrow(s) on boot`);
+    })
+    .catch((e) => app.log.error({ err: String((e as any)?.message).slice(0, 200) }, "settling-escrow boot reconcile failed"));
+
+  // L9: prune spent/expired SIWE nonces on boot + hourly (the table is otherwise append-only, unbounded).
+  try {
+    const prunedNonces = pruneSiweNonces();
+    if (prunedNonces > 0) app.log.info(`pruned ${prunedNonces} used/expired siwe nonce(s) on boot`);
+  } catch (e) {
+    app.log.warn(`siwe nonce prune (boot) failed: ${String((e as any)?.message).slice(0, 120)}`);
+  }
+  const noncePruneTimer = setInterval(() => {
+    try {
+      pruneSiweNonces();
+    } catch {
+      /* best-effort background prune */
+    }
+  }, 60 * 60 * 1000);
+  noncePruneTimer.unref?.(); // never keep the process (or an app.inject() harness) alive on this timer
 
   return app;
 }

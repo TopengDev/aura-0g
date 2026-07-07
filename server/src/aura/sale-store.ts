@@ -204,6 +204,91 @@ export function setEscrowSplitsJson(id: number, splitsJson: string): void {
   db().prepare(`UPDATE agent_sale_escrows SET splits_json=?, updated_at=? WHERE id=?`).run(splitsJson, new Date().toISOString(), id);
 }
 
+/** All escrows currently stuck in 'settling' (a crash after beginSettle leaves them here). The boot reaper
+ *  reconciles each against chain (ownerOf) - complete the settle idempotently if the transfer landed, else
+ *  reset to committed. Oldest first. */
+export function listSettlingEscrows(): SaleEscrow[] {
+  const rows = db().prepare(`SELECT * FROM agent_sale_escrows WHERE status='settling' ORDER BY id ASC`).all() as any[];
+  return rows.map(rowToEscrow);
+}
+
+// ── per-outbound-send sentinels (H2 money-idempotency) ──────────────────────
+// One row per escrow ETH disbursement leg ('split:<receiver>' | 'refund'). Persisted BEFORE the send so a
+// retry reconciles the recorded tx hash against chain and NEVER re-sends a payout that already landed.
+
+export type PayoutLegState = "sending" | "broadcast" | "landed";
+
+export interface PayoutLeg {
+  escrowId: number;
+  leg: string;
+  receiver: string | null;
+  wei: string | null;
+  nonce: number | null;
+  txHash: string | null;
+  state: PayoutLegState;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function rowToPayoutLeg(r: any): PayoutLeg {
+  return {
+    escrowId: r.escrow_id,
+    leg: r.leg,
+    receiver: r.receiver ?? null,
+    wei: r.wei ?? null,
+    nonce: r.nonce ?? null,
+    txHash: r.tx_hash ?? null,
+    state: r.state as PayoutLegState,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+export function getPayoutLeg(escrowId: number, leg: string): PayoutLeg | null {
+  const r = db().prepare(`SELECT * FROM sale_payout_legs WHERE escrow_id=? AND leg=?`).get(escrowId, leg) as any;
+  return r ? rowToPayoutLeg(r) : null;
+}
+
+/** Mark INTENT to send (before broadcast): a crash here is detectable as 'sending' (never blindly re-sent). */
+export function markPayoutLegSending(escrowId: number, leg: string, fields: { receiver: string; wei: string }): void {
+  const now = new Date().toISOString();
+  db()
+    .prepare(
+      `INSERT INTO sale_payout_legs (escrow_id, leg, receiver, wei, nonce, tx_hash, state, created_at, updated_at)
+       VALUES (?,?,?,?,NULL,NULL,'sending',?,?)
+       ON CONFLICT(escrow_id, leg) DO UPDATE SET receiver=excluded.receiver, wei=excluded.wei, state='sending', updated_at=excluded.updated_at`,
+    )
+    .run(escrowId, leg, fields.receiver.toLowerCase(), fields.wei, now, now);
+}
+
+/** Record the broadcast tx hash + pinned nonce (right AFTER sendTransaction resolves, BEFORE tx.wait()). */
+export function markPayoutLegBroadcast(
+  escrowId: number,
+  leg: string,
+  fields: { receiver: string; wei: string; nonce: number; txHash: string },
+): void {
+  const now = new Date().toISOString();
+  db()
+    .prepare(
+      `INSERT INTO sale_payout_legs (escrow_id, leg, receiver, wei, nonce, tx_hash, state, created_at, updated_at)
+       VALUES (?,?,?,?,?,?, 'broadcast', ?, ?)
+       ON CONFLICT(escrow_id, leg) DO UPDATE SET receiver=excluded.receiver, wei=excluded.wei, nonce=excluded.nonce, tx_hash=excluded.tx_hash, state='broadcast', updated_at=excluded.updated_at`,
+    )
+    .run(escrowId, leg, fields.receiver.toLowerCase(), fields.wei, fields.nonce, fields.txHash, now, now);
+}
+
+/** Mark a leg LANDED once its receipt shows status==1 (safe to skip forever after). */
+export function markPayoutLegLanded(escrowId: number, leg: string, txHash: string): void {
+  db()
+    .prepare(`UPDATE sale_payout_legs SET state='landed', tx_hash=?, updated_at=? WHERE escrow_id=? AND leg=?`)
+    .run(txHash, new Date().toISOString(), escrowId, leg);
+}
+
+/** Delete a leg's sentinel - used ONLY when sendTransaction THREW (never broadcast), so a retry is clean. */
+export function deletePayoutLeg(escrowId: number, leg: string): void {
+  db().prepare(`DELETE FROM sale_payout_legs WHERE escrow_id=? AND leg=?`).run(escrowId, leg);
+}
+
 function rowToEscrow(r: any): SaleEscrow {
   return {
     id: r.id,

@@ -297,22 +297,49 @@ export const HOST = process.env.HOST ?? "0.0.0.0";
 const DEV_DEFAULT_JWT_SECRET = "dev-only-insecure-secret-change-in-prod";
 export const IS_PRODUCTION = (process.env.NODE_ENV ?? "").toLowerCase() === "production";
 
+// M4: known WEAK/TEST JWT secrets that must NEVER back a production token. HS256 is symmetric, so ANY
+// publicly-known value here lets anyone forge {address:<victim>} and impersonate any wallet (incl. the
+// /mint-args attestations). This is the dev default + the committed-compose test strings + common
+// placeholders. Matched case-insensitively against the trimmed secret.
+const KNOWN_WEAK_JWT_SECRETS = new Set(
+  [
+    DEV_DEFAULT_JWT_SECRET,
+    "local-stack-test-secret-not-prod", // deploy/docker-compose.yml (local test stack) default - see M4
+    "changeme",
+    "change-me",
+    "secret",
+    "jwt-secret",
+    "jwtsecret",
+    "your-secret-here",
+    "test",
+  ].map((s) => s.toLowerCase()),
+);
+// A real secret is high-entropy; the documented recipe `openssl rand -hex 32` is 64 chars. Require a floor well
+// below that so any legit random secret passes while trivially short values are rejected.
+const MIN_PROD_JWT_SECRET_LEN = 32;
+
 /** Resolve the JWT secret, fail-closed in production. Pure (takes env) so it is unit-testable. */
 export function resolveJwtSecret(env: NodeJS.ProcessEnv = process.env): string {
   const isProd = (env.NODE_ENV ?? "").toLowerCase() === "production";
   const fromEnv = env.JWT_SECRET;
   if (isProd) {
-    if (!fromEnv || fromEnv.trim().length === 0) {
+    const trimmed = (fromEnv ?? "").trim();
+    if (trimmed.length === 0) {
       throw new Error(
         "JWT_SECRET is unset/blank in production - refusing to boot with the forgeable dev default (B-1 fail-closed). Set JWT_SECRET to a strong random value (e.g. `openssl rand -hex 32`).",
       );
     }
-    if (fromEnv === DEV_DEFAULT_JWT_SECRET) {
+    if (KNOWN_WEAK_JWT_SECRETS.has(trimmed.toLowerCase())) {
       throw new Error(
-        "JWT_SECRET equals the public dev default in production - refusing to boot (B-1 fail-closed). Set JWT_SECRET to a strong random value (e.g. `openssl rand -hex 32`).",
+        "JWT_SECRET is a known weak/test value in production - refusing to boot (B-1/M4 fail-closed). A publicly-known HS256 secret lets anyone forge any wallet's token. Set JWT_SECRET to a strong random value (e.g. `openssl rand -hex 32`).",
       );
     }
-    return fromEnv;
+    if (trimmed.length < MIN_PROD_JWT_SECRET_LEN) {
+      throw new Error(
+        `JWT_SECRET is too short in production (${trimmed.length} < ${MIN_PROD_JWT_SECRET_LEN} chars) - refusing to boot (M4 fail-closed). Set JWT_SECRET to a strong random value (e.g. \`openssl rand -hex 32\`).`,
+      );
+    }
+    return fromEnv as string;
   }
   return fromEnv && fromEnv.length > 0 ? fromEnv : DEV_DEFAULT_JWT_SECRET;
 }

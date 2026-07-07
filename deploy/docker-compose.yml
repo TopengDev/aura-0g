@@ -29,7 +29,11 @@ services:
       CORS_ORIGIN: http://localhost:8080
       # The indexer is reached over the compose network by service name.
       INDEXER_URL: http://indexer:42069
-      JWT_SECRET: local-stack-test-secret-not-prod
+      # M4: NEVER hardcode a JWT secret in a committed compose file - a symmetric HS256 secret in a public repo
+      # is forgeable by anyone (forge {address:<victim>} => impersonate any wallet). This local prod-mode test
+      # stack now REQUIRES JWT_SECRET at `up` time (mirrors docker-compose.prod.yml). Set it once in a
+      # gitignored deploy/.env:  echo "JWT_SECRET=$(openssl rand -hex 32)" >> deploy/.env
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in deploy/.env for the local prod-mode test stack (e.g. openssl rand -hex 32)}
       JWT_TTL: 1h
       # Runtime data dir (SQLite + generated cache) -> the named volume below.
       SQLITE_PATH: /app/server/data/aura.db

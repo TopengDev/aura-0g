@@ -15,7 +15,7 @@
 // settleAgentSale        : the sale orchestration - prepare -> platform submits transfer -> confirm -> split.
 import { ethers } from "ethers";
 import { CONTRACTS, GALILEO, GAS, SALE_PLATFORM, SALE_PLATFORM_BPS } from "./config.js";
-import { auraInftConfigured, auraInftRead, auraInftWrite } from "./contracts.js";
+import { auraInftConfigured, auraInftRead, auraInftWrite, readProvider } from "./contracts.js";
 import { reencryptForTransfer } from "./oracle.js";
 import { sealedToHex } from "./sealing.js";
 import { pubkeyOf } from "./pubkey.js";
@@ -24,7 +24,20 @@ import { store } from "./storage.js";
 import { cacheImageByRoot, resolveBytesByRoot } from "./image-cache.js";
 import { sponsorSigner } from "./wallet.js";
 import { resealRelationshipForNewOwner } from "./chat-memory.js";
-import { deactivateListing, markEscrowSettled, setEscrowRekey, setEscrowTransferTx, type SaleEscrow } from "./sale-store.js";
+import {
+  deactivateListing,
+  markEscrowSettled,
+  setEscrowRekey,
+  setEscrowTransferTx,
+  resetEscrowToCommitted,
+  listSettlingEscrows,
+  getPayoutLeg,
+  markPayoutLegSending,
+  markPayoutLegBroadcast,
+  markPayoutLegLanded,
+  deletePayoutLeg,
+  type SaleEscrow,
+} from "./sale-store.js";
 
 /** A typed error carrying the HTTP status a route should map it to. */
 export class SaleError extends Error {
@@ -271,14 +284,102 @@ async function sendWithNonceRetry<T extends { hash: string; wait: () => Promise<
 }
 
 /**
+ * H2 (money-idempotency): send `wei` to `to` for a specific escrow `leg` EXACTLY ONCE across any number of
+ * retries / crashes. The mechanism:
+ *   - persist a per-leg SENTINEL BEFORE broadcasting (state 'sending'), then record the tx hash + pinned nonce
+ *     the instant sendTransaction resolves (state 'broadcast'), BEFORE awaiting tx.wait().
+ *   - on a re-run, RECONCILE BY CHAIN READ first: if the recorded tx already landed (receipt.status==1) NEVER
+ *     re-send - return the same hash. If it is not yet mined, re-broadcast with the SAME pinned nonce so at
+ *     most one tx per nonce can ever confirm (dedupe, never double-spend).
+ *   - a normal send-throw (never broadcast) clears the sentinel so a retry is clean; only a true crash between
+ *     the 'sending' mark and the broadcast leaves an ambiguous 'sending' row -> fail CLOSED (never re-send a
+ *     possibly-already-sent payout blind; a human reconciles from the pinned nonce).
+ * This is what makes the documented "tx mines, then tx.wait() rejects on an 0G RPC flake, route resets to
+ * retryable, retry re-sends" flow NON-double-paying.
+ */
+// Minimal structural seams so the exactly-once path is unit-traceable (a mock signer/provider can simulate a
+// post-mine tx.wait() rejection). The real sponsorSigner()/readProvider() satisfy these structurally.
+type IdempotentSendSigner = {
+  sendTransaction(tx: any): Promise<{ hash: string; nonce: number; wait(): Promise<{ status: number | null } | null> }>;
+};
+type IdempotentReadProvider = { getTransactionReceipt(hash: string): Promise<{ status: number | null } | null> };
+
+export async function idempotentEthSend(
+  escrowId: number,
+  leg: string,
+  to: string,
+  weiStr: string,
+  injected?: { signer?: IdempotentSendSigner; provider?: IdempotentReadProvider },
+): Promise<string> {
+  const wei = BigInt(weiStr);
+  const signer: IdempotentSendSigner = injected?.signer ?? (sponsorSigner() as unknown as IdempotentSendSigner);
+  const provider: IdempotentReadProvider = injected?.provider ?? (readProvider() as unknown as IdempotentReadProvider);
+  const recipient = ethers.getAddress(to);
+  const existing = getPayoutLeg(escrowId, leg);
+
+  // already known to have landed on a prior run -> return it, no send.
+  if (existing?.state === "landed" && existing.txHash) return existing.txHash;
+
+  // a prior run broadcast this leg: reconcile by chain read BEFORE any re-send.
+  if (existing?.state === "broadcast" && existing.txHash) {
+    try {
+      const rcpt = await provider.getTransactionReceipt(existing.txHash);
+      if (rcpt) {
+        if (rcpt.status === 1) {
+          markPayoutLegLanded(escrowId, leg, existing.txHash);
+          return existing.txHash; // ALREADY PAID - never re-send
+        }
+        // a plain ETH send that reverted on-chain is anomalous; refuse to blindly re-send.
+        throw new SaleError(502, `${leg}: prior payout tx ${existing.txHash} reverted on-chain - manual reconcile required for escrow #${escrowId}`);
+      }
+      // receipt not found: the original may be pending or dropped. Re-broadcast with the SAME pinned nonce
+      // (below) so it can only replace/dedupe the original, never create a second paying tx.
+    } catch (e) {
+      if (e instanceof SaleError) throw e;
+      /* transient read failure -> fall through to a pinned-nonce re-broadcast (still dedupe-safe) */
+    }
+    const pinnedNonce = existing.nonce ?? undefined;
+    const tx = await sendWithNonceRetry(() =>
+      signer.sendTransaction({ to: recipient, value: wei, gasPrice: GAS.gasPrice, ...(pinnedNonce != null ? { nonce: pinnedNonce } : {}) }),
+    );
+    markPayoutLegBroadcast(escrowId, leg, { receiver: recipient, wei: weiStr, nonce: tx.nonce, txHash: tx.hash });
+    const rcpt = await tx.wait();
+    if (!rcpt || rcpt.status !== 1) throw new SaleError(502, `${leg} payout to ${recipient} reverted (tx ${tx.hash})`);
+    markPayoutLegLanded(escrowId, leg, tx.hash);
+    return tx.hash;
+  }
+
+  // an orphan 'sending' row (crashed mid-broadcast, no tx hash) is AMBIGUOUS: ETH may or may not have left the
+  // wallet. Fail CLOSED - never re-send a maybe-already-sent payout.
+  if (existing?.state === "sending" && !existing.txHash) {
+    throw new SaleError(409, `${leg}: ambiguous in-flight payout for escrow #${escrowId} (no recorded tx hash) - refusing to re-send to avoid a double-pay. Reconcile manually.`);
+  }
+
+  // FRESH send: mark intent BEFORE broadcasting, then broadcast (auto nonce). A send that THROWS never left the
+  // wallet -> clear the sentinel so a retry is clean. A send that RESOLVES records its hash + nonce at once.
+  markPayoutLegSending(escrowId, leg, { receiver: recipient, wei: weiStr });
+  let tx: Awaited<ReturnType<typeof signer.sendTransaction>>;
+  try {
+    tx = await sendWithNonceRetry(() => signer.sendTransaction({ to: recipient, value: wei, gasPrice: GAS.gasPrice }));
+  } catch (e) {
+    deletePayoutLeg(escrowId, leg); // never broadcast -> safe to retry from scratch
+    throw e;
+  }
+  markPayoutLegBroadcast(escrowId, leg, { receiver: recipient, wei: weiStr, nonce: tx.nonce, txHash: tx.hash });
+  const rcpt = await tx.wait();
+  if (!rcpt || rcpt.status !== 1) throw new SaleError(502, `${leg} payout to ${recipient} reverted (tx ${tx.hash})`);
+  markPayoutLegLanded(escrowId, leg, tx.hash);
+  return tx.hash;
+}
+
+/**
  * Pay out the escrowed ETH split from the CUSTODIAN wallet (== the platform / sponsor). The buyer has paid
  * `price` to the custodian; here we disburse royalty -> creator and remainder -> seller, and RETAIN the
  * platform fee (receiver == custodian, no self-transfer). Payouts are AGGREGATED per distinct receiver
  * (one tx per address) and sent serially with a nonce-retry. Returns the per-role legs with their tx hashes.
  */
-export async function payoutSplit(split: ComputedSplit): Promise<SplitLeg[]> {
+export async function payoutSplit(escrowId: number, split: ComputedSplit): Promise<SplitLeg[]> {
   const custodian = SALE_PLATFORM.toLowerCase();
-  const signer = sponsorSigner();
 
   const legs: SplitLeg[] = [
     { role: "royalty", receiver: split.royaltyReceiver, wei: split.royaltyWei.toString(), tx: null },
@@ -296,15 +397,12 @@ export async function payoutSplit(split: ComputedSplit): Promise<SplitLeg[]> {
     owed.set(to, (owed.get(to) ?? 0n) + wei);
   }
 
-  // one tx per receiver, serially (shared sponsor nonce), with a nonce-collision retry.
+  // one tx per receiver, serially, EXACTLY-ONCE per leg via the idempotent sender: it reconciles a prior
+  // broadcast by chain read on any retry, so a post-mine tx.wait() rejection can NEVER double-pay a receiver.
   const txByReceiver = new Map<string, string>();
   for (const [to, wei] of owed) {
-    const tx = await sendWithNonceRetry(() =>
-      signer.sendTransaction({ to: ethers.getAddress(to), value: wei, gasPrice: GAS.gasPrice }),
-    );
-    const rcpt = await tx.wait();
-    if (!rcpt || rcpt.status !== 1) throw new SaleError(502, `split payout to ${to} reverted (tx ${tx.hash})`);
-    txByReceiver.set(to, tx.hash);
+    const hash = await idempotentEthSend(escrowId, `split:${to}`, to, wei.toString());
+    txByReceiver.set(to, hash);
   }
 
   // annotate each leg: the payout tx, or null when retained by the custodian.
@@ -388,9 +486,10 @@ export async function settleAgentSale(escrow: SaleEscrow): Promise<SettleResult>
   // 3. confirm ownerOf == buyer -> re-custody brain + memory dual-wall reseal (buyer fresh, seller dropped).
   const { epoch } = await confirmSecureTransfer(escrow.agentId, pending);
 
-  // 4. split the escrowed price: royalty -> creator, platform fee retained, remainder -> seller.
+  // 4. split the escrowed price: royalty -> creator, platform fee retained, remainder -> seller. Each leg is
+  //    sent EXACTLY-ONCE (chain-reconciled sentinels), so a resume/retry after a mined-but-flaky payout is safe.
   const split = await computeSplit(escrow.agentId, BigInt(escrow.priceWei), escrow.seller);
-  const legs = await payoutSplit(split);
+  const legs = await payoutSplit(escrow.id, split);
 
   // 5. read the post-transfer identity (styleVersion bumps on every re-key) + persist + close the listing.
   let ownerNow = escrow.buyer.toLowerCase();
@@ -414,11 +513,45 @@ export async function settleAgentSale(escrow: SaleEscrow): Promise<SettleResult>
  * buyer. The route enforces the guards (past deadline, not settled, payment verified). Returns the refund tx.
  */
 export async function refundAgentSale(escrow: SaleEscrow): Promise<{ refundTx: string }> {
-  const signer = sponsorSigner();
-  const tx = await sendWithNonceRetry(() =>
-    signer.sendTransaction({ to: ethers.getAddress(escrow.buyer), value: BigInt(escrow.priceWei), gasPrice: GAS.gasPrice }),
-  );
-  const rcpt = await tx.wait();
-  if (!rcpt || rcpt.status !== 1) throw new SaleError(502, `refund to ${escrow.buyer} reverted (tx ${tx.hash})`);
-  return { refundTx: tx.hash };
+  // EXACTLY-ONCE refund: the same chain-reconciled sentinel used for the split, so a mined-but-flaky refund
+  // that gets retried never sends a SECOND refund tx to the buyer.
+  const refundTx = await idempotentEthSend(escrow.id, "refund", escrow.buyer, escrow.priceWei);
+  return { refundTx };
+}
+
+/**
+ * M5 (stuck-settling boot reaper): a hard crash AFTER beginSettle (status -> 'settling') but before the settle
+ * completes leaves the escrow 'settling' forever (reapOrphanJobs only touches the jobs table). On boot, reconcile
+ * every stuck 'settling' escrow against chain:
+ *   - ownerOf(agent) == buyer  -> the irreversible transfer already LANDED; COMPLETE the settle idempotently
+ *                                 (settleAgentSale resumes from the persisted re-key: NO re-transfer, the split
+ *                                 legs are chain-reconciled so already-paid legs are skipped, then mark settled).
+ *   - otherwise                -> the transfer never landed; reset to 'committed' so it is retryable/refundable.
+ * Fail-CLOSED on an unreadable chain (leave it 'settling' for the next boot rather than guess). Serial (shared
+ * sponsor nonce). Returns the count reconciled. Best-effort per escrow: one failure never aborts the sweep.
+ */
+export async function reapStuckSettlingEscrows(): Promise<number> {
+  if (!auraInftConfigured()) return 0;
+  const stuck = listSettlingEscrows();
+  let reconciled = 0;
+  for (const escrow of stuck) {
+    try {
+      let ownerNow: string;
+      try {
+        ownerNow = ((await auraInftRead().ownerOf(escrow.agentId)) as string).toLowerCase();
+      } catch {
+        continue; // unreadable chain -> leave it settling, retry on the next boot (never guess)
+      }
+      if (ownerNow === escrow.buyer.toLowerCase()) {
+        await settleAgentSale(escrow); // resume branch: no re-transfer, idempotent split, marks settled
+        reconciled++;
+      } else {
+        resetEscrowToCommitted(escrow.id, "boot-reconcile: transfer did not land - reset to committed (retryable)");
+        reconciled++;
+      }
+    } catch {
+      /* leave this escrow settling; the next boot retries. Never let one bad escrow abort the sweep. */
+    }
+  }
+  return reconciled;
 }

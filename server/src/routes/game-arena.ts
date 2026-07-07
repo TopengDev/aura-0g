@@ -15,6 +15,16 @@ import { arenaVoteRead, arenaVoteWrite, arenaVoteConfigured, ARENA_VOTE_ABI } fr
 import { createBattleFlow, prepareVote, buildCommitment, finalizeArgs, claimArgs, ArenaError, type BattleAgent, type CreateBattleDeps } from "../aura/game/arena.js";
 import { recomputeBattleTally, defaultTallyDeps } from "../aura/game/arena-tally.js";
 import { saveBattleArt, getBattleArt } from "../aura/game/battle-store.js";
+import { genGuardAcquire, genGuardRelease, genGuardRefund, rateLimit } from "../aura/ratelimit.js";
+
+/** H1 authz: addresses explicitly allowed to matchmake arena battles (comma-separated env), lowercased. Empty
+ *  by default -> matchmaking then requires owning one of the paired agents (the general owner-scoped gate). */
+function arenaOperatorAllowed(address: string): boolean {
+  const raw = (process.env.AURA_ARENA_OPERATORS || "").trim();
+  if (!raw) return false;
+  const set = new Set(raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean));
+  return set.has(address.toLowerCase());
+}
 
 function parseId(v: unknown): number | null {
   if (typeof v === "number" && Number.isInteger(v) && v >= 1) return v;
@@ -63,6 +73,7 @@ export async function gameArenaRoutes(app: FastifyInstance): Promise<void> {
       const agentB = parseId(req.body?.agentB);
       if (agentA === null || agentB === null) return reply.code(400).send({ error: "agentA and agentB (positive integers) required" });
       if (agentA === agentB) return reply.code(400).send({ error: "self-match: agentA and agentB must differ" });
+      const caller = req.user.address;
       let a: BattleAgent;
       let b: BattleAgent;
       try {
@@ -70,11 +81,38 @@ export async function gameArenaRoutes(app: FastifyInstance): Promise<void> {
       } catch {
         return reply.code(404).send({ error: "one or both agents not found on-chain" });
       }
+
+      // H1 (authz): battle-creation makes the SERVER sign a mainnet createBattle + run 2 SPONSOR-PAID TEE gens.
+      // Without this, ANY fresh SIWE login (owning nothing) could drain the sponsor wallet. Require the caller
+      // to be an allowlisted operator OR own at least one of the paired agents (the ownerOf-scoping the
+      // sale/summon/fuse routes already use). A non-owner, non-operator is rejected BEFORE any sponsor spend.
+      const deps = realCreateBattleDeps();
+      let ownsAPairedAgent = false;
+      try {
+        const [ownerA, ownerB] = await Promise.all([deps.ownerOf!(agentA), deps.ownerOf!(agentB)]);
+        const c = caller.toLowerCase();
+        ownsAPairedAgent = ownerA.toLowerCase() === c || ownerB.toLowerCase() === c;
+      } catch {
+        ownsAPairedAgent = false; // ownership unreadable -> unproven; only the operator allowlist gets through
+      }
+      if (!arenaOperatorAllowed(caller) && !ownsAPairedAgent) {
+        return reply.code(403).send({
+          error: "arena battle-creation is operator/owner-gated: own one of the paired agents, or be an allowlisted operator (AURA_ARENA_OPERATORS)",
+        });
+      }
+
+      // H1 (cost guard): the two portrait gens are sponsor-paid; gate behind the SAME per-user rate limit +
+      // global gen cost guard /generate uses so a burst cannot force repeated sponsor spend.
+      const rl = rateLimit(`arena:${caller}`, 5, 60_000);
+      if (!rl.ok) return reply.code(429).send({ error: "rate limited", retryInMs: rl.resetInMs });
+      const guard = genGuardAcquire(caller);
+      if (!guard.ok) return reply.code(503).send({ error: guard.reason ?? "generation temporarily unavailable" });
+
       try {
         const result = await createBattleFlow(a, b, {
           commitDur: parseId(req.body?.commitDur) ?? undefined,
           revealDur: parseId(req.body?.revealDur) ?? undefined,
-          deps: realCreateBattleDeps(),
+          deps,
         });
         // Journal the blind art + shared theme so a battle BROWSED later renders the pieces (not just the tally).
         // Best-effort: the battle is already on-chain, so a persist hiccup must NEVER fail the created battle.
@@ -85,8 +123,11 @@ export async function gameArenaRoutes(app: FastifyInstance): Promise<void> {
         }
         return result;
       } catch (e) {
+        genGuardRefund(caller); // a non-completing sponsor-paid gen must not burn the lifetime budget
         if (e instanceof ArenaError) return reply.code(e.status).send({ error: e.message });
         return reply.code(500).send({ error: `create-battle failed: ${String((e as any)?.message).slice(0, 200)}` });
+      } finally {
+        genGuardRelease(); // always return the concurrency slot (a successful battle keeps the lifetime slot)
       }
     },
   );

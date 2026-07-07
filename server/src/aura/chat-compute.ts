@@ -92,11 +92,25 @@ const DEFAULT_CHAT_TEEML_ALLOWLIST = [
   "0x4870CbC4D07d6Ac2EE5aA865588e5985FE77a4E9", // 0GM-1.0-35B-A3B (0G in-house)
 ];
 
-/** The active chat TeeML allowlist (lowercased). An env override REPLACES the seed (comma-separated addresses). */
+/**
+ * The active chat TeeML allowlist (lowercased). L4: the env override is now ADDITIVE - it UNIONS extra
+ * providers onto the vetted seed, which is an un-removable FLOOR. The OLD behavior REPLACED the seed, so a
+ * typo'd or empty AURA_CHAT_TEEML_ALLOWLIST silently dropped every vetted provider - fail-OPEN on the mainnet
+ * relay-proxy moat (the exact thing this allowlist exists to enforce). The three seed providers were each
+ * verified in-enclave, so keeping them always-selectable is safe; rotating one OUT is a deliberate code change,
+ * never an env accident. Refuses (throws, fail-loud) if the effective set is ever empty.
+ */
 export function chatTeemlAllowlist(): Set<string> {
+  const floor = DEFAULT_CHAT_TEEML_ALLOWLIST.map((a) => a.toLowerCase());
   const raw = (process.env.AURA_CHAT_TEEML_ALLOWLIST || "").trim();
-  const list = raw ? raw.split(",").map((s) => s.trim()).filter(Boolean) : DEFAULT_CHAT_TEEML_ALLOWLIST;
-  return new Set(list.map((a) => a.toLowerCase()));
+  const extra = raw ? raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean) : [];
+  const set = new Set<string>([...floor, ...extra]);
+  if (set.size === 0) {
+    // Unreachable while the hardcoded floor is non-empty; the guard makes the invariant explicit + fail-loud so
+    // a future refactor that empties the seed cannot silently disable the mainnet relay-proxy moat.
+    throw new Error("chat TeeML allowlist is empty - refusing to serve chat with no verified providers (L4 fail-closed)");
+  }
+  return set;
 }
 
 /**

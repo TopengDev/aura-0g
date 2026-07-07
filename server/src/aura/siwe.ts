@@ -41,6 +41,18 @@ function consumeNonce(nonce: string): boolean {
   return true;
 }
 
+/**
+ * L9: prune spent + expired SIWE nonces. issueNonce appends one row per /auth/nonce and nothing ever deletes
+ * them, so the table grows unbounded. A used nonce is single-use and done; a nonce older than the TTL can never
+ * verify again (consumeNonce rejects it). Both are safe to delete. Called on boot + hourly from app.ts.
+ * Returns the number of rows removed.
+ */
+export function pruneSiweNonces(): number {
+  const cutoff = Date.now() - NONCE_TTL_MS;
+  const r = db().prepare(`DELETE FROM siwe_nonces WHERE used=1 OR created_at < ?`).run(cutoff);
+  return r.changes;
+}
+
 export interface SiweVerifyResult {
   ok: boolean;
   address?: string;

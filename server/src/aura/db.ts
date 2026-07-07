@@ -219,6 +219,29 @@ function migrate(d: Database.Database): void {
     -- A single buyer->custodian funding tx may back AT MOST ONE escrow (double-spend guard). Partial unique
     -- index so many NULL (pre-payment) rows coexist while a set payment_tx is globally unique.
     CREATE UNIQUE INDEX IF NOT EXISTS idx_sale_escrow_paytx ON agent_sale_escrows(payment_tx) WHERE payment_tx IS NOT NULL;
+
+    -- H2 (escrow money-idempotency): a per-OUTBOUND-SEND sentinel for every escrow ETH disbursement (each
+    -- split leg + the refund). Persisted BEFORE the send so a retry after a post-mine tx.wait() rejection (0G
+    -- RPC flakiness) RECONCILES the recorded tx hash against the chain and NEVER re-sends a payout that already
+    -- landed - killing the double-pay. The nonce column pins the broadcast nonce so a re-send can only DEDUPE the
+    -- original (at most one tx per nonce ever confirms), never double-spend. leg is unique per escrow:
+    --   'split:<receiver>'  -> one aggregated payout to a distinct receiver (royalty creator / seller)
+    --   'refund'            -> the buyer refund
+    -- state: 'sending' (intent marked, broadcast in-flight/unconfirmed) -> 'broadcast' (tx hash recorded)
+    --   -> 'landed' (receipt.status==1 observed). A normal send-throw clears the row (clean retry); only a
+    --   true crash mid-broadcast leaves an orphan 'sending' row (reconciled fail-closed, never re-sent blind).
+    CREATE TABLE IF NOT EXISTS sale_payout_legs (
+      escrow_id   INTEGER NOT NULL,
+      leg         TEXT NOT NULL,                  -- 'split:<receiver>' | 'refund'
+      receiver    TEXT,                           -- lowercased payout recipient
+      wei         TEXT,                           -- decimal wei of this leg
+      nonce       INTEGER,                        -- the pinned broadcast nonce (dedupe on re-send)
+      tx_hash     TEXT,                           -- the broadcast tx hash (reconciled by chain read on retry)
+      state       TEXT NOT NULL,                  -- 'sending' | 'broadcast' | 'landed'
+      created_at  TEXT NOT NULL,
+      updated_at  TEXT NOT NULL,
+      PRIMARY KEY (escrow_id, leg)
+    );
   `);
 
   // ERC-7857 de-mock: per-owner sealed key + the envelope data-hash on agent_brains. Added via guarded
