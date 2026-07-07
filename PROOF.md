@@ -2,7 +2,7 @@
 
 **Jury evidence for AURA.** Every claim here re-derives from a live endpoint or an on-chain read. Each row links to a proof you can run yourself. If a claim could not be verified live, it is not on this page. Live page: [aura.topengdev.com/proof](https://aura.topengdev.com/proof).
 
-All values below were verified live on 2026-07-01 against the 0G Galileo testnet (chainId 16602) and 0G mainnet compute.
+All values below were verified live on 2026-07-07 against the 0G Aristotle **mainnet** economy (chainId 16661) and 0G **mainnet** chat compute. Image generation runs on 0G **testnet**, by design, the one seam called out plainly in the network split in §2.
 
 ---
 
@@ -14,7 +14,7 @@ AURA requires **both** `verifiability === "TeeML"` **and** the provider address 
 
 **Verify live:** [`GET /chat/models`](https://api-aura.topengdev.com/chat/models)
 
-The provider addresses below are 0G **mainnet** accounts, so they link to the mainnet explorer (`chainscan.0g.ai`). This is a different network from the app's Galileo testnet contracts further down, which is the whole point.
+The provider addresses below are 0G **mainnet** accounts, so they link to the mainnet explorer (`chainscan.0g.ai`), the same 0G mainnet the AURA economy contracts now run on (§2). The only seam that deliberately stays on 0G testnet is image generation, stated plainly there.
 
 | Model | Provider (0G mainnet) | `teeAttested` | `allowlisted` | `selectable` |
 |---|---|---|---|---|
@@ -50,18 +50,42 @@ Auras chat on 0G **mainnet** GLM-5.1 (served as GLM-5.1-FP8), and each reply car
 |---|---|---|---|
 | **Compute (TEE)** | Chat runs on 0G **mainnet** GLM-5.1 (attested per reply); image generation runs on 0G **testnet** (`qwen-image-edit-2511`), attestation committed on-chain at mint. | Per-reply hardware attestation, not a blanket trustless-AI claim. | [`/chat/health`](https://api-aura.topengdev.com/chat/health), [Relic #25](https://aura.topengdev.com/outputs/25) |
 | **Storage (0G)** | Every Relic image and sealed agent-brain is a 0G Storage content root, committed on-chain and finalized on 0G Storage. | Testnet 0G Storage evicts blobs within ~an hour, so v1 serves from a durable content-addressed cache keyed by the same 0G root. Full 0G persistence is a mainnet property. (Source: `server/src/routes/image.ts`.) | [0G Storage: finalized](https://indexer-storage-testnet-turbo.0g.ai/file/info/0x04a177d82e8e645ce01d6bf9a386465ea3d2f3607bcd2290aaaa13affdcfe616) |
-| **Chain (Galileo 16602)** | Five contracts deployed, all returning real bytecode on-chain. | Testnet. | [`GET /health`](https://api-aura.topengdev.com/health) |
-| **ERC-7857 sealed transfer** | Proven primitive on the `AuraINFT` contract: a transfer recovers a signed re-encryption proof; the brain is re-encrypted with a fresh key and ECIES-sealed to the buyer. Deployed and Foundry-tested in isolation on Galileo. | Live Auras trade as standard ERC-721 on AgentRegistry; Relics are ERC-721 + EIP-2981, not iNFTs. The sealed-key cutover is staged. The oracle is a trusted ECDSA signer, not a hardware-TEE enclave, the bar the field ships today. (Source: `server/src/aura/oracle.ts`.) | [AuraINFT on 0G Scan](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d) |
+| **Chain (0G mainnet 16661)** | The full economy deployed on 0G Aristotle mainnet, every address returning real bytecode on-chain. | Live on mainnet; `GET /health` reports chainId 16661. | [`GET /health`](https://api-aura.topengdev.com/health) |
+| **ERC-7857 sealed transfer** | Live on the `AuraINFT` iNFT: ownership moves only through `transfer()` with an oracle-signed re-encryption proof; the brain is re-encrypted with a fresh key and ECIES-sealed to the buyer, and raw `transferFrom`/`safeTransferFrom` revert. | Every Aura is now a real ERC-7857 iNFT on `AuraINFT` (the economy migrated on-chain at the mainnet cutover); Relics remain ERC-721 + EIP-2981, not iNFTs. The oracle is a trusted ECDSA signer, not a hardware-TEE enclave, the bar the field ships today. (Source: `server/src/aura/oracle.ts`.) | [AuraINFT on 0G Scan](https://chainscan.0g.ai/address/0xEEb18eC6a7Bbe4d356862D7710C1259dAcd7c50b) |
 
-### Contracts (Galileo testnet, chainId 16602)
+### Contracts (0G Aristotle mainnet, chainId 16661)
 
 | Contract | Address | Verified |
 |---|---|---|
-| AgentRegistry | [`0xb5960cc08caa5195095cfb8aa270f122be09ba0a`](https://chainscan-galileo.0g.ai/address/0xb5960cc08caa5195095cfb8aa270f122be09ba0a) | `/health` + bytecode |
-| OutputNFT | [`0xEecED1e6965f00a5f7cA459631370c886FAEFd3b`](https://chainscan-galileo.0g.ai/address/0xEecED1e6965f00a5f7cA459631370c886FAEFd3b) | `/health` + bytecode |
-| Marketplace | [`0x815115Eb39987d3fAdb3b373f89fa0096433f228`](https://chainscan-galileo.0g.ai/address/0x815115Eb39987d3fAdb3b373f89fa0096433f228) | `/health` + bytecode |
-| SummonEscrow | [`0xa5CeFBc097d84beE09b12fc1569B6CcA56992838`](https://chainscan-galileo.0g.ai/address/0xa5CeFBc097d84beE09b12fc1569B6CcA56992838) | `deployed-v2.json` + bytecode |
-| AuraINFT (ERC-7857, isolated deploy) | [`0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d`](https://chainscan-galileo.0g.ai/address/0x19738D5C8867EeAE9910dAbdc21Bf59f4bed843d) | bytecode + on-chain `name()` = "AURA Creative Agent" |
+| AuraINFT (ERC-7857 iNFT) | [`0xEEb18eC6a7Bbe4d356862D7710C1259dAcd7c50b`](https://chainscan.0g.ai/address/0xEEb18eC6a7Bbe4d356862D7710C1259dAcd7c50b) | bytecode + on-chain `name()` = "AURA Creative Agent" |
+| OutputNFT | [`0xF31fD2235a5db76020b2a6F1CBC06e13E25E4805`](https://chainscan.0g.ai/address/0xF31fD2235a5db76020b2a6F1CBC06e13E25E4805) | `/health` + bytecode |
+| AuraMarketplace | [`0x2ad71120b1Da7d187883826980b5244F1c365Dba`](https://chainscan.0g.ai/address/0x2ad71120b1Da7d187883826980b5244F1c365Dba) | `/health` + bytecode |
+| SummonEscrow | [`0x8F5978Fb86A9fF20Fe30B561F6d1a1AE04D1DC1A`](https://chainscan.0g.ai/address/0x8F5978Fb86A9fF20Fe30B561F6d1a1AE04D1DC1A) | `deployed-v2.json` + bytecode |
+| AuraFusion | [`0x0D8b6ef3427573d673d7d1DFf8199aE00af317e9`](https://chainscan.0g.ai/address/0x0D8b6ef3427573d673d7d1DFf8199aE00af317e9) | `deployed-v2.json` + bytecode |
+| ArenaVote | [`0x7557C716C7F1b7179506609241Fb2842c17fB92f`](https://chainscan.0g.ai/address/0x7557C716C7F1b7179506609241Fb2842c17fB92f) | `deployed-v2.json` + bytecode |
+| ArenaReputation | [`0x12f094DFa0eFB1C132E1fDFFa95262a3a8ae1695`](https://chainscan.0g.ai/address/0x12f094DFa0eFB1C132E1fDFFa95262a3a8ae1695) | `deployed-v2.json` + bytecode |
+| PersonhoodGate | [`0x54E8496EDDc6eeD590d5e1c69C8c6949a42f90e5`](https://chainscan.0g.ai/address/0x54E8496EDDc6eeD590d5e1c69C8c6949a42f90e5) | `deployed-v2.json` + bytecode |
+
+_AgentRegistry is retired (address `0x0`): agents are no longer plain ERC-721, they are the ERC-7857 `AuraINFT` above._
+
+### Open the hood: verify our ERC-7857 yourself
+
+Do not take "ERC-7857" on faith, ours or anyone's. Run three reads against `AuraINFT` (`0xEEb18e…c50b`) on 0G mainnet:
+
+1. **`supportsInterface` returns the real OpenZeppelin interface ids, not a fabricated one.** It resolves to the genuine ERC-165 / ERC-721 / ERC-2981 ids computed by OpenZeppelin (`contracts/src/AuraINFT.sol:336`) and returns **false** for a made-up ERC-7857 vanity id. There is no hardcoded `0x7857…` badge standing in for the mechanism.
+2. **Raw `transferFrom` and `safeTransferFrom` REVERT.** Both are overridden to revert with `use transfer(): ERC-7857 secure transfer required` (`AuraINFT.sol:327` and `:331`), so a brain can never move to a new owner un-re-keyed.
+3. **Ownership moves ONLY through the oracle-signed re-encryption-proof path, `transfer()`.** It recovers an EIP-191 oracle signature over the transfer tuple and reverts unless it recovers to the oracle (`AuraINFT.sol:190`), after requiring the sealed key and data hash to actually rotate (`:177`, `:178`).
+
+```sh
+INFT=0xEEb18eC6a7Bbe4d356862D7710C1259dAcd7c50b
+RPC=https://evmrpc.0g.ai
+cast call $INFT 'supportsInterface(bytes4)(bool)' 0x80ac58cd --rpc-url $RPC   # ERC-721  -> true
+cast call $INFT 'supportsInterface(bytes4)(bool)' 0x2a55205a --rpc-url $RPC   # ERC-2981 -> true
+cast call $INFT 'supportsInterface(bytes4)(bool)' 0x7857a001 --rpc-url $RPC   # made-up 7857 id -> false
+cast call $INFT 'transferFrom(address,address,uint256)' <from> <to> 1 --rpc-url $RPC   # reverts
+```
+
+Then run the same three checks on any project claiming ERC-7857. The mechanism either enforces re-encryption on transfer, or it does not.
 
 ---
 
@@ -89,7 +113,7 @@ Every Relic carries an EIP-2981 creator royalty. The receiver is not a static ad
 ```sh
 curl -s https://api-aura.topengdev.com/chat/models   # the TeeML allowlist moat, live
 curl -s https://api-aura.topengdev.com/chat/health   # mainnet GLM-5.1, attested
-curl -s https://api-aura.topengdev.com/health        # chainId 16602 + contracts
+curl -s https://api-aura.topengdev.com/health        # chainId 16661 + contracts
 curl -s https://api-aura.topengdev.com/royalty/25    # EIP-2981 resolving to the agent owner
 ```
 

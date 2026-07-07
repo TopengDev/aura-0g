@@ -648,6 +648,39 @@ export default async function ProofPage() {
           </Panel>
         </div>
 
+        {/* ── Open the hood: a GENERAL ERC-7857 self-verify invite (names no rival) ── */}
+        <Panel className="mt-8 overflow-hidden p-7 sm:p-10" style={{ background: "color-mix(in oklab, var(--color-accent) 5%, var(--color-paper))", borderColor: "color-mix(in oklab, var(--color-accent) 24%, var(--color-border))" }}>
+          <div className="flex items-center gap-3 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-accent)" }}>
+            <span>Open the hood</span>
+            <span className="prov-rule h-px flex-1" style={{ opacity: 0.4 }} />
+            <span className="font-mono-x tabular-nums" style={{ color: "var(--color-ink-3)" }}>7857</span>
+          </div>
+          <h3 className="font-display mt-4" style={{ fontSize: "clamp(22px, 3.4vw, 38px)", lineHeight: 1.03, letterSpacing: "-0.015em" }}>
+            Verify our ERC-7857 yourself.
+          </h3>
+          <p className="mt-5 max-w-[74ch] text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
+            Do not take &quot;ERC-7857&quot; on faith, ours or anyone&apos;s. Run three reads against AuraINFT on 0G
+            mainnet: <span className="font-mono-x">supportsInterface</span> returns the real OpenZeppelin interface
+            ids (not a fabricated one), raw <span className="font-mono-x">transferFrom</span> and{" "}
+            <span className="font-mono-x">safeTransferFrom</span> REVERT, and ownership only moves through the
+            oracle-signed re-encryption-proof path (<span className="font-mono-x">transfer()</span>). Then run the
+            same three checks on any project claiming ERC-7857. The mechanism either enforces re-encryption on
+            transfer, or it does not.
+          </p>
+          <div className="mt-6 space-y-2.5">
+            <CopyCommand cmd={`cast call ${PROOF_AURA_INFT} 'supportsInterface(bytes4)(bool)' 0x80ac58cd --rpc-url ${RPC}`} note="ERC-721 id -> true (a real OZ id, not a hardcoded 0x7857 vanity id)" />
+            <CopyCommand cmd={`cast call ${PROOF_AURA_INFT} 'supportsInterface(bytes4)(bool)' 0x7857a001 --rpc-url ${RPC}`} note="a made-up ERC-7857 id -> false (we do not fabricate one)" />
+            <CopyCommand cmd={`cast call ${PROOF_AURA_INFT} 'transferFrom(address,address,uint256)' <from> <to> 1 --rpc-url ${RPC}`} note="raw transfer -> reverts: use transfer(), the secure ERC-7857 path" />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-2">
+            <SrcLink href={`${GH}/contracts/src/AuraINFT.sol#L336`}>supportsInterface :336</SrcLink>
+            <SrcLink href={`${GH}/contracts/src/AuraINFT.sol#L327`}>transferFrom reverts :327</SrcLink>
+            <SrcLink href={`${GH}/contracts/src/AuraINFT.sol#L331`}>safeTransferFrom reverts :331</SrcLink>
+            <SrcLink href={`${GH}/contracts/src/AuraINFT.sol#L190`}>oracle-proof transfer() :190</SrcLink>
+            <SrcLink href={`${EXPLORER}/address/${PROOF_AURA_INFT}`}>AuraINFT on 0G Scan</SrcLink>
+          </div>
+        </Panel>
+
         {/* ── Royalty loop ───────────────────────────────────────────────── */}
         <SectionHead index="03" kicker="The royalty loop" title="Royalty that follows the work." />
         <div className="mt-10 grid gap-4 lg:grid-cols-[1.3fr_1fr]">
