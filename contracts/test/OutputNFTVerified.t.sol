@@ -7,9 +7,13 @@ pragma solidity ^0.8.28;
 // z-image-turbo envelope captured live 2026-07-05 (signer 0x592056..), proving the contract recovers 0G's
 // genuine enclave signature - not a synthetic key.
 //
-// NOTE: _authSig() calls outNft.authDigest() (a real contract call), so under vm.expectRevert it must be
-// precomputed into a local BEFORE the expectRevert (else expectRevert binds to the authDigest call). _teeSig()
-// only uses the vm.sign cheatcode (excluded from expectRevert), so it is safe inline.
+// NOTE: _authSig()/_directAuthSig() call a real contract view (verifiedAuthDigest()/authDigest()), so under
+// vm.expectRevert they must be precomputed into a local BEFORE the expectRevert (else expectRevert binds to
+// that view call). _teeSig() only uses the vm.sign cheatcode (excluded from expectRevert), so it is safe inline.
+//
+// L2 fix wired here: the verified path (mintOutputVerified) uses a DISTINCT EIP-712 type (VerifiedMintAuth) +
+// nonce namespace, so _authSig() below signs verifiedAuthDigest(). _directAuthSig() signs the MintAuth digest
+// for the permissionless mintOutput fallback + the cross-path replay tests.
 
 import {Test} from "forge-std/Test.sol";
 import {AgentRegistry} from "../src/AgentRegistry.sol";
@@ -52,7 +56,16 @@ contract OutputNFTVerifiedTest is Test {
     }
 
     // ---- helpers ----
+    // VerifiedMintAuth signature (the verified path's DISTINCT EIP-712 type). Every mintOutputVerified test uses
+    // this; a sig it produces can NOT be redeemed via mintOutput (proven by the cross-path tests below).
     function _authSig(bytes32 teeAttestation, bytes32 nonce) internal view returns (bytes memory) {
+        bytes32 digest = outNft.verifiedAuthDigest(to, agentId, IMAGE_ROOT, PROV, teeAttestation, SEED, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorPk, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    // MintAuth signature (the permissionless mintOutput path's type). Used by the fallback + cross-path tests.
+    function _directAuthSig(bytes32 teeAttestation, bytes32 nonce) internal view returns (bytes memory) {
         bytes32 digest = outNft.authDigest(to, agentId, IMAGE_ROOT, PROV, teeAttestation, SEED, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorPk, digest);
         return abi.encodePacked(r, s, v);
@@ -163,8 +176,8 @@ contract OutputNFTVerifiedTest is Test {
         string memory text = _text(keccak256("req"), keccak256("img"));
         bytes32 teeAtt = keccak256(bytes(text));
         bytes32 nonce = keccak256("n-badauth");
-        bytes32 digest = outNft.authDigest(to, agentId, IMAGE_ROOT, PROV, teeAtt, SEED, nonce);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(forgerPk, digest); // MintAuth signed by a forger
+        bytes32 digest = outNft.verifiedAuthDigest(to, agentId, IMAGE_ROOT, PROV, teeAtt, SEED, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(forgerPk, digest); // VerifiedMintAuth signed by a forger
         bytes memory badAuth = abi.encodePacked(r, s, v);
         bytes memory tee = _teeSig(teePk, text);
         vm.expectRevert(bytes("bad attestation"));
@@ -211,9 +224,54 @@ contract OutputNFTVerifiedTest is Test {
     function test_MintOutput_FallbackStillWorks() public {
         bytes32 teeAtt = keccak256("tee");
         bytes32 nonce = keccak256("n-fallback");
-        bytes memory sig = _authSig(teeAtt, nonce);
+        bytes memory sig = _directAuthSig(teeAtt, nonce); // MintAuth (the permissionless direct-mint type)
         uint256 id = outNft.mintOutput(to, agentId, IMAGE_ROOT, PROV, teeAtt, SEED, nonce, sig);
         assertEq(outNft.ownerOf(id), to, "the untouched mintOutput fallback still mints");
         assertEq(outNft.dataHashOf(id), bytes32(0), "fallback mint binds no dataHash");
+    }
+
+    // ============================ L2: cross-path replay is CLOSED ============================
+    // The verified path (mintOutputVerified) and the permissionless mintOutput now sign DISTINCT EIP-712 types
+    // (VerifiedMintAuth vs MintAuth) over DISTINCT nonce namespaces. A front-runner can no longer redeem a
+    // verified-mint attestation via the cheaper mintOutput path (which would strip the on-chain TEE dataHash +
+    // provenance). Before the fix both paths shared MINTAUTH_TYPEHASH + usedNonce, so this replay SUCCEEDED.
+    function test_L2_VerifiedMintAuth_CannotBeRedeemedViaMintOutput_Reverts() public {
+        _pinTee();
+        string memory text = _text(keccak256("req"), keccak256("img"));
+        bytes32 teeAtt = keccak256(bytes(text));
+        bytes32 nonce = keccak256("n-crosspath-1");
+        // the attestor signs a VerifiedMintAuth (intended for mintOutputVerified) - precompute before expectRevert.
+        bytes memory verifiedSig = _authSig(teeAtt, nonce);
+        // a front-runner tries to redeem it via the permissionless mintOutput (MintAuth digest) -> "bad attestation".
+        vm.expectRevert(bytes("bad attestation"));
+        outNft.mintOutput(to, agentId, IMAGE_ROOT, PROV, teeAtt, SEED, nonce, verifiedSig);
+    }
+
+    function test_L2_MintAuth_CannotBeRedeemedViaVerified_Reverts() public {
+        _pinTee();
+        string memory text = _text(keccak256("req"), keccak256("img"));
+        bytes32 teeAtt = keccak256(bytes(text));
+        bytes32 nonce = keccak256("n-crosspath-2");
+        // a MintAuth signature (for the direct path) - precompute the real-view calls before expectRevert.
+        bytes memory directSig = _directAuthSig(teeAtt, nonce);
+        bytes memory tee = _teeSig(teePk, text);
+        // cannot be redeemed via mintOutputVerified (VerifiedMintAuth digest) -> "bad attestation".
+        vm.expectRevert(bytes("bad attestation"));
+        outNft.mintOutputVerified(to, agentId, IMAGE_ROOT, PROV, teeAtt, SEED, nonce, directSig, text, tee);
+    }
+
+    // The two nonce namespaces are INDEPENDENT: consuming usedNonce on mintOutput does not block the same nonce
+    // VALUE on the verified path (and vice versa), so the fix introduces no cross-path griefing of its own.
+    function test_L2_NonceNamespaces_AreIndependent() public {
+        // gate OFF here (teeSigner unset) so the verified mint's envelope args are ignored.
+        bytes32 teeAtt = keccak256("tee");
+        bytes32 nonce = keccak256("n-shared");
+        uint256 id1 = outNft.mintOutput(to, agentId, IMAGE_ROOT, PROV, teeAtt, SEED, nonce, _directAuthSig(teeAtt, nonce));
+        uint256 id2 = outNft.mintOutputVerified(
+            to, agentId, IMAGE_ROOT, PROV, teeAtt, SEED, nonce, _authSig(teeAtt, nonce), "not-an-envelope", hex"00"
+        );
+        assertTrue(id1 != id2, "distinct tokens");
+        assertEq(outNft.ownerOf(id1), to, "mintOutput consumed usedNonce[nonce]");
+        assertEq(outNft.ownerOf(id2), to, "same nonce value still valid on the verified path (separate namespace)");
     }
 }

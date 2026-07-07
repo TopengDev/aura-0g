@@ -354,11 +354,15 @@ contract AuraFusion is Ownable2Step, ReentrancyGuardTransient {
         );
     }
 
-    /// @dev The block-hash source for the un-grindable fusion seed. Production returns the real EVM
-    ///      `blockhash(blockNumber)` (available for the last 256 blocks). It is `virtual` ONLY so a test can
-    ///      inject a deterministic historical blockhash - Foundry's bare (non-fork) EVM returns 0 for
-    ///      `blockhash` of a rolled-over block, which would make executeFusion untestable otherwise. The
-    ///      production behavior is unchanged.
+    /// @dev The block-hash source for the fusion seed. Production returns the real EVM `blockhash(blockNumber)`
+    ///      (available for the last 256 blocks). The seed is un-grindable BY THE FUSER/OPERATOR - they commit to a
+    ///      FUTURE target block at requestFusion, before its hash exists, so neither the fuser nor the operator can
+    ///      pick a favorable child. The residual influence is a BLOCK PRODUCER's: the proposer of the target block
+    ///      retains bounded, single-block influence (it can withhold/reorg that one block to reroll once), the
+    ///      standard future-blockhash trust boundary - not a grind. It is `virtual` ONLY so a test can inject a
+    ///      deterministic historical blockhash - Foundry's bare (non-fork) EVM returns 0 for `blockhash` of a
+    ///      rolled-over block, which would make executeFusion untestable otherwise. The production behavior is
+    ///      unchanged.
     function _blockhashOf(uint256 blockNumber) internal view virtual returns (bytes32) {
         return blockhash(blockNumber);
     }

@@ -27,8 +27,8 @@ export function CtaClose() {
             Make art worth owning.
           </h2>
           <p className="mx-auto mt-6 max-w-[52ch] text-[16px] leading-relaxed" style={{ color: "color-mix(in oklab, var(--color-cream) 78%, transparent)" }}>
-            Generate for free with any Aura once you sign in. When a Relic is worth keeping, mint it with
-            provenance and royalties on <ZeroG /> {CHAIN_SHORT}.
+            Sign in once and generate with any Aura; the platform sponsors it. When a Relic is worth keeping,
+            mint it with provenance and royalties on <ZeroG /> {CHAIN_SHORT}.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">

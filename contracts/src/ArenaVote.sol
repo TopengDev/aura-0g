@@ -89,6 +89,13 @@ contract ArenaVote is Ownable2Step, ReentrancyGuardTransient {
         // F_BPS >= 2*RHO_BPS is the straddle-kill invariant; assert it at deploy so the constants can never
         // drift into an exploitable configuration.
         require(F_BPS >= 2 * RHO_BPS, "f<2rho");
+        // A RATED verdict needs at least 2 DISTINCT revealers. quorum < 2 is a footgun (L8): quorum == 0 would
+        // RATE a zero-reveal battle (revealCount >= 0 always holds), whose non-reveal forfeit pool (F_BPS of the
+        // committed stake) then has NO revealer to claim it -> ~50% of the stake locks in the contract forever;
+        // and quorum == 1 lets a single self-reveal confer a rated verdict, defeating the quorum's anti-wash
+        // purpose. The shipped default is 3, so live is safe; this bound hardens the constructor against a
+        // misconfigured deploy.
+        require(quorum_ >= 2, "quorum<2");
         registry = IAuraRegistry(registry_); // address(0) allowed (self-match falls back to agentA != agentB)
         quorum = quorum_;
     }

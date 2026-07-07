@@ -130,8 +130,15 @@ contract DeployCutover is Script {
             teePinned = true;
         }
 
-        // 6: allowlist the trade collections on the fresh marketplace (Relic trades route royalty via AuraINFT).
-        mkt.setAllowedCollection(address(inft), true);
+        // 6: allowlist the RELIC collection (OutputNFT) on the fresh marketplace. Relic trades read EIP-2981 live
+        //    so the royalty pays the creating agent's CURRENT owner (via AuraINFT.ownerOf).
+        //    AGENTS (AuraINFT) are deliberately NOT allowlisted going forward: marketplace buy() settles with a raw
+        //    safeTransferFrom, which AuraINFT REVERTS (spec-strict ERC-7857) - agent resale is Flow B, the
+        //    server-custodian secure transfer (AuraINFT.transfer() + oracle re-encryption proof), never a generic
+        //    buy() (ERC-7857 cannot use one). NOTE: the LIVE marketplace still carries AuraINFT allowlisted from
+        //    the original cutover; that is a HARMLESS no-op (a buy() on an agent reverts atomically at the transfer
+        //    step - no fund loss), so it is left as-is on-chain (no tx). See the AuraINFT-buy-reverts test in
+        //    contracts/test/AuraMarketplace.t.sol.
         mkt.setAllowedCollection(address(outNft), true);
 
         // 7: MIGRATE the catalog agents onto AuraINFT (id-preserving, income-follows-owner), then price the

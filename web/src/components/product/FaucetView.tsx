@@ -158,7 +158,7 @@ const STEPS: { title: string; body: React.ReactNode }[] = [
   { title: "Copy your wallet address", body: "The faucet sends to a 0G Galileo address. Your connected address is shown on the left." },
   { title: "Open the 0G faucet", body: <>Head to faucet.0g.ai, paste your address, and clear the captcha. It is the official <ZeroG /> Galileo testnet faucet.</> },
   { title: "Wait for the drip", body: "It lands in a few seconds, about 0.5 0G. Your balance on the left updates on the next refresh." },
-  { title: "Come back and build", body: <>With gas in hand you can mint a generation, list it, or buy a Relic. Generation itself stays free.</> },
+  { title: "Come back and build", body: <>With gas in hand you can mint a generation, list it, or buy a Relic. Generation itself stays sponsored.</> },
 ];
 
 const NOTES: { id: string; body: React.ReactNode }[] = [
@@ -168,7 +168,7 @@ const NOTES: { id: string; body: React.ReactNode }[] = [
 ];
 
 const GAS_USES: { label: string; body: string }[] = [
-  { label: "Mint a Relic", body: "After a free generation, minting the Relic as an on-chain NFT is a transaction you sign." },
+  { label: "Mint a Relic", body: "After a sponsored generation, minting the Relic as an on-chain NFT is a transaction you sign." },
   { label: "List or buy", body: "Listing a Relic for sale, updating a price, or buying one each settle on-chain and cost gas." },
   { label: "Create an Aura", body: "Minting your own creative Aura (an iNFT with its own royalty stream) is user-signed too." },
 ];

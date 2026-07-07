@@ -9,7 +9,8 @@ pragma solidity ^0.8.28;
 //   - OutputNFT.registry == AuraINFT, and a Relic's royalty routes to the migrated agent's CURRENT owner;
 //   - a sealed re-key transfer moves that royalty stream to the new owner;
 //   - SummonEscrow prices via AuraINFT.ownerOf;
-//   - the Option A TEE signer is pinned; the marketplace allowlists AuraINFT + OutputNFT;
+//   - the Option A TEE signer is pinned; the marketplace allowlists the RELIC collection (OutputNFT) ONLY -
+//     agents (AuraINFT) are NOT marketplace-tradable (buy() would revert on the ERC-7857 transfer);
 //   - raw ERC721 transfers on AuraINFT REVERT (spec-strict: agents can't move without a re-key).
 import {Test} from "forge-std/Test.sol";
 import {AgentRegistry} from "../src/AgentRegistry.sol";
@@ -77,7 +78,8 @@ contract DeployCutoverTest is Test {
         // teeSigner pin is attestor-gated -> prank as attestor.
         vm.prank(attestor);
         outNft.setTeeSigner(OPTION_A_TEE);
-        mkt.setAllowedCollection(address(inft), true);
+        // Relics ONLY (mirrors the corrected DeployCutover.s.sol): agents (AuraINFT) are not allowlisted going
+        // forward - a marketplace buy() on an agent would revert on AuraINFT's spec-strict ERC-7857 transfer.
         mkt.setAllowedCollection(address(outNft), true);
 
         // ── game layer, ALL bound to the SAME registry = AuraINFT (mirrors DeployCutover.s.sol step 4b) ──
@@ -105,6 +107,14 @@ contract DeployCutoverTest is Test {
     // ── helpers ──
     function _authSig(address to, uint256 agentId, bytes32 teeAtt, bytes32 nonce) internal view returns (bytes memory) {
         bytes32 digest = outNft.authDigest(to, agentId, "0g://img", keccak256("prov"), teeAtt, 42, nonce);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorPk, digest);
+        return abi.encodePacked(r, s, v);
+    }
+
+    // VerifiedMintAuth signature (the DISTINCT verified-path EIP-712 type from the L2 fix). Used by the
+    // verified-mint coherence test; _authSig (MintAuth) stays the direct-mint / _mintRelic signer.
+    function _verifiedAuthSig(address to, uint256 agentId, bytes32 teeAtt, bytes32 nonce) internal view returns (bytes memory) {
+        bytes32 digest = outNft.verifiedAuthDigest(to, agentId, "0g://img", keccak256("prov"), teeAtt, 42, nonce);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(attestorPk, digest);
         return abi.encodePacked(r, s, v);
     }
@@ -204,11 +214,14 @@ contract DeployCutoverTest is Test {
         assertEq(escrow.summonPrice(3), 0.02 ether, "the real owner (alice) prices agent#3 via AuraINFT ownerOf");
     }
 
-    // 5: Option A TEE signer pinned + marketplace allowlists both AuraINFT + OutputNFT.
-    function test_Coherence_TeeSignerAndAllowlist() public view {
+    // 5: Option A TEE signer pinned + marketplace allowlists the RELIC collection (OutputNFT) ONLY. Agents
+    //    (AuraINFT) are NOT allowlisted going forward: agent resale is Flow B (the ERC-7857 secure transfer),
+    //    never a generic buy(). (The LIVE marketplace still carries AuraINFT from the original cutover - a
+    //    harmless no-op, since a buy() on an agent reverts atomically; see AuraMarketplace.t.sol.)
+    function test_Coherence_TeeSignerAndRelicOnlyAllowlist() public view {
         assertEq(outNft.teeSigner(), OPTION_A_TEE, "Option A testnet TEE signer pinned on OutputNFT");
-        assertTrue(mkt.allowedCollection(address(inft)), "marketplace allowlists AuraINFT");
-        assertTrue(mkt.allowedCollection(address(outNft)), "marketplace allowlists OutputNFT");
+        assertTrue(mkt.allowedCollection(address(outNft)), "marketplace allowlists the Relic collection (OutputNFT)");
+        assertFalse(mkt.allowedCollection(address(inft)), "agents (AuraINFT) are NOT marketplace-tradable (Relics-only)");
     }
 
     // 6: agents on AuraINFT are spec-strict iNFTs - raw ERC721 transfer REVERTS (must go through re-key).
@@ -231,7 +244,7 @@ contract DeployCutoverTest is Test {
         bytes32 teeAtt = keccak256(bytes(text)); // backend binds teeAttestation = keccak(teeText)
         bytes32 nonce = keccak256("verified-1");
         uint256 relic = outNft.mintOutputVerified(
-            collector, 2, "0g://img", keccak256("prov"), teeAtt, 42, nonce, _authSig(collector, 2, teeAtt, nonce), text, _teeSig(teePk, text)
+            collector, 2, "0g://img", keccak256("prov"), teeAtt, 42, nonce, _verifiedAuthSig(collector, 2, teeAtt, nonce), text, _teeSig(teePk, text)
         );
         assertEq(outNft.ownerOf(relic), collector, "verified Relic minted");
         assertEq(outNft.dataHashOf(relic), imgH, "dataHash bound to sha256(image) 0G attested");

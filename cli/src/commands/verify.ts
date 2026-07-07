@@ -1,8 +1,11 @@
 // THE money command. Fetches the on-chain economic proof for a Relic, then LOCALLY recomputes the
-// provable-pull seed, rarity, and subject from the PUBLIC on-chain preimage - never trusting the API's
-// verdict. The recompute mirrors server/src/aura/gacha.ts byte-for-byte (it is a verbatim copy), so a
-// juror running `aura verify <id>` re-derives the result independently. This is the "rig-evident,
-// recompute it yourself" story made scriptable + trustless from any terminal.
+// provable-pull seed, rarity, and subject from the PUBLIC on-chain preimage the API relays - so it never
+// trusts the API's rarity VERDICT (it re-derives it). The recompute mirrors server/src/aura/gacha.ts
+// byte-for-byte (it is a verbatim copy), so a juror running `aura verify <id>` re-derives the result
+// independently. Honest trust boundary: the recompute is KEYLESS, but the on-chain SEED + block hash are
+// currently RELAYED by the API, not read on-chain by this CLI. A fully trustless anchor reads onChainSeed
+// (OutputNFT.provenanceOf) + the block hash (the Summoned event) directly from a 0G RPC - a clean future
+// `--rpc` flag; v1 recomputes from the relayed preimage, the SAME model the web verifier uses.
 import { api } from "../api.ts";
 import { c, kv, heading, rarityBadge, check, ok, bad } from "../ui.ts";
 import { pullSeedRoot, mapSubject, deriveRarity, rarityRoll, isProvablePullSeed } from "../gacha.ts";
@@ -78,7 +81,7 @@ export async function cmdVerify(args: string[]): Promise<void> {
   process.stdout.write(heading(`Verify Relic ${c.gray(`#${id}`)}   ${rarityBadge(localRarity)}`));
 
   // The trustless verdict, computed by THIS binary.
-  process.stdout.write(c.bold("  Recomputed locally by this CLI ") + c.gray("(trustless - re-derived from on-chain preimage)") + "\n");
+  process.stdout.write(c.bold("  Recomputed locally by this CLI ") + c.gray("(keyless recompute - re-derived from the on-chain preimage the API relays)") + "\n");
   process.stdout.write(
     "  " +
       check(seedMatches, `seed recomputes from public preimage  ${c.dim("(seedRoot == on-chain seed)")}`) +
@@ -108,6 +111,16 @@ export async function cmdVerify(args: string[]): Promise<void> {
       ["onChainSeed", c.dim(onChainSeed.toString())],
       ["recomputed", (seedMatches ? c.green : c.red)(localSeedRoot.toString())],
     ]) + "\n",
+  );
+
+  // Honest trust boundary: the recompute above is keyless, but the anchor (onChainSeed + block hash) is
+  // relayed by the API, not read on-chain by this CLI. Say so, and point at the fully trustless path.
+  process.stdout.write(
+    "\n  " +
+      c.dim("Trust boundary: the recompute is keyless; the on-chain seed + block hash are RELAYED by the API.") +
+      "\n  " +
+      c.dim("A fully trustless check reads onChainSeed (OutputNFT.provenanceOf) + block hash (Summoned event) via a 0G RPC.") +
+      "\n",
   );
 
   // Economic proof (the fee actually settled to the agent owner on-chain).

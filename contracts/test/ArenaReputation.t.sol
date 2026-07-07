@@ -117,6 +117,18 @@ contract ArenaReputationTest is Test {
         vm.stopPrank();
     }
 
+    // I1: an anchored season root is IMMUTABLE - strict `>` (not `>=`) means the anchorer can only append the
+    //     NEXT forward season, never overwrite the CURRENT one (closes the overwrite-current-season footgun).
+    function test_anchor_cannotOverwriteCurrentSeason() public {
+        vm.startPrank(anchorer);
+        rep.anchorSeason(1, _root());
+        bytes32 rigged = _hashPair(_leaf(AG0, 9999, RD0), _leaf(AG1, R1, RD1)); // a re-rigged ladder for the SAME season
+        vm.expectRevert("stale season");
+        rep.anchorSeason(1, rigged); // same season -> cannot overwrite the already-anchored root
+        vm.stopPrank();
+        assertEq(rep.seasonRoot(1), _root(), "the original season-1 root is unchanged (no overwrite)");
+    }
+
     function test_currentHolder_followsTheINFT() public {
         // reputation is agent-keyed; its economic holder is the CURRENT owner of the agent
         assertEq(rep.currentHolderOf(AG0), alice, "holder = current agent owner");

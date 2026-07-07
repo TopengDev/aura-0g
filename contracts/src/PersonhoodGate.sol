@@ -13,8 +13,14 @@ import {IPersonhoodGate} from "./IPersonhoodGate.sol";
 ///           - Floor 1 HOLD-AN-AURA:   aura.balanceOf(who) >= 1  (the AuraINFT is an ERC-721).
 ///           - Floor 2 CONVICTION:     convictionOf(who) >= minConviction (a refundable ETH stake).
 ///         isPerson() = holdsAura || meetsConviction. worldIdVerified() is always false until the World-ID root
-///         bridge ships (post-cup). This is a STUB by scope (World-ID), not a fake: the two 0G-native floors
-///         are genuine, keyless, and immediately usable as the Arena's anti-sybil floor.
+///         bridge ships (post-cup). This is a STUB by scope (World-ID), not a fake: the two 0G-native floors are
+///         genuine, keyless, and immediately usable as the Arena's SKIN-IN-ECOSYSTEM floor. Framing note: on its
+///         own this is NOT a hard anti-sybil guarantee - both floors are BUYABLE with capital (hold an Aura, or
+///         stake ETH), so it raises the COST of an identity rather than proving one human. This phase the gate is
+///         UNENFORCED in the Arena hot path (isPerson is available to the backend but not required to vote); the
+///         Arena's real sybil defense rests on ArenaVote's LINEAR stake-weight (power == capital, split-neutral),
+///         with sqrt weighting gated ABOVE this floor only post-cup. World-ID (the actual personhood proof) is
+///         the post-cup convenience tier.
 contract PersonhoodGate is IPersonhoodGate, Ownable2Step, ReentrancyGuardTransient {
     using Address for address payable;
 
@@ -49,6 +55,9 @@ contract PersonhoodGate is IPersonhoodGate, Ownable2Step, ReentrancyGuardTransie
     }
 
     /// @inheritdoc IPersonhoodGate
+    /// @dev SKIN-IN-ECOSYSTEM floor, not a personhood proof: holdsAura and meetsConviction are both buyable with
+    ///      capital, so this raises an identity's COST rather than proving one human. UNENFORCED in the Arena hot
+    ///      path this phase; the live sybil defense is ArenaVote's linear stake-weight. World-ID is post-cup.
     function isPerson(address who) external view returns (bool) {
         return holdsAura(who) || meetsConviction(who);
     }

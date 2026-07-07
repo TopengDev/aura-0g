@@ -58,6 +58,11 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
     ///         namespace from `usedNonce` so the two mint paths can never cross-consume a nonce - this
     ///         is half of the H-1 fix (the other half is binding the settler into the signed payload).
     mapping(bytes32 => bool) public usedSettlementNonce;
+    /// @notice SEPARATE replay guard for the ON-CHAIN 0G-TEE-verified mint (mintOutputVerified). A distinct
+    ///         namespace from `usedNonce` so a verified-mint attestation can never be pre-consumed (or replayed)
+    ///         through the permissionless mintOutput path - this is half of the L2 fix (the other half is the
+    ///         distinct VerifiedMintAuth EIP-712 type, which already makes the digests non-interchangeable).
+    mapping(bytes32 => bool) public usedVerifiedNonce;
 
     /// @notice The 0G in-enclave TeeML signer AURA pins for the ON-CHAIN TEE-verified mint (mintOutputVerified).
     ///         It is 0G's REAL published enclave signer (read from 0G's on-chain InferenceServing contract),
@@ -82,6 +87,16 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
     // attestor -> "bad attestation". This is what closes finding H-1.
     bytes32 private constant SETTLEMENT_MINTAUTH_TYPEHASH = keccak256(
         "SettlementMintAuth(address to,address settler,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,uint256 nonce)"
+    );
+    // EIP-712 typed struct for the ON-CHAIN 0G-TEE-verified mint (mintOutputVerified). DISTINCT from
+    // MINTAUTH_TYPEHASH (different digest), mirroring the H-1 settler-binding pattern: an attestor signature
+    // intended for the verified path can NOT be redeemed through the permissionless mintOutput (which would strip
+    // the on-chain TEE dataHash + provenance). mintOutput recovers over MINTAUTH_TYPEHASH, so a VerifiedMintAuth
+    // sig fails to recover the attestor there -> "bad attestation"; and the reverse fails symmetrically. Combined
+    // with the separate usedVerifiedNonce namespace, the two paths never cross-consume a nonce. Closes finding L2
+    // (verified-mint front-run) WITHOUT touching the permissionless mintOutput flow.
+    bytes32 private constant VERIFIED_MINTAUTH_TYPEHASH = keccak256(
+        "VerifiedMintAuth(address to,uint256 creatorAgentId,string imageRoot,bytes32 provenanceHash,bytes32 teeAttestation,uint256 seed,uint256 nonce)"
     );
 
     event OutputMinted(
@@ -228,15 +243,19 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
     }
 
     /// @notice Mint a Relic whose provenance is verified ON-CHAIN against 0G's real TeeML enclave signer.
-    ///         Additive superset of mintOutput: it runs the IDENTICAL attestor EIP-712 MintAuth gate (consent +
-    ///         which agent earns royalty) AND, when `teeSigner` is configured, ecrecovers 0G's enclave signature
-    ///         over the exact attested envelope and REVERTS on a forged one, binding this Relic's dataHash to the
-    ///         sha256 of the artwork 0G attested. The envelope is 0G's own EIP-191-signed
-    ///         `text = "<64hex sha256(request)>:<64hex sha256(image)>"`. Because the attestor's MintAuth already
-    ///         signs `teeAttestation`, requiring teeAttestation == keccak256(teeText) makes the attestor's
+    ///         Additive superset of mintOutput: it runs the attestor EIP-712 VerifiedMintAuth gate (consent +
+    ///         which agent earns royalty) - a DISTINCT EIP-712 type AND nonce namespace from mintOutput's
+    ///         MintAuth, so a verified-mint attestation can NEVER be redeemed via the permissionless mintOutput
+    ///         path (which would strip the on-chain TEE dataHash + provenance); this closes finding L2. AND, when
+    ///         `teeSigner` is configured, it ecrecovers 0G's enclave signature over the exact attested envelope
+    ///         and REVERTS on a forged one, binding this Relic's dataHash to the sha256 of the artwork 0G
+    ///         attested. The envelope is 0G's own EIP-191-signed
+    ///         `text = "<64hex sha256(request)>:<64hex sha256(image)>"`. Because the attestor's VerifiedMintAuth
+    ///         already signs `teeAttestation`, requiring teeAttestation == keccak256(teeText) makes the attestor's
     ///         signature COVER the exact TEE-signed bytes, so the two gates compose. When teeSigner == 0 the TEE
-    ///         gate is skipped (behaves like mintOutput) - the contract ships with the gate off and is flipped on
-    ///         with setTeeSigner after a live 0G smoke-test, no redeploy. mintOutput stays as the fallback.
+    ///         gate is skipped (mints with no on-chain dataHash, like mintOutput, but still over the distinct
+    ///         VerifiedMintAuth type + nonce) - the contract ships with the gate off and is flipped on with
+    ///         setTeeSigner after a live 0G smoke-test, no redeploy. mintOutput stays as the fallback.
     /// @param teeText  the EXACT ASCII string 0G's enclave signed: "<64hex sha256(reqBody)>:<64hex sha256(image)>"
     /// @param teeSig   0G's 65-byte enclave signature over toEthSignedMessageHash(bytes(teeText)) (EIP-191)
     function mintOutputVerified(
@@ -263,15 +282,16 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
     /// @dev The mintOutputVerified body, operating on a memory bundle (see VerifiedMintArgs). Runs the attestor
     ///      MintAuth gate (same digest as mintOutput) then the on-chain 0G-TEE gate, then mints + stores dataHash.
     function _mintOutputVerified(VerifiedMintArgs memory a) private returns (uint256 tokenId) {
-        require(!usedNonce[a.nonce], "nonce used");
+        require(!usedVerifiedNonce[a.nonce], "nonce used");
         // creatorAgentId must reference a real agent (its owner is the dynamic royalty target).
         registry.ownerOf(a.creatorAgentId); // reverts if agent doesn't exist
 
-        // (A) the existing attestor EIP-712 MintAuth gate - the SAME digest mintOutput uses (consent + agent).
+        // (A) the attestor EIP-712 VerifiedMintAuth gate - a DISTINCT digest from mintOutput's MintAuth, so this
+        //     attestation cannot be redeemed via the permissionless mintOutput path (closes L2; consent + agent).
         {
             bytes32 structHash = keccak256(
                 abi.encode(
-                    MINTAUTH_TYPEHASH,
+                    VERIFIED_MINTAUTH_TYPEHASH,
                     a.to,
                     a.creatorAgentId,
                     keccak256(bytes(a.imageRoot)),
@@ -287,7 +307,7 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
         // (B) the NEW on-chain 0G-TEE gate (returns 0 while teeSigner == 0; reverts on a forged envelope).
         bytes32 dataHash = _verifyTee(a.teeText, a.teeSig, a.teeAttestation);
 
-        usedNonce[a.nonce] = true;
+        usedVerifiedNonce[a.nonce] = true;
         tokenId = nextTokenId++;
         _prov[tokenId] = Provenance(a.creatorAgentId, a.imageRoot, a.provenanceHash, a.teeAttestation, a.seed);
         _dataHash[tokenId] = dataHash;
@@ -360,6 +380,33 @@ contract OutputNFT is ERC721, IERC2981, EIP712 {
                 SETTLEMENT_MINTAUTH_TYPEHASH,
                 to,
                 settler,
+                creatorAgentId,
+                keccak256(bytes(imageRoot)),
+                provenanceHash,
+                teeAttestation,
+                seed,
+                nonce
+            )
+        );
+        return _hashTypedDataV4(structHash);
+    }
+
+    /// @notice Compute the EIP-712 VerifiedMintAuth digest the attestor must sign for a mintOutputVerified (for
+    ///         the backend/tests). DISTINCT from authDigest (a different EIP-712 type), so a verified-mint
+    ///         signature cannot be redeemed via the permissionless mintOutput path (finding L2).
+    function verifiedAuthDigest(
+        address to,
+        uint256 creatorAgentId,
+        string calldata imageRoot,
+        bytes32 provenanceHash,
+        bytes32 teeAttestation,
+        uint256 seed,
+        bytes32 nonce
+    ) external view returns (bytes32) {
+        bytes32 structHash = keccak256(
+            abi.encode(
+                VERIFIED_MINTAUTH_TYPEHASH,
+                to,
                 creatorAgentId,
                 keccak256(bytes(imageRoot)),
                 provenanceHash,

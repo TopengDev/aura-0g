@@ -74,7 +74,7 @@ export function StatsLedger({ data }: { data: LedgerData }) {
             <Reveal delay={0.3}>
               <div className="mt-2 flex items-center justify-between gap-4 border-t pt-5" style={{ borderColor: "var(--color-border)" }}>
                 <span className="label-caps text-[13px]" style={{ color: "var(--color-ink-3)", letterSpacing: "0.08em" }}>
-                  Sponsor balance (covers free generation)
+                  Sponsor balance (funds generation)
                 </span>
                 <span className="font-mono-x tabular-nums text-[16px]" style={{ color: "var(--color-ink)" }}>
                   {data.sponsorBalance.toFixed(3)} <ZeroG />

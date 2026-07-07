@@ -10,10 +10,23 @@ import {ReentrancyGuardTransient} from "@openzeppelin/contracts/utils/Reentrancy
 import {ERC721Holder} from "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-/// @title AuraMarketplace - generalized multi-collection NFT marketplace with enforced EIP-2981 royalty
-/// @notice Replaces the OutputNFT-only Marketplace. ONE buy() entrypoint trades any allowlisted
-///         collection (the agent collection with STATIC creator-resale royalty AND the output
-///         collection with DYNAMIC owner-follows royalty), reading EIP-2981 royaltyInfo live.
+/// @title AuraMarketplace - the Relic (OutputNFT) marketplace with enforced EIP-2981 royalty
+/// @notice Trades the RELIC collection (OutputNFT): ONE buy() entrypoint over any allowlisted collection,
+///         reading EIP-2981 royaltyInfo LIVE so a Relic's DYNAMIC owner-follows royalty pays the creating
+///         agent's CURRENT owner at sale time.
+///
+///         AGENTS (AuraINFT) ARE NOT TRADED HERE. buy() settles with a raw ERC-721 safeTransferFrom, which
+///         AuraINFT deliberately REVERTS (spec-strict ERC-7857): an agent cannot change hands without the
+///         oracle re-encryption proof that re-keys its sealed brain. So agent RESALE is Flow B - the
+///         server-custodian SECURE TRANSFER (AuraINFT.transfer() + the oracle's re-encryption proof) - never a
+///         generic marketplace buy() (ERC-7857 cannot use one). Even if AuraINFT were allowlisted, a buy() on
+///         an agent reverts ATOMICALLY at the transfer step (no funds move, no partial state) - proven by the
+///         AuraINFT-buy-reverts test in AuraMarketplace.t.sol. The going-forward deploy allowlists Relics ONLY
+///         (DeployCutover); the LIVE marketplace still carries AuraINFT from the original cutover - a HARMLESS
+///         no-op left in place (buy reverts, no fund loss), removable later with no redeploy and no tx.
+///
+///         The buy() path itself is collection-generic (any EIP-2981 ERC-721 that permits a raw transfer can be
+///         allowlisted); in AURA it settles Relics.
 ///
 ///         Hardening (all enforced in buy):
 ///           - CEI + nonReentrant (transient-storage guard, EIP-1153, cancun).
@@ -169,7 +182,7 @@ contract AuraMarketplace is Ownable2Step, Pausable, ReentrancyGuardTransient, ER
     function _settleSale(address collection, uint256 tokenId, uint256 price, address seller, address buyer)
         private
     {
-        // 1. Royalty (EIP-2981) - resolved live (static for agents, owner-follows for outputs).
+        // 1. Royalty (EIP-2981) - resolved live from the collection (Relic owner-follows royalty via AuraINFT).
         (address royaltyReceiver, uint256 royaltyAmount) = _royaltyInfo(collection, tokenId, price);
         // 2. Platform fee.
         uint256 platformFee = (price * platformBps) / 10_000;

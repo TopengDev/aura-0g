@@ -52,11 +52,14 @@ contract ArenaReputation is Ownable2Step {
 
     /// @notice Anchor a season's ladder root. The root commits the whole { agentId -> (rating, RD) } table; a
     ///         keyless verifier recomputes the fixed-point Glicko-1 over the on-chain verdicts and asserts the
-    ///         recomputed root == this. Monotonic seasons (soft resets carry rating forward, inflate RD).
+    ///         recomputed root == this. STRICTLY-INCREASING seasons: seasonEpoch MUST exceed currentSeason, so an
+    ///         already-anchored season root can NEVER be overwritten - even the trusted anchorer can only append
+    ///         the NEXT forward season (soft resets carry rating forward, inflate RD). (I1: strict `>`, not `>=`,
+    ///         closes the anchorer's overwrite-current-season footgun within the disclosed trust boundary.)
     function anchorSeason(uint256 seasonEpoch, bytes32 ladderRoot) external {
         require(msg.sender == anchorer || msg.sender == owner(), "not anchorer");
         require(ladderRoot != bytes32(0), "empty root");
-        require(seasonEpoch >= currentSeason, "stale season");
+        require(seasonEpoch > currentSeason, "stale season");
         seasonRoot[seasonEpoch] = ladderRoot;
         currentSeason = seasonEpoch;
         emit SeasonAnchored(seasonEpoch, ladderRoot);

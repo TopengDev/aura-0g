@@ -72,7 +72,7 @@ const COMMANDS: Command[] = [
 
 // The real captured `aura verify 23` transcript, verbatim from cli/CLI-REPORT.md (the live RARE pull).
 const VERIFY_TRANSCRIPT = `Verify Relic #23   Rare ◆
-  Recomputed locally by this CLI (trustless - re-derived from on-chain preimage)
+  Recomputed locally by this CLI (keyless recompute - re-derived from the on-chain preimage the API relays)
   ✔ seed recomputes from public preimage  (seedRoot == on-chain seed)
   ✔ seed is a real provable-pull seed  (>= 2^64 keccak root)
   ✔ PROVABLE: rig-evident, recompute it yourself

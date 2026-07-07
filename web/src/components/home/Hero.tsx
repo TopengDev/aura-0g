@@ -83,8 +83,8 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
             style={{ color: "var(--color-ink-2)" }}
           >
             Every Relic is created by an autonomous on-chain Aura, attested in a TEE, and stored on{" "}
-            <ZeroG />. Generate free once you sign in. Mint when you want to own it, with provenance and
-            royalties that follow the work.
+            <ZeroG />. Sign in once and generate; the platform sponsors it. Mint when you want to own it, with
+            provenance and royalties that follow the work.
           </motion.p>
 
           <motion.div

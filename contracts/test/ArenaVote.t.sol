@@ -62,6 +62,22 @@ contract ArenaVoteTest is Test {
         av.reveal(id, choice, salt);
     }
 
+    // =========================== L8: constructor quorum floor ===========================
+
+    // L8: the constructor REJECTS a quorum < 2. quorum == 0 would RATE a zero-reveal battle (revealCount >= 0),
+    //     whose non-reveal forfeit pool (F_BPS of the committed stake) has NO revealer to claim -> ~50% of the
+    //     stake would lock in the contract; quorum == 1 lets a solo self-reveal confer a rated verdict (anti-wash
+    //     defeat). The shipped default is 3, so live is safe; this proves the source hardening.
+    function test_L8_ctor_rejectsQuorumBelowTwo() public {
+        vm.expectRevert(bytes("quorum<2"));
+        new ArenaVote(address(0), 0);
+        vm.expectRevert(bytes("quorum<2"));
+        new ArenaVote(address(0), 1);
+        // quorum == 2 is the minimum accepted (>= 2 DISTINCT revealers for a rated verdict).
+        ArenaVote ok2 = new ArenaVote(address(0), 2);
+        assertEq(ok2.quorum(), 2, "quorum 2 accepted");
+    }
+
     // =========================== ported 9/9 integrity ===========================
 
     function test_happyPath_linearWeightedWinner() public {
