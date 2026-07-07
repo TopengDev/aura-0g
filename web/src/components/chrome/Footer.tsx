@@ -47,7 +47,7 @@ export async function Footer() {
             { label: "Proof", href: "/proof" },
           ]} />
           <FooterCol title="Build" links={[
-            { label: "Generate (free)", href: "/generate" },
+            { label: "Generate", href: "/generate" },
             { label: "Create an Aura", href: "/create" },
             { label: "CLI", href: "/cli" },
             { label: "Dashboard", href: "/dashboard" },

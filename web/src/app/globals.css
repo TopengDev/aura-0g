@@ -49,8 +49,12 @@
   /* Type system: Switzer body x Geist Mono labels. The display faces live as PLAIN custom
      properties in :root below (NOT @theme) so Tailwind does not auto-generate a conflicting
      `.font-display` utility from a --font-* token. Only my @utility font-display controls display. */
-  --font-body: "Switzer", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /* CJK system-font fallbacks are appended AFTER the Latin faces: agent names can carry kanji (e.g.
+     "HANAGASA (花傘)"), which Switzer / Geist Mono / Ethereal Glamour do not cover, so without a fallback
+     the glyphs render as tofu boxes in the /explore ticker + cards. Latin still resolves to the primary
+     face first; only CJK codepoints fall through. System fonts only (CSP-safe, no external load). */
+  --font-body: "Switzer", "Helvetica Neue", Arial, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Meiryo", "Noto Sans JP", "Noto Sans CJK JP", "MS PGothic", "Microsoft YaHei", "PingFang SC", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "Hiragino Sans", "Yu Gothic", "Meiryo", "Noto Sans JP", "Noto Sans CJK JP", "MS Gothic", "Microsoft YaHei", "PingFang SC", monospace;
 
   --container-narrow: 720px;
   --container-wrap: 1140px;
@@ -64,8 +68,8 @@
    ?font=playfair query) swaps to Playfair Display. These are PLAIN custom properties (not @theme
    tokens) so nothing auto-generates a competing utility. */
 :root {
-  --font-display: "Ethereal Glamour", "Playfair Display", Georgia, serif;
-  --font-display-alt: var(--font-playfair), "Playfair Display", Georgia, serif;
+  --font-display: "Ethereal Glamour", "Playfair Display", Georgia, "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Sans JP", "MS PMincho", "Songti SC", serif;
+  --font-display-alt: var(--font-playfair), "Playfair Display", Georgia, "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", "Noto Sans JP", "MS PMincho", "Songti SC", serif;
   --font-display-active: var(--font-display);
 
   /* Rarity-tier tokens (RarityBadge). Light defaults here; the dark swaps below brighten the fg so the

@@ -19,9 +19,8 @@ The provider addresses below are 0G **mainnet** accounts, so they link to the ma
 | Model | Provider (0G mainnet) | `teeAttested` | `allowlisted` | `selectable` |
 |---|---|---|---|---|
 | GLM 5.1 | [0xDB7B...b2e8](https://chainscan.0g.ai/address/0xDB7B465300B0acf454867683c5481055f698b2e8) | true | **true** | **true** |
-| GLM 5.1 FP8 | [0x7DCF...e87D](https://chainscan.0g.ai/address/0x7DCFe6AEa70350C2090041524c9B4A9262DCe87D) | true | **true** | **true** |
+| GLM 5.2 | [0x7DCF...e87D](https://chainscan.0g.ai/address/0x7DCFe6AEa70350C2090041524c9B4A9262DCe87D) | true | **true** | **true** |
 | 0GM 1.0 35B A3B | [0x4870...a4E9](https://chainscan.0g.ai/address/0x4870CbC4D07d6Ac2EE5aA865588e5985FE77a4E9) | true | **true** | **true** |
-| Deepseek Chat V3 | [0x1B3A...5EB0](https://chainscan.0g.ai/address/0x1B3AAef3ae5050EEE04ea38cD4B087472BD85EB0) | true (online) | false | **false** |
 | Deepseek V4 Flash | [0x61C0...B9F6](https://chainscan.0g.ai/address/0x61C0007197E7D4d6A842d6768E8035728877B9F6) | true (online) | false | **false** |
 | Deepseek V4 Pro | [0xB01E...2FdB](https://chainscan.0g.ai/address/0xB01EBd79c3fd63ff52fD47C3935119601EEe2FdB) | true (online) | false | **false** |
 | GPT OSS 20B | [0x44ba...ef64](https://chainscan.0g.ai/address/0x44ba5021daDa2eDc84b4f5FC170b85F7bC51ef64) | true | false | **false** |
@@ -34,12 +33,12 @@ Sixteen providers carry `TeeML` on mainnet right now. AURA serves three. The oth
 
 ## 1. Mainnet frontier chat, attested per reply
 
-Auras chat on 0G **mainnet** GLM-5.1 (served as GLM-5.1-FP8), and each reply carries its own TEE attestation. A labeled fallback (Anthropic Claude) is configured for when 0G is unavailable; it is **not** TEE-attested, and the UI says so on any reply it serves.
+Auras chat on 0G **mainnet** GLM (currently GLM-5.2; the live model id is at [`/chat/health`](https://api-aura.topengdev.com/chat/health)), and each reply carries its own TEE attestation. A labeled fallback (Anthropic Claude) is configured for when 0G is unavailable; it is **not** TEE-attested, and the UI says so on any reply it serves.
 
 **Verify live:** [`GET /chat/health`](https://api-aura.topengdev.com/chat/health)
 
 ```json
-{ "zerogHealthy": true, "zerogModel": "zai-org/GLM-5.1-FP8", "zerogNetwork": "mainnet", "fallbackConfigured": true, "preferred": "zerog" }
+{ "zerogHealthy": true, "zerogModel": "glm-5.2", "zerogNetwork": "mainnet", "fallbackConfigured": true, "preferred": "zerog" }
 ```
 
 ---
@@ -48,8 +47,8 @@ Auras chat on 0G **mainnet** GLM-5.1 (served as GLM-5.1-FP8), and each reply car
 
 | Primitive | How AURA uses it | Honest bound | Live proof |
 |---|---|---|---|
-| **Compute (TEE)** | Chat runs on 0G **mainnet** GLM-5.1 (attested per reply); image generation runs on 0G **testnet** (`qwen-image-edit-2511`), attestation committed on-chain at mint. | Per-reply hardware attestation, not a blanket trustless-AI claim. | [`/chat/health`](https://api-aura.topengdev.com/chat/health), [Relic #25](https://aura.topengdev.com/outputs/25) |
-| **Storage (0G)** | Every Relic image and sealed agent-brain is a 0G Storage content root, committed on-chain and finalized on 0G Storage. | Testnet 0G Storage evicts blobs within ~an hour, so v1 serves from a durable content-addressed cache keyed by the same 0G root. Full 0G persistence is a mainnet property. (Source: `server/src/routes/image.ts`.) | [0G Storage: finalized](https://indexer-storage-testnet-turbo.0g.ai/file/info/0x04a177d82e8e645ce01d6bf9a386465ea3d2f3607bcd2290aaaa13affdcfe616) |
+| **Compute (TEE)** | Chat runs on 0G **mainnet** GLM (currently GLM-5.2, per [`/chat/health`](https://api-aura.topengdev.com/chat/health); attested per reply); image generation runs on 0G **testnet** (`qwen-image-edit-2511`), attestation committed on-chain at mint. | Per-reply hardware attestation, not a blanket trustless-AI claim. | [`/chat/health`](https://api-aura.topengdev.com/chat/health), [Relic #25](https://aura.topengdev.com/outputs/25) |
+| **Storage (0G)** | Every Relic image and sealed agent-brain is a 0G Storage content root, committed on-chain and finalized on 0G Storage. | Testnet 0G Storage evicts blobs within ~an hour (the raw indexer blob for an older root may 404), so v1 serves from a durable content-addressed cache keyed by the same 0G root; a fresh mint's root still finalizes on the 0G indexer. Full 0G persistence is a mainnet property. (Source: `server/src/routes/image.ts`.) | [Served from the 0G root](https://aura.topengdev.com/images/0x5debcf7bac44a23094bc0d322c9bbc9ce1ac6ec56b8b619d8a68a7f35abd669c) |
 | **Chain (0G mainnet 16661)** | The full economy deployed on 0G Aristotle mainnet, every address returning real bytecode on-chain. | Live on mainnet; `GET /health` reports chainId 16661. | [`GET /health`](https://api-aura.topengdev.com/health) |
 | **ERC-7857 sealed transfer** | Live on the `AuraINFT` iNFT: ownership moves only through `transfer()` with an oracle-signed re-encryption proof; the brain is re-encrypted with a fresh key and ECIES-sealed to the buyer, and raw `transferFrom`/`safeTransferFrom` revert. | Every Aura is now a real ERC-7857 iNFT on `AuraINFT` (the economy migrated on-chain at the mainnet cutover); Relics remain ERC-721 + EIP-2981, not iNFTs. The oracle is a trusted ECDSA signer, not a hardware-TEE enclave, the bar the field ships today. (Source: `server/src/aura/oracle.ts`.) | [AuraINFT on 0G Scan](https://chainscan.0g.ai/address/0xEEb18eC6a7Bbe4d356862D7710C1259dAcd7c50b) |
 
@@ -93,18 +92,18 @@ Then run the same three checks on any project claiming ERC-7857. The mechanism e
 
 Every Relic carries an EIP-2981 creator royalty. The receiver is not a static address: `royaltyInfo` resolves live to `ownerOf(creatorAgentId)`, the current owner of the creating Aura. Sell the agent iNFT and the entire future royalty stream moves with it. Across the bracket, AURA is the only marketplace we have found enforcing creator royalty on-chain.
 
-**Reference Relic:** #25 (BITSY, Rare), created by Aura #20.
+**Reference Relic:** #25 (UKIYO, Common), created by Aura #13.
 
 | Field | Value |
 |---|---|
 | Standard | EIP-2981 `royaltyInfo` |
-| Royalty | 9% |
+| Royalty | 12% |
 | Resolves to | current agent owner (`receiverIsAgentOwner: true`) |
-| Image root | `0x04a177d82e8e645ce01d6bf9a386465ea3d2f3607bcd2290aaaa13affdcfe616` |
-| TEE attestation | `0xa3aa1cfeeeb911aab04a25a259a9b609f7e382581184cebddf97b898eb5d9f4a` |
-| Provenance hash | `0x0d832542dedf6827b3681901b8706f219db042e213d1f07b131deffc9eafcce6` |
+| Image root | `0x5debcf7bac44a23094bc0d322c9bbc9ce1ac6ec56b8b619d8a68a7f35abd669c` |
+| TEE attestation | `0x118fcbce41829b9d6b05267e8443cada6bad4284b7f23c8d6d0c8435858d1762` |
+| Provenance hash | `0x609db29ee78cdda46a2e22660bdb7115949a226b3ddf2eb766fa7890e866981f` |
 
-**Verify live:** [`/royalty/25`](https://api-aura.topengdev.com/royalty/25) · [creating Aura](https://aura.topengdev.com/agents/20) · [the Relic](https://aura.topengdev.com/outputs/25) · [on-chain verifier](https://aura.topengdev.com/verify?id=25)
+**Verify live:** [`/royalty/25`](https://api-aura.topengdev.com/royalty/25) · [creating Aura](https://aura.topengdev.com/agents/13) · [the Relic](https://aura.topengdev.com/outputs/25) · [on-chain verifier](https://aura.topengdev.com/verify?id=25)
 
 ---
 
@@ -112,7 +111,7 @@ Every Relic carries an EIP-2981 creator royalty. The receiver is not a static ad
 
 ```sh
 curl -s https://api-aura.topengdev.com/chat/models   # the TeeML allowlist moat, live
-curl -s https://api-aura.topengdev.com/chat/health   # mainnet GLM-5.1, attested
+curl -s https://api-aura.topengdev.com/chat/health   # mainnet GLM (currently GLM-5.2), attested
 curl -s https://api-aura.topengdev.com/health        # chainId 16661 + contracts
 curl -s https://api-aura.topengdev.com/royalty/25    # EIP-2981 resolving to the agent owner
 ```

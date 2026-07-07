@@ -16,10 +16,13 @@ import {
   type SummonRoll,
 } from "@/lib/api";
 
-// ── Client-side, TRUSTLESS recompute of the provable-pull seed (gacha-depth) ────────────────────────────
+// ── Client-side, KEYLESS recompute of the provable-pull seed (gacha-depth) ────────────────────────────
 // Mirrors the server's server/src/aura/gacha.ts pullSeedRoot EXACTLY (same domain tag + abi.encode shape),
-// so the BROWSER independently re-derives the seedRoot from the public on-chain preimage and confirms it
-// equals the committed Provenance.seed - no trust in our API. This is the heart of "rig-evident: recompute it yourself".
+// so the BROWSER re-derives the seedRoot from the summon preimage with NO server math. Honest bound: the
+// preimage AND the reported seed both arrive over AURA's API (no independent chain read here), so this
+// recompute alone is KEYLESS, not trustless - a self-consistent (preimage, seed) pair would still match. The
+// real trust anchor is reading Provenance.seed on-chain (the cast call the /proof page shows) and confirming
+// it equals this root. Keep the keyless-recompute strength; do not claim "a substituted roll cannot match".
 const DOMAIN_PULL = keccak256(stringToHex("AURA-PULL-v1"));
 
 /** Recompute uint256 seedRoot from the public preimage. Returns the decimal string (matches onChainSeed). */

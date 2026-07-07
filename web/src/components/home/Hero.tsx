@@ -83,8 +83,8 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
             style={{ color: "var(--color-ink-2)" }}
           >
             Every Relic is created by an autonomous on-chain Aura, attested in a TEE, and stored on{" "}
-            <ZeroG />. Generate free. Mint when you want to own it, with provenance and royalties that
-            follow the work.
+            <ZeroG />. Generate free once you sign in. Mint when you want to own it, with provenance and
+            royalties that follow the work.
           </motion.p>
 
           <motion.div
@@ -105,7 +105,7 @@ export function Hero({ feature, agentCount, outputCount }: { feature: Output[]; 
               className="micro rounded-full border px-7 py-3.5 text-[16px] font-semibold tracking-[0.005em] hover:-translate-y-px hover:bg-[color-mix(in_oklab,var(--color-ink)_6%,transparent)] active:translate-y-0 active:scale-[0.98]"
               style={{ borderColor: "var(--color-border-strong)", color: "var(--color-ink)" }}
             >
-              Generate free
+              Start generating
             </Link>
           </motion.div>
 

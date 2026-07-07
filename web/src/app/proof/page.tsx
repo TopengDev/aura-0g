@@ -66,13 +66,13 @@ const RPC = PROOF_RPC;
 // time and supersedes this whenever the fetch succeeds; this is the labeled fallback, not the source of truth.
 const RELIC_SNAPSHOT = {
   tokenId: 25,
-  agentId: 20,
-  agentName: "BITSY",
-  rarity: "Rare",
-  imageRoot: "0x04a177d82e8e645ce01d6bf9a386465ea3d2f3607bcd2290aaaa13affdcfe616",
-  teeAttestation: "0xa3aa1cfeeeb911aab04a25a259a9b609f7e382581184cebddf97b898eb5d9f4a",
-  provenanceHash: "0x0d832542dedf6827b3681901b8706f219db042e213d1f07b131deffc9eafcce6",
-  royaltyPct: 9,
+  agentId: 13,
+  agentName: "UKIYO",
+  rarity: "Common",
+  imageRoot: "0x5debcf7bac44a23094bc0d322c9bbc9ce1ac6ec56b8b619d8a68a7f35abd669c",
+  teeAttestation: "0x118fcbce41829b9d6b05267e8443cada6bad4284b7f23c8d6d0c8435858d1762",
+  provenanceHash: "0x609db29ee78cdda46a2e22660bdb7115949a226b3ddf2eb766fa7890e866981f",
+  royaltyPct: 12,
 };
 
 // ── Live-model row (widened past ChatModelInfo, which omits `provider` + `allowlisted` from the shared
@@ -88,12 +88,11 @@ type ProofModel = {
   sizeB: number;
 };
 
-// Verified-live provider addresses (chat-compute.ts allowlist + the /chat/models response, 2026-07-01).
+// Verified-live provider addresses (chat-compute.ts allowlist + the /chat/models response, 2026-07-07).
 const PROVIDER_BY_ID: Record<string, string> = {
   "glm-5.1": "0xDB7B465300B0acf454867683c5481055f698b2e8",
-  "zai-org/GLM-5.1-FP8": "0x7DCFe6AEa70350C2090041524c9B4A9262DCe87D",
+  "glm-5.2": "0x7DCFe6AEa70350C2090041524c9B4A9262DCe87D",
   "0GM-1.0-35B-A3B": "0x4870CbC4D07d6Ac2EE5aA865588e5985FE77a4E9",
-  "deepseek/deepseek-chat-v3-0324": "0x1B3AAef3ae5050EEE04ea38cD4B087472BD85EB0",
   "deepseek-v4-flash": "0x61C0007197E7D4d6A842d6768E8035728877B9F6",
   "deepseek-v4-pro": "0xB01EBd79c3fd63ff52fD47C3935119601EEe2FdB",
   "openai/gpt-oss-20b": "0x44ba5021daDa2eDc84b4f5FC170b85F7bC51ef64",
@@ -103,18 +102,16 @@ const PROVIDER_BY_ID: Record<string, string> = {
 // blank. Identical values to what /chat/models returns.
 const FALLBACK_MODELS: ProofModel[] = [
   { id: "glm-5.1", label: "GLM 5.1", provider: PROVIDER_BY_ID["glm-5.1"], teeAttested: true, allowlisted: true, selectable: true, online: true, sizeB: 0 },
-  { id: "zai-org/GLM-5.1-FP8", label: "GLM 5.1 FP8", provider: PROVIDER_BY_ID["zai-org/GLM-5.1-FP8"], teeAttested: true, allowlisted: true, selectable: true, online: true, sizeB: 0 },
+  { id: "glm-5.2", label: "GLM 5.2", provider: PROVIDER_BY_ID["glm-5.2"], teeAttested: true, allowlisted: true, selectable: true, online: true, sizeB: 0 },
   { id: "0GM-1.0-35B-A3B", label: "0GM 1.0 35B A3B", provider: PROVIDER_BY_ID["0GM-1.0-35B-A3B"], teeAttested: true, allowlisted: true, selectable: true, online: true, sizeB: 35 },
-  { id: "deepseek/deepseek-chat-v3-0324", label: "Deepseek Chat V3", provider: PROVIDER_BY_ID["deepseek/deepseek-chat-v3-0324"], teeAttested: true, allowlisted: false, selectable: false, online: true, sizeB: 0 },
   { id: "deepseek-v4-flash", label: "Deepseek V4 Flash", provider: PROVIDER_BY_ID["deepseek-v4-flash"], teeAttested: true, allowlisted: false, selectable: false, online: true, sizeB: 0 },
   { id: "deepseek-v4-pro", label: "Deepseek V4 Pro", provider: PROVIDER_BY_ID["deepseek-v4-pro"], teeAttested: true, allowlisted: false, selectable: false, online: true, sizeB: 0 },
   { id: "openai/gpt-oss-20b", label: "GPT OSS 20B", provider: PROVIDER_BY_ID["openai/gpt-oss-20b"], teeAttested: true, allowlisted: false, selectable: false, online: false, sizeB: 20 },
 ];
 
-// The four providers spotlighted in the rejected group: TeeML-flagged but NOT on AURA's curated allowlist
+// The three providers spotlighted in the rejected group: TeeML-flagged but NOT on AURA's curated allowlist
 // (chat-compute.ts). The remainder is summarized as a count so the table stays scannable.
 const REJECT_SPOTLIGHT = new Set([
-  "deepseek/deepseek-chat-v3-0324",
   "deepseek-v4-flash",
   "deepseek-v4-pro",
   "openai/gpt-oss-20b",
@@ -224,7 +221,7 @@ export default async function ProofPage() {
 
   const chainId = health?.chainId ?? CHAIN_ID;
   const zerogNetwork = (chatHealth as { zerogNetwork?: string } | null)?.zerogNetwork ?? "mainnet";
-  const zerogModel = chatHealth?.zerogModel ?? "zai-org/GLM-5.1-FP8";
+  const zerogModel = chatHealth?.zerogModel ?? "glm-5.2";
   const zerogHealthy = chatHealth?.zerogHealthy ?? false;
   const fallbackConfigured = chatHealth?.fallbackConfigured ?? false;
 
@@ -363,17 +360,19 @@ export default async function ProofPage() {
       claim: "Provable-Pulls gacha (commit-reveal).",
       body: (
         <>
-          Rarity and subject derive from a blockhash-seeded root committed AFTER the summon, recomputable by
-          anyone from the public preimage - the browser re-derives it and confirms it equals the on-chain seed.
+          Rarity and subject derive from a blockhash-seeded root committed AFTER the summon. The browser
+          re-derives that root from the public preimage with no server math (keyless); you anchor it against
+          the chain by reading Provenance.seed on-chain with the command below, so the recompute is checked
+          against the chain, not our API.
         </>
       ),
-      runs: [{ cmd: castProvenance, note: "the on-chain seed the browser recompute must equal" }],
+      runs: [{ cmd: castProvenance, note: "read the on-chain seed yourself; the recomputed root must equal it" }],
       reads: [
         { label: "recomputePullSeedRoot", href: `${GH}/web/src/lib/verify.ts#L26` },
         { label: "gacha.ts:60", href: `${GH}/server/src/aura/gacha.ts#L60` },
         { label: "deriveRarity :293", href: `${GH}/server/src/aura/gacha.ts#L293` },
       ],
-      boundary: "Commit-reveal on block.blockhash; buyer + agentId are in the Summoned event; no grinding because subject + rarity derive only after the commit.",
+      boundary: "Commit-reveal on block.blockhash; buyer + agentId are in the Summoned event. No post-commit grinding (subject + rarity derive only after the commit); a block producer retains bounded single-block influence over the seed block hash.",
     },
   ];
 
@@ -544,7 +543,7 @@ export default async function ProofPage() {
         {/* ── Stat strip ─────────────────────────────────────────────────── */}
         <section className="mt-16 grid grid-cols-2 gap-x-6 gap-y-10 sm:mt-20 lg:grid-cols-4">
           <StatFigure value={String(CONTRACTS.length).padStart(2, "0")} label="Contracts live on-chain" />
-          <StatFigure value="GLM-5.1" label="0G mainnet, attested per reply" />
+          <StatFigure value={zerogModel.toUpperCase()} label="0G mainnet, attested per reply" />
           <StatFigure value="EIP-2981" label="Enforced creator royalty" />
           <StatFigure value={`${allowlisted.length}/${totalTeeAttested}`} label="TeeML providers we serve" />
         </section>
@@ -556,9 +555,9 @@ export default async function ProofPage() {
           <Panel className="p-6 sm:p-8">
             <PrimitiveHead tag="Compute · TEE" title="In-enclave inference, attested per reply." />
             <p className="mt-4 text-[16px] leading-relaxed" style={{ color: "var(--color-ink-2)" }}>
-              Auras chat on 0G mainnet GLM-5.1, and each reply carries its own TEE attestation. Relic images are
-              generated in a 0G testnet Compute TEE (qwen-image-edit-2511), with the attestation committed on-chain
-              at mint.
+              Auras chat on 0G mainnet GLM (currently {zerogModel.toUpperCase()}, shown live below), and each reply
+              carries its own TEE attestation. Relic images are generated in a 0G testnet Compute TEE
+              (qwen-image-edit-2511), with the attestation committed on-chain at mint.
             </p>
             <dl className="mt-6">
               <MetaRow k="Chat network" v={allLive ? zerogNetwork : `${zerogNetwork} · ${SNAPSHOT_DATE} snapshot`} ok={zerogHealthy} mono={false} />
@@ -726,7 +725,7 @@ export default async function ProofPage() {
             <span className="label-caps text-[13px] uppercase tracking-[0.1em] text-right" style={{ color: "var(--color-ink-3)" }}>Live proof</span>
           </div>
           {[
-            { p: "0G Compute", u: "Chat on mainnet GLM-5.1; image on testnet qwen-image-edit-2511; both in a TEE, attested per reply.", href: `${API_PUBLIC}/chat/health`, label: "/chat/health", internal: false },
+            { p: "0G Compute", u: `Chat on mainnet GLM (currently ${zerogModel.toUpperCase()}); image on testnet qwen-image-edit-2511; both in a TEE, attested per reply.`, href: `${API_PUBLIC}/chat/health`, label: "/chat/health", internal: false },
             { p: "TeeML guard", u: "Curated allowlist, strictly narrower than the chain's TeeML flag.", href: `${API_PUBLIC}/chat/models`, label: "/chat/models", internal: false },
             { p: "0G Storage", u: "Content-addressed image + brain roots, committed on-chain.", href: RELIC_STORAGE_PROOF, label: "Storage proof", internal: false },
             { p: "0G Chain", u: `${CONTRACTS.length} contracts on ${CHAIN_SHORT} ${CHAIN_ID}, real bytecode.`, href: `${API_PUBLIC}/health`, label: "/health", internal: false },

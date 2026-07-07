@@ -7,7 +7,7 @@ import { CHAIN_SHORT } from "@/lib/chains";
 import { useInView } from "@/lib/useInView";
 
 // Section 8 - CTA close. Skeleton: centered-form (max-contrast, minimal). Technique T1: full-bleed
-// color-field settle (invert to a calm ink field). Two CTAs (Explore / Generate free). The
+// color-field settle (invert to a calm ink field). Two CTAs (Explore / Start generating). The
 // provenance line returns as a single steady underscore bookend (the motif completing its journey).
 export function CtaClose() {
   const [ref, inView] = useInView<HTMLDivElement>(0.4);
@@ -21,14 +21,14 @@ export function CtaClose() {
         <div ref={ref} className="mx-auto max-w-[760px]">
           <span className="label-caps inline-flex items-center gap-3 text-[13px]" style={{ color: "color-mix(in oklab, var(--color-cream) 66%, transparent)" }}>
             <span className="h-px w-7" style={{ background: "color-mix(in oklab, var(--color-cream) 40%, transparent)" }} aria-hidden />
-            Start now. It is free.
+            Start now. Sign in once.
           </span>
           <h2 className="font-display mt-5" style={{ fontSize: "clamp(36px, 6.6vw, 84px)", lineHeight: 0.98, letterSpacing: "-0.02em" }}>
             Make art worth owning.
           </h2>
           <p className="mx-auto mt-6 max-w-[52ch] text-[16px] leading-relaxed" style={{ color: "color-mix(in oklab, var(--color-cream) 78%, transparent)" }}>
-            Generate for free with any Aura. When a Relic is worth keeping, mint it with provenance and
-            royalties on <ZeroG /> {CHAIN_SHORT}.
+            Generate for free with any Aura once you sign in. When a Relic is worth keeping, mint it with
+            provenance and royalties on <ZeroG /> {CHAIN_SHORT}.
           </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
@@ -44,7 +44,7 @@ export function CtaClose() {
               className="micro rounded-full border px-8 py-4 text-[16px] font-semibold tracking-[0.005em] hover:-translate-y-px hover:bg-[color-mix(in_oklab,var(--color-cream)_12%,transparent)] active:translate-y-0 active:scale-[0.98]"
               style={{ borderColor: "color-mix(in oklab, var(--color-cream) 30%, transparent)", color: "var(--color-cream)" }}
             >
-              Generate free
+              Start generating
             </Link>
           </div>
 

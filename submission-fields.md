@@ -40,7 +40,7 @@ A creative **agent** is an **iNFT** (ERC-7857 sense): a public on-chain identity
 On a normal NFT marketplace, "who made this" is just what the uploader typed, and EIP-2981 royalties are an opt-in suggestion most platforms ignore off-venue. The missing piece is **verifiable compute** next to **permanent storage** and an **EVM chain** that resolves royalty dynamically to the agent's current owner. 0G is the only stack where all three are native.
 
 ### The 0G primitives are load-bearing
-- **0G Compute (TEE)** - chat runs on 0G **mainnet** GLM-5.1 (`zai-org/GLM-5.1-FP8`); image generation runs on 0G **testnet** (`qwen-image-edit-2511`). A hardware attestation is returned per reply / per generation, and a generation that fails attestation is never made mintable.
+- **0G Compute (TEE)** - chat runs on 0G **mainnet** GLM (currently GLM-5.2, per `/chat/health`); image generation runs on 0G **testnet** (`qwen-image-edit-2511`). A hardware attestation is returned per reply / per generation, and a generation that fails attestation is never made mintable.
 - **0G Storage** - the artwork, the signed provenance record, and the agent's encrypted brain (each upload's merkle root verified equal to the on-chain root).
 - **0G Chain (EVM, 0G Aristotle mainnet 16661)** - the agent iNFT, the on-chain provenance baked into each OutputNFT Relic (ERC-721 + EIP-2981), the enforced royalty split, and the demand-pull summon escrow.
 - **ERC-7857 sealed transfer** - live on the `AuraINFT` iNFT (re-encryption oracle, replay + expiry guards): every Aura is minted on it, raw ERC-721 transfers revert, and ownership moves only through the oracle-proof `transfer()`. The oracle is a trusted ECDSA signer, not a hardware-TEE enclave.
@@ -49,7 +49,7 @@ On a normal NFT marketplace, "who made this" is just what the uploader typed, an
 - Live app: https://aura.topengdev.com - API: https://api-aura.topengdev.com
 - Contracts (live-confirmed via `GET /health`): AuraINFT `0xEEb18eC6a7Bbe4d356862D7710C1259dAcd7c50b`, OutputNFT `0xF31fD2235a5db76020b2a6F1CBC06e13E25E4805`, AuraMarketplace `0x2ad71120b1Da7d187883826980b5244F1c365Dba`, SummonEscrow `0x8F5978Fb86A9fF20Fe30B561F6d1a1AE04D1DC1A`. Full economy incl. the arena/fusion game layer in `contracts/deployed-v2.json`.
 - Seeded agents: NOKTURNE (#1), MIRAI (#2), RISO (#3), SCRIPTORIUM (#4). Platform fee 2.5%.
-- **The money shot:** transferring an agent re-routes its Relics' `royaltyInfo()` to the new owner, and a marketplace sale pays that royalty inside `buy()` before the seller. Reference Relic #25 (9% royalty, resolves to the agent owner): https://api-aura.topengdev.com/royalty/25
+- **The money shot:** transferring an agent re-routes its Relics' `royaltyInfo()` to the new owner, and a marketplace sale pays that royalty inside `buy()` before the seller. Reference Relic #25 (UKIYO by Aura #13, 12% royalty, resolves to the agent owner): https://api-aura.topengdev.com/royalty/25
 - **Recompute any pull yourself:** rarity + subject are keccak256 over public on-chain data; verify with no wallet at https://aura.topengdev.com/verify or via `aura verify <id>`.
 
 Every contract call resolves on https://chainscan.0g.ai. Run it yourself: open the app and generate a Relic for free (generation is server-sponsored). The image-gen + 0G Storage seam runs on 0G testnet, which you can top up at https://faucet.0g.ai.

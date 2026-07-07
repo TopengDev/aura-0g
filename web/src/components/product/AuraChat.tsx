@@ -511,7 +511,7 @@ function HonestFraming() {
         >
           <div className="flex items-start gap-4 px-5 py-3.5 sm:px-6" style={{ background: "color-mix(in oklab, var(--color-accent) 5%, transparent)" }}>
             <p className="flex-1 text-[15px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
-              Replies served by 0G run inside a TEE and are hardware-attested per reply. Your relationship memory is private and owner-scoped (it re-seals on resale). A full turn is not a single proof: any on-chain action is separately verifiable, and your private memory is yours alone.
+              Replies served by 0G run inside a TEE and are hardware-attested per reply. Your relationship memory is owner-scoped and re-seals on resale, so a past owner is cryptographically walled off. Honest bound: v1 escrows the relationship key server-side (owner-scoped, not private against the server). A full turn is not a single proof: any on-chain action is separately verifiable.
             </p>
             <button
               type="button"

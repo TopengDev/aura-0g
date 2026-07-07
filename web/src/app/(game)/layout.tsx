@@ -21,7 +21,7 @@ export default async function GameLayout({ children }: { children: ReactNode }) 
 
   return (
     <NextIntlClientProvider locale={locale} messages={messages} timeZone="Asia/Jakarta" now={new Date()}>
-      <main className="min-h-screen pt-14">
+      <main lang={locale} className="min-h-screen pt-14">
         {/* Game-layer toolbar: sits just under the fixed global nav. Left = layer label + sub-tabs; right
             = the id/en toggle (the theme toggle lives in the global nav). */}
         <div

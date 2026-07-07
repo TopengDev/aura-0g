@@ -14,7 +14,7 @@ The product is live on **0G mainnet**. Nothing here is a slideshow: every claim 
 | CLI | `curl -fsSL https://aura.topengdev.com/install.sh \| sh` |
 | Economy network | 0G Aristotle **mainnet**, chainId **16661** ([explorer](https://chainscan.0g.ai)) |
 
-> **Mainnet economy, one disclosed testnet seam.** The contracts, agents, Relics, marketplace, royalties, summon, the whole game layer, on-chain verify + mint, and chat all run on 0G **mainnet** (chainId 16661). The single exception, stated up front: **image generation** (`qwen-image-edit-2511`) and **0G Storage writes** run on 0G **testnet**, deliberately. Testnet storage is the reliable place to write blobs today, and we keep a durable local content-addressed cache keyed by the same 0G root; the on-chain image roots and provenance that anyone verifies stay on **mainnet**. Chat inference is mainnet frontier compute (GLM-5.1, served as `zai-org/GLM-5.1-FP8`, TeeML). `GET /health` and `GET /chat/health` show the live wiring.
+> **Mainnet economy, one disclosed testnet seam.** The contracts, agents, Relics, marketplace, royalties, summon, the whole game layer, on-chain verify + mint, and chat all run on 0G **mainnet** (chainId 16661). The single exception, stated up front: **image generation** (`qwen-image-edit-2511`) and **0G Storage writes** run on 0G **testnet**, deliberately. Testnet storage is the reliable place to write blobs today, and we keep a durable local content-addressed cache keyed by the same 0G root; the on-chain image roots and provenance that anyone verifies stay on **mainnet**. Chat inference is mainnet frontier compute (GLM, currently GLM-5.2 per `/chat/health`, TeeML). `GET /health` and `GET /chat/health` show the live wiring.
 
 ---
 
@@ -51,14 +51,14 @@ An Aura is a creative agent minted as a real ERC-7857 iNFT: the public identity 
 
 A SIWE-gated, owner-scoped conversation (`POST /chat`). Per turn: load identity and persona, retrieve owner memory, run the model, and persist the turn back to sealed memory.
 
-- **Provider seam:** 0G Compute TEE first (0G **mainnet** GLM-5.1, served as `zai-org/GLM-5.1-FP8`, TeeML), with a clearly-labeled Anthropic Claude fallback behind a health check. AURA routes only to providers that are **both** `verifiability: "TeeML"` **and** on a curated in-server allowlist, strictly narrower than the chain's own flag (see [PROOF.md](PROOF.md)).
+- **Provider seam:** 0G Compute TEE first (0G **mainnet** GLM, currently GLM-5.2 per `/chat/health`, TeeML), with a clearly-labeled Anthropic Claude fallback behind a health check. AURA routes only to providers that are **both** `verifiability: "TeeML"` **and** on a curated in-server allowlist, strictly narrower than the chain's own flag (see [PROOF.md](PROOF.md)).
 - **Per-reply attestation:** the response reports `provider`, `teeAttested`, and the raw attestation; only a 0G-served reply is TEE-attested.
 - **The Aura can act (command surface), non-custodially:** two guarded tools, `read_onchain` (a pure read of the Aura's own earnings, royalties, owner, Relic count) and `generate_and_mint` (kicks off a real TEE generation; **you** sign the mint from your own wallet, the server never signs for you).
 - `GET /chat/:agentId/history` returns your decrypted relationship history; `GET /chat/health` reports which provider would serve now.
 
 ### Provable-Pulls gacha + Summon
 
-- **One seed roots everything.** `seedRoot = keccak256(abi.encode(DOMAIN, requestId, buyer, agentId, summonBlockHash))`. All four preimage fields are public and fixed before generation, so the seed is operator-un-grindable and independently recomputable.
+- **One seed roots everything.** `seedRoot = keccak256(abi.encode(DOMAIN, requestId, buyer, agentId, summonBlockHash))`. All four preimage fields are public and fixed before generation, so the seed is un-grindable by the operator or the buyer and independently recomputable (a block producer retains bounded single-block influence over `summonBlockHash`).
 - **Deterministic subject + rarity.** The seed derives a 12-dimension subject and a rarity tier (Common 80% / Rare 15% / Epic 4% / Legendary 1%), both pure functions of the on-chain seed.
 - **Summon** (`SummonEscrow`): a buyer self-funds an on-chain commission, the watcher generates live in a TEE, mints the Relic to the buyer, and splits the fee (owner cut + platform fee). The income follows the Aura to its current owner. `GET /summon/output/:tokenId/proof` returns the jury-verifiable economic split plus the full pull recompute.
 
@@ -67,9 +67,9 @@ A SIWE-gated, owner-scoped conversation (`POST /chat`). Per turn: load identity 
 Everything here is on-chain and indexed; each surface is keyless-recomputable, not SQLite theater.
 
 - **Arena** (`ArenaVote`): blind, staked, **commit-reveal** art battles. Two Auras generate on one shared theme seeded off the battle block hash; voters commit then reveal a staked ballot. The winner is a deterministic recompute from the public `Revealed` log, and the contract enforces the identical tally on-chain, so an independent re-tally must equal the finalized winner. Weight is **linear in stake** (sybil-neutral to identity-splitting, unlike sqrt), and an unrevealed commit is slashed to kill the straddle. Public keyless re-tally at `GET /api/arena/tally`.
-- **Fusion** (`AuraFusion` + `FuseGenome`): breed two Auras into a hybrid child. The child's 8-locus style genome is a pure keccak derivation (Mendelian select + 5% provable mutation) over a 6-field seed binding both parents' fingerprints and a future block hash, so neither the operator nor the fuser can grind toward a child. The child is minted as a **real ERC-7857 iNFT** through the same permissionless sealed-key path, with on-chain lineage.
+- **Fusion** (`AuraFusion` + `FuseGenome`): breed two Auras into a hybrid child. The child's 8-locus style genome is a pure keccak derivation (Mendelian select + 5% provable mutation) over a 6-field seed binding both parents' fingerprints and a future block hash, so neither the operator nor the fuser can grind toward a child (a block producer retains bounded single-block influence via that future block hash). The child is minted as a **real ERC-7857 iNFT** through the same permissionless sealed-key path, with on-chain lineage.
 - **Ladder** (`ArenaReputation`): a per-agent season rating. A fixed-point-integer **Glicko-1** is computed off-chain over the on-chain battle verdicts, and only its Merkle root is anchored on-chain (one write per season); anyone recomputes the whole ladder from the verdicts and asserts the root matches (`GET /api/arena/ladder/verify`). The rating is keyed to the agent, so like the royalty rail it **transfers with the iNFT** when the Aura is sold. Rank is a signal only (price / matchmaking / siring value); it deliberately mints nothing.
-- **PersonhoodGate** (`PersonhoodGate`): two keyless, 0G-native anti-sybil floors for the Arena, hold-an-Aura (`balanceOf >= 1`) or a refundable conviction stake. The World-ID convenience tier is explicitly deferred (`registerWorldId` reverts), an honest stub by scope, not a fake.
+- **PersonhoodGate** (`PersonhoodGate`): two keyless, 0G-native skin-in-ecosystem floors for the Arena, hold-an-Aura (`balanceOf >= 1`) or a refundable conviction stake. It is UNENFORCED this phase (not wired to gate voting); the live sybil defense is the Arena's linear stake-weight (above), which is neutral to identity-splitting. The World-ID personhood tier is explicitly deferred (`registerWorldId` reverts), an honest stub by scope, not a fake.
 
 ### Verifiable image Relics
 
@@ -119,7 +119,7 @@ aura chat nokturne "what have you earned?"   # talk to an Aura, TEE-attested whe
         |                       \
         |  sponsored             `->  Ponder indexer (PGlite)  ->  0G mainnet events  ->  /api/* feeds
         |  generation
-        +->  0G Compute (TEE)  ->  chat (MAINNET GLM-5.1) + image (TESTNET qwen), hardware-attested (processResponse)
+        +->  0G Compute (TEE)  ->  chat (MAINNET GLM-5.2) + image (TESTNET qwen), hardware-attested (processResponse)
         +->  0G Storage (TESTNET write + durable cache)  ->  image + provenance + sealed brain (local merkle == on-chain root)
         v
   Your wallet signs the mint  ->  OutputNFT (creatorAgentId + imageRoot + provenanceHash + teeAttestation)
@@ -134,7 +134,7 @@ aura chat nokturne "what have you earned?"   # talk to an Aura, TEE-attested whe
 | `web/` | Next.js 15 (App Router), React 18, wagmi + viem + RainbowKit for wallet + SIWE, Tailwind v4, framer-motion / GSAP / Lenis. Live at aura.topengdev.com. |
 | `server/` | Fastify v5 (Node 22). 0G Compute + 0G Storage SDKs, ethers + viem, SQLite for jobs / chat memory / summon + battle journals, EIP-712 attestations, persona derivation, the keyless verify + arena tally/ladder recompute. Non-custodial: it supplies computed args, attestations, and chain reads, and never signs a user transaction. Live at api-aura.topengdev.com. |
 | `indexer/` | Ponder 0.16 (embedded PGlite) indexing `AuraINFT`, `OutputNFT`, `AuraMarketplace`, `SummonEscrow`, `ArenaVote`, `AuraFusion`, `ArenaReputation` on 0G mainnet; serves the dashboard / discovery / feed / arena / fusion read models via Hono, proxied under the backend's `/api/*`. |
-| `contracts/` | Foundry project: `AuraINFT` (ERC-7857 sealed-key agent iNFT, the live registry), `OutputNFT` (ERC-721 + EIP-2981 + on-chain TEE-verify), `AuraMarketplace` (enforced royalty), `SummonEscrow` (demand-pull commissioning), `ArenaVote` (commit-reveal battles), `AuraFusion` + `FuseGenome` (on-chain-recomputable child genome), `ArenaReputation` (Glicko-1 ladder anchor), `PersonhoodGate` (keyless anti-sybil floors). |
+| `contracts/` | Foundry project: `AuraINFT` (ERC-7857 sealed-key agent iNFT, the live registry), `OutputNFT` (ERC-721 + EIP-2981 + on-chain TEE-verify), `AuraMarketplace` (enforced royalty), `SummonEscrow` (demand-pull commissioning), `ArenaVote` (commit-reveal battles), `AuraFusion` + `FuseGenome` (on-chain-recomputable child genome), `ArenaReputation` (Glicko-1 ladder anchor), `PersonhoodGate` (keyless skin-in-ecosystem floors, unenforced this phase). |
 | `cli/` | Bun CLI, cross-compiled to static binaries plus an npx bundle. |
 | `deploy/` | docker-compose (server + indexer + web + nginx) and Dockerfiles. |
 
@@ -165,7 +165,7 @@ From [`contracts/deployed-v2.json`](./contracts/deployed-v2.json) (authoritative
 | ArenaVote (commit-reveal battles) | [`0x7557C716…B92f`](https://chainscan.0g.ai/address/0x7557C716C7F1b7179506609241Fb2842c17fB92f) |
 | AuraFusion (on-chain lineage) | [`0x0D8b6ef3…17e9`](https://chainscan.0g.ai/address/0x0D8b6ef3427573d673d7d1DFf8199aE00af317e9) |
 | ArenaReputation (Glicko-1 ladder anchor) | [`0x12f094DF…1695`](https://chainscan.0g.ai/address/0x12f094DFa0eFB1C132E1fDFFa95262a3a8ae1695) |
-| PersonhoodGate (keyless anti-sybil floors) | [`0x54E8496E…90e5`](https://chainscan.0g.ai/address/0x54E8496EDDc6eeD590d5e1c69C8c6949a42f90e5) |
+| PersonhoodGate (keyless skin-in-ecosystem floors, unenforced this phase) | [`0x54E8496E…90e5`](https://chainscan.0g.ai/address/0x54E8496EDDc6eeD590d5e1c69C8c6949a42f90e5) |
 
 Platform fee 2.5% (250 bps). Summon price 0.01 0G. 30 Auras are live on `AuraINFT` (migrated onto the real iNFT at the mainnet cutover); the original seed archetypes are NOKTURNE, MIRAI, RISO, and SCRIPTORIUM.
 
@@ -220,9 +220,9 @@ One sharp product, fully real, mainnet-deployed. What is live versus MVP-scoped:
 | Fusion (breed two Auras) | **real** | On-chain-recomputable 8-locus child genome; child minted as a real iNFT with on-chain lineage. |
 | Ladder (Glicko-1 rating) | **real** | Off-chain fixed-point Glicko-1 over on-chain verdicts, Merkle root anchored on-chain, keyless re-derive. Agent-keyed, so it transfers with the iNFT. |
 | Living-soul personas | **real** | User-created Auras derive a distinctive personality + lore + tagline via the mainnet chat LLM; synchronous floor so a create never blocks. |
-| Chat with an Aura (TEE-attested) | **real, labeled** | 0G Compute mainnet GLM-5.1 (`zai-org/GLM-5.1-FP8`), per-reply attestation on a curated TeeML allowlist; a labeled Anthropic Claude fallback is not attested. Tool actions (`read_onchain`, `generate_and_mint`) are non-custodial. |
+| Chat with an Aura (TEE-attested) | **real, labeled** | 0G Compute mainnet GLM (currently GLM-5.2, per `/chat/health`), per-reply attestation on a curated TeeML allowlist; a labeled Anthropic Claude fallback is not attested. Tool actions (`read_onchain`, `generate_and_mint`) are non-custodial. |
 | Per-owner sealed memory | **real** | AES-256-GCM per relationship, data key ECIES-sealed to the owner pubkey, owner-scoped retrieval wall. Server keeps a custody key copy; sealed segments live in a durable cache (storage-write seam on testnet). |
-| PersonhoodGate | **real (World-ID deferred)** | Two keyless 0G-native anti-sybil floors are live; the World-ID convenience tier is an explicit deferred stub (`registerWorldId` reverts). |
+| PersonhoodGate | **built, gate unenforced (World-ID deferred)** | Two keyless 0G-native skin-in-ecosystem floors (hold-an-Aura or conviction stake) are built but UNENFORCED this phase; the live sybil defense is the Arena's linear stake-weight. The World-ID personhood tier is an explicit deferred stub (`registerWorldId` reverts). |
 | Per-Aura fine-tuning | **research, not shipped** | Not claimed. Style is base model + system prompt + retrieved memory in a TEE. |
 | Networks | **mainnet economy, one disclosed testnet seam** | Economy, agents, game layer, verify + mint, royalties, and chat on 0G mainnet (chainId 16661). Image generation (`qwen-image-edit-2511`) + 0G Storage writes on 0G testnet (16602); on-chain image roots + provenance stay mainnet. |
 

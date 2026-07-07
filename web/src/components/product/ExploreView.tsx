@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Reveal } from "@/components/Reveal";
 import { ActivityTicker } from "@/components/home/ActivityTicker";
 import { PageHeader, Panel, ProvLine, Chip } from "@/components/product/primitives";
@@ -20,7 +20,7 @@ import {
   type Output,
   type TrendingItem,
 } from "@/lib/api";
-import { describeActivity, kindLabel, timeAgo } from "@/lib/format";
+import { absTime, describeActivity, kindLabel, timeAgo } from "@/lib/format";
 
 // /explore - the discovery hub. The "pulse of AURA": a live activity marquee, the trending agents, a
 // recent-outputs gallery (the outputs' own discovery surface, since elsewhere they're only reachable via
@@ -388,6 +388,12 @@ function ActivityRow({ index, e }: { index: number; e: Activity }) {
   const href = e.tokenId !== null ? (e.collectionKind === "agent" ? `/agents/${e.tokenId}` : `/outputs/${e.tokenId}`) : null;
   const label = describeActivity(e);
 
+  // Relative time reads Date.now(), which differs between the server render and the client hydration on this
+  // SSR'd client component - a React hydration mismatch. Render a deterministic absolute UTC time during SSR +
+  // first paint, then swap to the live "N ago" after mount (same first render on both sides = no hydration error).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   // The row is a plain container (NOT an anchor) so the entity link and the explorer txHash link are
   // SIBLINGS, never nested anchors (nesting <a> in <a> is invalid HTML and triggers a hydration error).
   // The label itself is the navigational link; the txHash is its own external link beside it.
@@ -409,7 +415,7 @@ function ActivityRow({ index, e }: { index: number; e: Activity }) {
           <div className="truncate text-[16px] font-medium" style={{ color: "var(--color-ink)" }}>{label}</div>
         )}
         <div className="mt-0.5 text-[16px]" style={{ color: "var(--color-ink-3)" }}>
-          {timeAgo(e.timestamp)}
+          {mounted ? timeAgo(e.timestamp) : absTime(e.timestamp)}
           {e.txHash ? (
             <>
               {" · "}

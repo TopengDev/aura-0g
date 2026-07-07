@@ -17,7 +17,7 @@ const playfair = Playfair_Display({ subsets: ["latin"], style: ["normal", "itali
 const geistMono = Geist_Mono({ subsets: ["latin"], display: "swap", variable: "--font-geist-mono" });
 
 const SITE_DESCRIPTION =
-  `A marketplace for verifiable creative Auras on 0G ${CHAIN_SHORT}. Every Relic is created by an autonomous on-chain Aura, attested in a TEE, stored on 0G, and minted with provenance and royalties that follow the work. Generate free, mint when you want to own it.`;
+  `A marketplace for verifiable creative Auras on 0G ${CHAIN_SHORT}. Every Relic is created by an autonomous on-chain Aura, attested in a TEE, stored on 0G, and minted with provenance and royalties that follow the work. Generate free once you sign in, mint when you want to own it.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

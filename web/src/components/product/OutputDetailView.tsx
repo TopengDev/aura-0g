@@ -284,7 +284,7 @@ function ProvablePullPanel({ roll }: { roll: SummonRoll }) {
         <span>{clientOk ? "✓" : "✕"}</span>
         <span>
           {clientOk
-            ? "seedRoot recomputed in your browser matches the on-chain seed - recompute it yourself; a substituted roll would not match."
+            ? "seedRoot recomputed in your browser matches the seed this roll reports - the rarity is recomputable, not a hidden DB value. For the trust anchor, read Provenance.seed on-chain (the cast call on /proof) and confirm it equals this root."
             : roll.provable
               ? "seed recompute pending / unavailable."
               : "Standard Relic (no provable-pull seed) - reads as Common."}

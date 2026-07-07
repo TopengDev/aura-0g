@@ -124,7 +124,7 @@ export interface CreateBattleResult {
 }
 
 // POST /game/arena/battles (authed). The OPERATOR (server) signs createBattle + generates both portraits on a
-// shared, un-grindable theme; the caller only authenticates + picks the two agents. Heavy (two TEE gens).
+// shared, operator-un-grindable theme; the caller only authenticates + picks the two agents. Heavy (two TEE gens).
 export function createBattle(token: string, agentA: number, agentB: number): Promise<GameResult<CreateBattleResult>> {
   return gameAuthedPost<CreateBattleResult>("/game/arena/battles", token, { agentA, agentB });
 }

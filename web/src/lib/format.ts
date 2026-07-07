@@ -16,6 +16,13 @@ export function timeAgo(ts: number): string {
   return `${d}d ago`;
 }
 
+// A deterministic absolute timestamp for hydration-safe rendering: identical on the server and the client
+// (pure UTC from the unix seconds - no Date.now, no locale), so a client component can render THIS during SSR
+// + first paint, then switch to the Date.now-relative timeAgo after mount. Prevents the SSR/client mismatch.
+export function absTime(ts: number): string {
+  return `${new Date(ts * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
 // Canonical short label for an activity kind (lowercase; callers uppercase where their style needs it).
 // Covers the kinds the indexer emits, including ones the old per-file maps missed (brain_update, summon,
 // cancel/reprice/withdraw). Falls back to the raw kind so an unknown future kind still renders.

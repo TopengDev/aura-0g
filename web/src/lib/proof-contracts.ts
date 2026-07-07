@@ -21,7 +21,7 @@ const MAINNET_CONTRACTS: ProofContract[] = [
   { label: "ArenaVote", addr: "0x7557C716C7F1b7179506609241Fb2842c17fB92f", note: "on-chain arena battle voting" },
   { label: "AuraFusion", addr: "0x0D8b6ef3427573d673d7d1DFf8199aE00af317e9", note: "two Auras fuse into a genome-blended child" },
   { label: "ArenaReputation", addr: "0x12f094DFa0eFB1C132E1fDFFa95262a3a8ae1695", note: "Glicko reputation from arena outcomes" },
-  { label: "PersonhoodGate", addr: "0x54E8496EDDc6eeD590d5e1c69C8c6949a42f90e5", note: "one-human-one-vote gate for the arena" },
+  { label: "PersonhoodGate", addr: "0x54E8496EDDc6eeD590d5e1c69C8c6949a42f90e5", note: "skin-in-ecosystem floor (hold-an-Aura or conviction stake); personhood gate unenforced this phase" },
 ];
 
 // 0G Galileo TESTNET 16602 - contracts/deployed-v2.json `_rollback_testnet` (+ the isolated AuraINFT deploy the

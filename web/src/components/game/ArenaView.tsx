@@ -32,7 +32,7 @@ import {
 import { ARENA_ENABLED } from "@/lib/game-contracts";
 import { agentPortraitUrl, featuredAgents, fetchAgents, imageUrl, shortAddr, type Agent } from "@/lib/api";
 
-// The CREATIVE ARENA. Two Auras render one shared, un-grindable theme, shown BLIND; the crowd stakes a blind
+// The CREATIVE ARENA. Two Auras render one shared, operator-un-grindable theme, shown BLIND; the crowd stakes a blind
 // commit-reveal vote; the winner is a pure function of the on-chain tally, which anyone can recompute. All
 // deploy-gated: until ArenaVote is wired the actions are honestly disabled (no fake art, no fake winner),
 // while the "verify the tally yourself" command is always real.
