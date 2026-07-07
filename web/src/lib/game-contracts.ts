@@ -102,6 +102,42 @@ export const auraFusionAbi = [
     inputs: [{ name: "agentId", type: "uint256" }],
     outputs: [{ name: "", type: "bool" }],
   },
+  // Global fusion cooldown in seconds (owner-settable; 86400 = 24h at the mainnet deploy). requestFusion
+  // reverts "A/B on cooldown" while block.timestamp < a.lastFusedAt + cooldown. The Fusion UI reads this +
+  // each parent's lastFusedAt (via lineageOf) to DISABLE requestFusion with a live countdown, instead of
+  // letting the user fire a tx that reverts on-chain.
+  {
+    type: "function",
+    name: "cooldown",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  // Full lineage record for an agent. Field ORDER is load-bearing (mirrors contracts/src/AuraFusion.sol's
+  // Lineage struct + the server ABI in server/src/aura/game/contracts.ts): the Fusion UI reads lastFusedAt
+  // (the per-Aura cooldown anchor; 0 => never used as a parent => not on cooldown) to gate requestFusion.
+  {
+    type: "function",
+    name: "lineageOf",
+    stateMutability: "view",
+    inputs: [{ name: "agentId", type: "uint256" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "genomeSet", type: "bool" },
+          { name: "generation", type: "uint32" },
+          { name: "breedCount", type: "uint32" },
+          { name: "lastFusedAt", type: "uint64" },
+          { name: "parentA", type: "uint256" },
+          { name: "parentB", type: "uint256" },
+          { name: "styleFingerprint", type: "bytes32" },
+          { name: "genome", type: "uint16[8]" },
+        ],
+      },
+    ],
+  },
 ] as const;
 
 // The FusionRequested + FusionExecuted events, parsed from the requestFusion / executeFusion receipts.

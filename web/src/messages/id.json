@@ -90,7 +90,8 @@
         "genesisNeeded": "Satu atau kedua induk perlu registrasi genesis sekali (genomnya, diturunkan dari sidik gaya on-chain) sebelum bisa difusi. Ini ditandatangani pemilik dan bisa dihitung ulang siapa pun.",
         "registerGenesis": "Daftarkan genesis",
         "requestFusion": "Ajukan fusion",
-        "requestNote": "Ini langkah commit: mengunci pasangan ke blok masa depan yang hash-nya jadi seed anak. Kamu tidak bisa mengakali hasilnya."
+        "requestNote": "Ini langkah commit: mengunci pasangan ke blok masa depan yang hash-nya jadi seed anak. Kamu tidak bisa mengakali hasilnya.",
+        "cooldownNote": "{name} masih cooldown, bisa difusi dalam {time}"
       },
       "commit": {
         "title": "Commit fusion",

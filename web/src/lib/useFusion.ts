@@ -87,6 +87,44 @@ export function useFusion() {
     [config],
   );
 
+  // ── checkCooldown (per-parent fusion cooldown gate) ──
+  // requestFusion consumes a per-Aura cooldown: on-chain it reverts "A/B on cooldown" while
+  // block.timestamp < lastFusedAt + cooldown() (lastFusedAt == 0 => the Aura was never used as a parent =>
+  // fusable now). This reads each picked parent's lastFusedAt (lineageOf) + the global cooldown() and returns
+  // the unix-seconds timestamp when the Aura is fusable AGAIN (readyAt): 0 => not on cooldown, any value > now
+  // => on cooldown until then. The Fusion UI reads it per parent to DISABLE requestFusion with a live
+  // countdown, so the user never fires a tx that reverts on cooldown. Returns null on a read hiccup (or when
+  // Fusion is not wired) so the caller falls back to the existing error-triggered path (humanError maps the
+  // on-chain "cooldown" revert to a friendly message).
+  const checkCooldown = useCallback(
+    async (agentId: number): Promise<number | null> => {
+      if (!GAME_CONTRACTS.auraFusion) return null;
+      try {
+        const [lineage, cooldownSec] = await Promise.all([
+          readContract(config, {
+            address: GAME_CONTRACTS.auraFusion as `0x${string}`,
+            abi: auraFusionAbi,
+            functionName: "lineageOf",
+            args: [BigInt(agentId)],
+            chainId: APP_CHAIN.id,
+          }),
+          readContract(config, {
+            address: GAME_CONTRACTS.auraFusion as `0x${string}`,
+            abi: auraFusionAbi,
+            functionName: "cooldown",
+            chainId: APP_CHAIN.id,
+          }),
+        ]);
+        const lastFusedAt = Number(lineage.lastFusedAt);
+        // Mirrors the on-chain guard: lastFusedAt == 0 => never used as a parent => not on cooldown (readyAt 0).
+        return lastFusedAt === 0 ? 0 : lastFusedAt + Number(cooldownSec);
+      } catch {
+        return null;
+      }
+    },
+    [config],
+  );
+
   // ── registerGenesis (owner backfills a parent's genome so it becomes fusable) ──
   const registerGenesis = useCallback(
     async (token: string, agentId: number): Promise<boolean> => {
@@ -237,5 +275,5 @@ export function useFusion() {
   );
 
   const busy = state.phase === "preparing" || state.phase === "signing" || state.phase === "confirming";
-  return { state, busy, checkFusable, registerGenesis, requestFusion, executeFusion, reset };
+  return { state, busy, checkFusable, checkCooldown, registerGenesis, requestFusion, executeFusion, reset };
 }

@@ -713,16 +713,29 @@ export async function saleList(token: string, agentId: number, priceEther: strin
   });
 }
 
+// The two /generate modes, selected by the compose toggle. POST /generate ALWAYS requires a non-empty
+// `prompt` (>=2 chars, server-enforced); the ONLY difference is whether a `subject` field is also sent:
+//   - "identity" (Keep character, the current behavior): body { agentId, prompt } -> the server IDENTITY-LOCK
+//     path ("change only this") keeps the Aura's own base subject and re-scenes around it.
+//   - "style" (Fresh subject): body { agentId, prompt, subject } with subject = the user's text -> the server
+//     STYLE-LOCK-ONLY pull path renders a FRESH subject in the Aura's signature style (no character lock).
+//     `prompt` is still sent (it satisfies the mandatory prompt>=2 gate + records the job's text) but is
+//     IGNORED for the render in pull mode; `subject` drives the scene. Seam: server/src/routes/generate.ts.
+export type GenerateMode = "identity" | "style";
+
 // POST /generate -> 202 { jobId, status }. Kicks off the background generation owned by the JWT address.
+// `mode` defaults to "identity" so existing callers are unchanged (zero regression).
 export async function startGeneration(
   token: string,
   agentId: number,
-  prompt: string,
+  text: string,
+  mode: GenerateMode = "identity",
 ): Promise<{ jobId: string; status: JobStatus }> {
+  const body = mode === "style" ? { agentId, prompt: text, subject: text } : { agentId, prompt: text };
   return authedJson("/generate", token, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ agentId, prompt }),
+    body: JSON.stringify(body),
   });
 }
 

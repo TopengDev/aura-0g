@@ -50,7 +50,15 @@ export function FuseView() {
   const [fusable, setFusable] = useState<Record<number, boolean | null>>({});
   // The agentId currently being registered (so its Register-genesis button shows the wallet step text).
   const [genesisFor, setGenesisFor] = useState<number | null>(null);
-  const { checkFusable } = fusion;
+  // Per-parent fusion COOLDOWN gate (AuraFusion.cooldown + lineageOf.lastFusedAt): readyAt = the unix-seconds
+  // moment the Aura is fusable again. 0 => never fused (not on cooldown); > now => on cooldown until then;
+  // null/undefined => unknown (unread / read hiccup). Keyed by agentId. Drives the disabled requestFusion
+  // button + the live "fusable in Xh Ym" countdown, so the user never fires a tx that reverts on cooldown.
+  const [cooldownReadyAt, setCooldownReadyAt] = useState<Record<number, number | null>>({});
+  // 1s clock (unix seconds) that ticks the cooldown countdown, mirroring the arena reveal-window gate. The
+  // interval (below) is gated on an active cooldown, so there is no perpetual re-render off the cooldown path.
+  const [now, setNow] = useState<number>(() => Math.floor(Date.now() / 1000));
+  const { checkFusable, checkCooldown } = fusion;
 
   // Real Auras this wallet owns (from the indexer-proxied creator dashboard; NOT game-gated).
   useEffect(() => {
@@ -104,6 +112,49 @@ export function FuseView() {
       live = false;
     };
   }, [a, b, checkFusable]);
+
+  // Proactively read each picked parent's fusion cooldown (AuraFusion.cooldown + lineageOf.lastFusedAt) - the
+  // same keyless-read pattern as isFusable above. Surfaces the "on cooldown, fusable in Xh Ym" gate in the
+  // review step BEFORE the user pays for requestFusion (which would otherwise revert "A/B on cooldown"). Re-
+  // reads whenever the picked pair changes; clears when nothing is picked or Fusion is not wired on this deploy.
+  useEffect(() => {
+    if (!FUSION_ENABLED) return;
+    const ids = [a, b].filter((x): x is number => x !== null);
+    if (ids.length === 0) {
+      setCooldownReadyAt({});
+      return;
+    }
+    let live = true;
+    Promise.all(ids.map(async (id) => [id, await checkCooldown(id)] as const)).then((pairs) => {
+      if (!live) return;
+      const next: Record<number, number | null> = {};
+      for (const [id, readyAt] of pairs) next[id] = readyAt;
+      setCooldownReadyAt(next);
+    });
+    return () => {
+      live = false;
+    };
+  }, [a, b, checkCooldown]);
+
+  // Is either picked parent still on cooldown (readyAt in the future)? Recomputed each 1s tick.
+  const anyOnCooldown = useMemo(
+    () =>
+      [a, b].some((id) => {
+        const readyAt = id !== null ? cooldownReadyAt[id] : null;
+        return typeof readyAt === "number" && readyAt > now;
+      }),
+    [a, b, cooldownReadyAt, now],
+  );
+
+  // 1s countdown tick, GATED on an active cooldown: it starts only when a picked parent is on cooldown and
+  // self-terminates once the cooldown elapses (anyOnCooldown flips false -> the interval is cleared). This
+  // gives a live ticking countdown exactly like the arena reveal-window gate, without a perpetual whole-view
+  // re-render on the common (no-cooldown) path.
+  useEffect(() => {
+    if (!anyOnCooldown) return;
+    const id = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [anyOnCooldown]);
 
   const toggle = useCallback(
     (id: number) => {
@@ -254,6 +305,8 @@ export function FuseView() {
               enabled={FUSION_ENABLED}
               needsGenesisA={fusable[parentA.agentId] === false}
               needsGenesisB={fusable[parentB.agentId] === false}
+              cooldownReadyAt={cooldownReadyAt}
+              now={now}
               genesisFor={genesisFor}
               onRegisterGenesis={onRegisterGenesis}
               onRequest={onRequest}
@@ -396,6 +449,19 @@ function ParentPicker({
   );
 }
 
+// Format the remaining cooldown as a live, human countdown: "Xh Ym" while >= 1h (matches the review copy),
+// "Xm Ys" under an hour, "Xs" in the final minute - so the 1s clock visibly ticks it down. remaining =
+// readyAt - now (unix secs), floored at 0.
+function fmtRemaining(readyAt: number, now: number): string {
+  const rem = Math.max(0, readyAt - now);
+  const h = Math.floor(rem / 3600);
+  const m = Math.floor((rem % 3600) / 60);
+  const s = rem % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
 // ── Review + commit + reveal ────────────────────────────────────────────────
 function ReviewAndCommit({
   parentA,
@@ -405,6 +471,8 @@ function ReviewAndCommit({
   enabled,
   needsGenesisA,
   needsGenesisB,
+  cooldownReadyAt,
+  now,
   genesisFor,
   onRegisterGenesis,
   onRequest,
@@ -417,6 +485,8 @@ function ReviewAndCommit({
   enabled: boolean;
   needsGenesisA: boolean;
   needsGenesisB: boolean;
+  cooldownReadyAt: Record<number, number | null>;
+  now: number;
   genesisFor: number | null;
   onRegisterGenesis: (agentId: number) => void;
   onRequest: () => void;
@@ -427,6 +497,13 @@ function ReviewAndCommit({
   const { state, busy } = fusion;
   const gated = state.phase === "gated" || !enabled;
   const needsGenesis = needsGenesisA || needsGenesisB;
+  // Fusion cooldown gate: readyAt (unix secs) > now => that parent is still on its per-Aura cooldown, so
+  // requestFusion would revert on-chain. Disable the request button + show a live "fusable in Xh Ym" countdown.
+  const readyAtA = cooldownReadyAt[parentA.agentId];
+  const readyAtB = cooldownReadyAt[parentB.agentId];
+  const onCooldownA = typeof readyAtA === "number" && readyAtA > now;
+  const onCooldownB = typeof readyAtB === "number" && readyAtB > now;
+  const onCooldown = onCooldownA || onCooldownB;
   // Label for a per-parent genesis button: shows the wallet step text while THIS parent is being registered.
   const genesisLabel = (agent: Agent) =>
     genesisFor === agent.agentId && busy
@@ -470,7 +547,25 @@ function ReviewAndCommit({
                 ) : null}
               </div>
             ) : null}
-            <ActionButton onClick={onRequest} disabled={busy || gated || needsGenesis}>
+            {/* Cooldown gate: a parent used as a parent < cooldown ago is still rate-limited on-chain. Shown
+                per parent with a live remaining countdown; the request button stays disabled until BOTH are
+                off cooldown. When a parent is BOTH genome-unset and on cooldown, the genesis need (above) is
+                surfaced first and this cooldown note shows alongside it. */}
+            {onCooldown ? (
+              <div className="space-y-2" role="status" aria-live="polite">
+                {onCooldownA ? (
+                  <p className="text-[15px] leading-relaxed" style={{ color: "var(--color-warn)" }}>
+                    {t("review.cooldownNote", { name: `${parentA.name} #${parentA.agentId}`, time: fmtRemaining(readyAtA as number, now) })}
+                  </p>
+                ) : null}
+                {onCooldownB ? (
+                  <p className="text-[15px] leading-relaxed" style={{ color: "var(--color-warn)" }}>
+                    {t("review.cooldownNote", { name: `${parentB.name} #${parentB.agentId}`, time: fmtRemaining(readyAtB as number, now) })}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+            <ActionButton onClick={onRequest} disabled={busy || gated || needsGenesis || onCooldown}>
               {busy && state.action === "request" ? state.step ?? t("commit.title") : t("review.requestFusion")}
             </ActionButton>
             {gated ? <div className="mt-3"><GatedNote>{c("builtTested")}. {t("commit.body")}</GatedNote></div> : null}

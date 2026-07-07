@@ -30,6 +30,7 @@ import {
   startGeneration,
   type Agent,
   type GenerateJob,
+  type GenerateMode,
   type MintArgs,
 } from "@/lib/api";
 
@@ -81,6 +82,10 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
   const agent = useMemo(() => agents.find((a) => a.agentId === agentId) ?? null, [agents, agentId]);
 
   const [prompt, setPrompt] = useState("");
+  // Generation mode (the compose toggle). Default "style" = Fresh subject (style-lock): the prompt becomes a
+  // fresh scene rendered in this Aura's signature style. "identity" = Keep character (identity-lock): restyle
+  // the Aura's OWN subject with the prompt (the prior behavior). Only this flips the server style/identity path.
+  const [mode, setMode] = useState<GenerateMode>("style");
   const [flow, setFlow] = useState<Flow>("compose");
 
   const TOP_BADGES = 5;
@@ -184,7 +189,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
 
       // 2. kick off the generation.
       setFlow("generating");
-      const { jobId: id } = await startGeneration(token, agent.agentId, prompt.trim());
+      const { jobId: id } = await startGeneration(token, agent.agentId, prompt.trim(), mode);
       setJobId(id);
 
       // 3. poll until done|error.
@@ -216,7 +221,7 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
       setError(e instanceof Error ? e.message : "Generation failed.");
       setFlow("error");
     }
-  }, [agent, validPrompt, prompt, auth, previewUrl]);
+  }, [agent, validPrompt, prompt, mode, auth, previewUrl]);
 
   // The on-chain mint step (wallet-signed). On success the StepRail shows minted + the link to the output.
   const onMint = useCallback(async () => {
@@ -419,6 +424,55 @@ export function GenerateView({ agents, preselectId }: { agents: Agent[]; presele
                 <div className="mb-4 label-caps text-[13px] uppercase tracking-[0.16em]" style={{ color: "var(--color-ink-3)" }}>
                   The prompt
                 </div>
+
+                {/* Mode toggle: Fresh subject (style-lock, default) vs Keep character (identity-lock). This is
+                    the only client control that flips the server between its style-lock-only pull path (fresh
+                    subject in the Aura's style) and its identity-lock path (restyle the Aura's own subject).
+                    See startGeneration in lib/api.ts. */}
+                <div className="mb-4">
+                  <div
+                    role="radiogroup"
+                    aria-label="Generation mode"
+                    className="grid grid-cols-2 gap-1 rounded-[14px] border p-1"
+                    style={{ borderColor: "var(--color-border-strong)", background: "var(--color-paper)" }}
+                  >
+                    {([
+                      { key: "style", label: "Fresh subject" },
+                      { key: "identity", label: "Keep character" },
+                    ] as const).map((opt) => {
+                      const active = mode === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          role="radio"
+                          aria-checked={active}
+                          disabled={flow === "generating" || flow === "minting"}
+                          onClick={() => setMode(opt.key)}
+                          className="micro rounded-[10px] py-2 text-[15px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                          style={
+                            active
+                              ? { background: "var(--color-ink)", color: "var(--color-cream)" }
+                              : { background: "transparent", color: "var(--color-ink-2)" }
+                          }
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2.5 space-y-1 text-[15px] leading-relaxed" style={{ color: "var(--color-ink-3)" }}>
+                    <p>
+                      <span className="font-semibold" style={{ color: "var(--color-ink-2)" }}>Fresh subject:</span>{" "}
+                      your prompt becomes the scene, rendered in this Aura&apos;s style.
+                    </p>
+                    <p>
+                      <span className="font-semibold" style={{ color: "var(--color-ink-2)" }}>Keep character:</span>{" "}
+                      restyle this Aura&apos;s own subject with your prompt.
+                    </p>
+                  </div>
+                </div>
+
                 <Field label="Describe the work" hint={`${prompt.trim().length} chars`} required>
                   <TextArea
                     value={prompt}

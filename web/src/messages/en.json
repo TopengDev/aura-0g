@@ -90,7 +90,8 @@
         "genesisNeeded": "One or both parents need a one-time genesis registration (their genome, derived from their on-chain style fingerprint) before they can fuse. This is owner-signed and recomputable by anyone.",
         "registerGenesis": "Register genesis",
         "requestFusion": "Request fusion",
-        "requestNote": "This is the commit step: it locks the pairing to a future block whose hash seeds the child. You cannot grind the outcome."
+        "requestNote": "This is the commit step: it locks the pairing to a future block whose hash seeds the child. You cannot grind the outcome.",
+        "cooldownNote": "{name} is on cooldown, fusable in {time}"
       },
       "commit": {
         "title": "Commit the fusion",
