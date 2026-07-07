@@ -11,7 +11,7 @@ import { LOCALE_COOKIE, normalizeLocale, type Locale } from "./config";
 type Messages = typeof en;
 const BUNDLES: Record<Locale, Messages> = { en, id };
 
-/** The active locale for this request (from the AURA_LOCALE cookie; defaults to `id`). */
+/** The active locale for this request (from the AURA_LOCALE cookie; defaults to `en`). */
 export async function getGameLocale(): Promise<Locale> {
   const store = await cookies();
   return normalizeLocale(store.get(LOCALE_COOKIE)?.value);

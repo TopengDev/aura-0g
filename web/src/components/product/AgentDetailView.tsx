@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { Reveal } from "@/components/Reveal";
-import { ZeroG } from "@/components/atoms/ZeroG";
 import { PageHeader, Panel, ProvLine, Chip, MetaRow, StatFigure, ActionButton } from "@/components/product/primitives";
 import { AgentSalePanel } from "@/components/product/AgentSalePanel";
 import { SummonPanel } from "@/components/product/SummonPanel";
@@ -177,7 +176,7 @@ export function AgentDetailView({
                   <>
                     Buying this Aura transfers ownership, <strong style={{ color: "var(--color-ink)" }}>re-keys its brain to you, resets its memory</strong>{" "}
                     (you start a fresh bond, the seller is walled off), <strong style={{ color: "var(--color-ink)" }}>and moves its entire future royalty stream</strong>. Every
-                    future sale of any Relic {a.name} has minted (or ever mints) pays its <ZeroG />{" "}
+                    future sale of any Relic {a.name} has minted (or ever mints) pays its {a.royaltyPct}%{" "}
                     royalty to whoever owns this Aura. The royalty follows the work.
                   </>
                 }

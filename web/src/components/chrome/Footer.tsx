@@ -1,21 +1,27 @@
 import { ZeroG } from "@/components/atoms/ZeroG";
 import { EXPLORER, FAUCET_URL, CHAIN_ID, CHAIN_SHORT, CHAIN_TIER } from "@/lib/chains";
 import { fetchHealth, shortAddr } from "@/lib/api";
+import { PROOF_CONTRACTS } from "@/lib/proof-contracts";
+
+// The three headline contracts, sourced from the network-aware baked set (lib/proof-contracts.ts, which
+// mirrors contracts/deployed-v2.json 1:1 and follows APP_CHAIN) rather than from /health. On the mainnet
+// cutover /health.contracts.agentRegistry is the DEAD 0x0 pre-cutover registry (agents now live on the real
+// ERC-7857 AuraINFT), so reading it painted a zero-address "live contract" in the footer. Sourcing from the
+// baked set shows the live AuraINFT (matching the /proof panel) and keeps OutputNFT + Marketplace exactly in
+// lockstep with the deploy manifest. AuraINFT/OutputNFT/Marketplace exist in BOTH the mainnet + testnet sets,
+// so a rollback build (NEXT_PUBLIC_AURA_CHAIN_ID=16602) still resolves the correct testnet addresses.
+const FOOTER_CONTRACT_LABELS = ["AuraINFT", "OutputNFT", "Marketplace"] as const;
 
 // Server component. Footer with the AURA wordmark + thesis, three columns, the LIVE chainId +
 // contract addresses (mono, linking to chainscan), the app-chain network badge, and a faucet helper.
 export async function Footer() {
   const health = await fetchHealth();
   const chainId = health?.chainId ?? CHAIN_ID;
-  const contracts = health?.contracts;
 
-  const contractLinks = contracts
-    ? [
-        { label: "AgentRegistry", addr: contracts.agentRegistry },
-        { label: "OutputNFT", addr: contracts.outputNFT },
-        { label: "Marketplace", addr: contracts.marketplace },
-      ]
-    : [];
+  const contractLinks = FOOTER_CONTRACT_LABELS.map((label) =>
+    PROOF_CONTRACTS.find((c) => c.label === label),
+  ).filter((c): c is (typeof PROOF_CONTRACTS)[number] => c !== undefined)
+    .map((c) => ({ label: c.label, addr: c.addr }));
 
   return (
     <footer className="relative border-t border-[var(--color-border)]" style={{ background: "color-mix(in oklab, var(--color-cream-deep) 70%, transparent)" }}>
